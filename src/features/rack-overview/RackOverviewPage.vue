@@ -1,14 +1,37 @@
 <script setup lang="ts">
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import type { Rack } from '../../types/domain'
 import { useAlertStore } from '../../stores/alertStore'
 import { useAssetStore } from '../../stores/assetStore'
 import { useRoomStore } from '../../stores/roomStore'
+import DataCenterSelector from './components/DataCenterSelector.vue'
+import LayoutOverview from './components/LayoutOverview.vue'
+import RightDetailDrawer from './components/RightDetailDrawer.vue'
+import ViewModeTabs, { type ViewMode } from './components/ViewModeTabs.vue'
+import { getRoomOptions, getRoomRacks } from './layout'
 
 const roomStore = useRoomStore()
 const assetStore = useAssetStore()
 const alertStore = useAlertStore()
 
+const selectedRoomId = ref<string | null>(null)
+const selectedRack = ref<Rack | null>(null)
+const viewMode = ref<ViewMode>('layout')
+
+const roomOptions = computed(() => getRoomOptions(roomStore.rooms))
+const selectedRoom = computed(() => roomOptions.value.find((room) => room.id === selectedRoomId.value))
+const selectedRoomRacks = computed(() => getRoomRacks(selectedRoom.value, roomStore.racks))
 const activeAlerts = computed(() => alertStore.alerts.filter((alert) => alert.status !== 'recovered').length)
+
+watch(roomOptions, (rooms) => {
+  if (!selectedRoomId.value && rooms.length > 0) {
+    selectedRoomId.value = rooms[0].id
+  }
+})
+
+watch(selectedRoomId, () => {
+  selectedRack.value = null
+})
 
 onMounted(async () => {
   await Promise.all([roomStore.loadRooms(), assetStore.loadDevices(), alertStore.loadAlerts()])
@@ -16,21 +39,30 @@ onMounted(async () => {
 </script>
 
 <template>
-  <section class="page">
+  <section class="page rack-overview-page">
     <div class="page-header">
       <div>
         <h2 class="page-title">机柜总览</h2>
-        <p class="page-subtitle">后续将展示 529、99、308、杭州、越南C7 的机房与机柜状态。</p>
+        <p class="page-subtitle">按实际机房查看机柜布局、设备数量、容量占用和告警状态。</p>
       </div>
+      <ViewModeTabs v-model="viewMode" />
     </div>
+
+    <DataCenterSelector
+      class="selector-row"
+      :rooms="roomOptions"
+      :selected-room-id="selectedRoomId"
+      @select="selectedRoomId = $event"
+    />
+
     <div class="overview-metrics" aria-label="数据加载状态">
       <div>
         <strong>{{ roomStore.rooms.length }}</strong>
         <span>机房</span>
       </div>
       <div>
-        <strong>{{ roomStore.racks.length }}</strong>
-        <span>机柜</span>
+        <strong>{{ selectedRoomRacks.length }}</strong>
+        <span>当前机柜</span>
       </div>
       <div>
         <strong>{{ assetStore.devices.length }}</strong>
@@ -41,17 +73,46 @@ onMounted(async () => {
         <span>活动告警</span>
       </div>
     </div>
-    <div class="empty-panel rack-workspace">
+
+    <div v-if="roomStore.loading || assetStore.loading || alertStore.loading" class="empty-panel">
       <div class="empty-panel-inner">
-        <h2>2D 机柜图工作区</h2>
-        <p v-if="roomStore.loading || assetStore.loading || alertStore.loading">正在加载本地数据...</p>
-        <p v-else>这里会优先建设日常运维可用的机柜总览、缩放定位、告警高亮和设备快速查看。</p>
+        <h2>正在加载本地数据</h2>
+        <p>正在读取机房、机柜、设备和告警信息。</p>
       </div>
+    </div>
+
+    <div v-else class="overview-grid">
+      <div class="layout-panel">
+        <LayoutOverview
+          v-if="viewMode === 'layout'"
+          :room="selectedRoom"
+          :racks="selectedRoomRacks"
+          :devices="assetStore.devices"
+          :alerts="alertStore.alerts"
+          :selected-rack-id="selectedRack?.id ?? null"
+          @select-rack="selectedRack = $event"
+        />
+        <div v-else class="empty-panel mode-placeholder">
+          <div class="empty-panel-inner">
+            <h2>{{ viewMode === 'u-view' ? 'U位大图' : '3D轻量视图' }}</h2>
+            <p>该视图将在后续任务中接入，当前先完成布局总览。</p>
+          </div>
+        </div>
+      </div>
+      <RightDetailDrawer :rack="selectedRack" :devices="assetStore.devices" :alerts="alertStore.alerts" />
     </div>
   </section>
 </template>
 
 <style scoped>
+.rack-overview-page {
+  min-width: 0;
+}
+
+.selector-row {
+  margin-bottom: 16px;
+}
+
 .overview-metrics {
   display: grid;
   grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -80,7 +141,19 @@ onMounted(async () => {
   color: var(--color-text-muted);
 }
 
-.rack-workspace {
-  min-height: 360px;
+.overview-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 16px;
+  align-items: start;
+}
+
+.layout-panel {
+  min-width: 0;
+  overflow-x: auto;
+}
+
+.mode-placeholder {
+  min-height: 420px;
 }
 </style>

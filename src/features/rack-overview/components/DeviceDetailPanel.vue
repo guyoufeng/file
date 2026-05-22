@@ -21,6 +21,10 @@ defineProps<{
       <div><dt>硬件配置</dt><dd>{{ device.hardwareSpec }}</dd></div>
       <div><dt>维保到期</dt><dd>{{ device.warrantyExpireAt }}</dd></div>
     </dl>
+    <div class="reserved-link-panel">
+      <strong>端口 / 连线</strong>
+      <p>v0.1 已预留端口和连线模型，后续可在这里查看交换机接口、对端设备、线缆编号和 AI 录入记录。</p>
+    </div>
   </section>
 </template>
 
@@ -60,5 +64,20 @@ dt {
 dd {
   margin: 0;
   word-break: break-all;
+}
+
+.reserved-link-panel {
+  display: grid;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid rgba(56, 189, 248, 0.26);
+  border-radius: 8px;
+  background: rgba(14, 165, 233, 0.08);
+}
+
+.reserved-link-panel p {
+  margin: 0;
+  color: var(--color-text-muted);
+  line-height: 1.6;
 }
 </style>

@@ -1,10 +1,12 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import type { Rack } from '../../types/domain'
+import type { DeviceSearchResult } from '../../services/search/deviceSearch'
 import { useAlertStore } from '../../stores/alertStore'
 import { useAssetStore } from '../../stores/assetStore'
 import { useRoomStore } from '../../stores/roomStore'
 import DataCenterSelector from './components/DataCenterSelector.vue'
+import GlobalSearchBox from './components/GlobalSearchBox.vue'
 import LayoutOverview from './components/LayoutOverview.vue'
 import RackUView from './components/RackUView.vue'
 import RightDetailDrawer from './components/RightDetailDrawer.vue'
@@ -17,12 +19,14 @@ const alertStore = useAlertStore()
 
 const selectedRoomId = ref<string | null>(null)
 const selectedRack = ref<Rack | null>(null)
+const selectedDeviceId = ref<string | null>(null)
 const viewMode = ref<ViewMode>('layout')
 
 const roomOptions = computed(() => getRoomOptions(roomStore.rooms))
 const selectedRoom = computed(() => roomOptions.value.find((room) => room.id === selectedRoomId.value))
 const selectedRoomRacks = computed(() => getRoomRacks(selectedRoom.value, roomStore.racks))
 const activeRack = computed(() => selectedRack.value ?? selectedRoomRacks.value[0] ?? null)
+const selectedDevice = computed(() => assetStore.devices.find((device) => device.id === selectedDeviceId.value) ?? null)
 const activeAlerts = computed(() => alertStore.alerts.filter((alert) => alert.status !== 'recovered').length)
 
 watch(roomOptions, (rooms) => {
@@ -33,11 +37,21 @@ watch(roomOptions, (rooms) => {
 
 watch(selectedRoomId, () => {
   selectedRack.value = null
+  selectedDeviceId.value = null
 })
 
 onMounted(async () => {
   await Promise.all([roomStore.loadRooms(), assetStore.loadDevices(), alertStore.loadAlerts()])
 })
+
+function locateSearchResult(result: DeviceSearchResult) {
+  if (result.room) {
+    selectedRoomId.value = result.room.id
+  }
+  selectedRack.value = result.rack ?? null
+  selectedDeviceId.value = result.device.id
+  viewMode.value = 'layout'
+}
 </script>
 
 <template>
@@ -55,6 +69,13 @@ onMounted(async () => {
       :rooms="roomOptions"
       :selected-room-id="selectedRoomId"
       @select="selectedRoomId = $event"
+    />
+    <GlobalSearchBox
+      class="search-row"
+      :rooms="roomOptions"
+      :racks="roomStore.racks"
+      :devices="assetStore.devices"
+      @locate="locateSearchResult"
     />
 
     <div class="overview-metrics" aria-label="数据加载状态">
@@ -92,12 +113,13 @@ onMounted(async () => {
           :devices="assetStore.devices"
           :alerts="alertStore.alerts"
           :selected-rack-id="selectedRack?.id ?? null"
-          @select-rack="selectedRack = $event"
+          @select-rack="selectedRack = $event; selectedDeviceId = null"
         />
         <RackUView
           v-else-if="viewMode === 'u-view'"
           :rack="activeRack"
           :devices="assetStore.devices"
+          :highlight-device-id="selectedDeviceId"
         />
         <div v-else class="empty-panel mode-placeholder">
           <div class="empty-panel-inner">
@@ -106,7 +128,12 @@ onMounted(async () => {
           </div>
         </div>
       </div>
-      <RightDetailDrawer :rack="selectedRack" :devices="assetStore.devices" :alerts="alertStore.alerts" />
+      <RightDetailDrawer
+        :rack="activeRack"
+        :device="selectedDevice"
+        :devices="assetStore.devices"
+        :alerts="alertStore.alerts"
+      />
     </div>
   </section>
 </template>
@@ -117,6 +144,10 @@ onMounted(async () => {
 }
 
 .selector-row {
+  margin-bottom: 16px;
+}
+
+.search-row {
   margin-bottom: 16px;
 }
 

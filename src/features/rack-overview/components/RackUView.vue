@@ -7,11 +7,12 @@ import ZoomToolbar from './ZoomToolbar.vue'
 const props = defineProps<{
   rack: Rack | null
   devices: Device[]
+  highlightDeviceId?: string | null
 }>()
 
 const zoom = ref(1)
 const rackDevices = computed(() => props.devices.filter((device) => device.rackId === props.rack?.id))
-const highlightDeviceId = computed(() => rackDevices.value[0]?.id ?? null)
+const activeHighlightDeviceId = computed(() => props.highlightDeviceId ?? rackDevices.value[0]?.id ?? null)
 </script>
 
 <template>
@@ -29,7 +30,7 @@ const highlightDeviceId = computed(() => rackDevices.value[0]?.id ?? null)
       :rack="rack"
       :devices="devices"
       :zoom="zoom"
-      :highlight-device-id="highlightDeviceId"
+      :highlight-device-id="activeHighlightDeviceId"
     />
     <div v-else class="empty-panel">
       <div class="empty-panel-inner">

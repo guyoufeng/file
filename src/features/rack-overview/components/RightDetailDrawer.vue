@@ -1,49 +1,41 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import type { Alert, Device, Rack } from '../../../types/domain'
-import { getRackTileStats } from '../layout'
+import AlertDetailPanel from './AlertDetailPanel.vue'
+import DeviceDetailPanel from './DeviceDetailPanel.vue'
+import RackDetailPanel from './RackDetailPanel.vue'
 
 const props = defineProps<{
   rack: Rack | null
+  device: Device | null
   devices: Device[]
   alerts: Alert[]
 }>()
 
 const rackDevices = computed(() => props.devices.filter((device) => device.rackId === props.rack?.id))
-const stats = computed(() =>
-  props.rack ? getRackTileStats(props.rack, props.devices, props.alerts) : null,
+const rackDeviceIds = computed(() => new Set(rackDevices.value.map((device) => device.id)))
+const relatedAlerts = computed(() =>
+  props.alerts.filter((alert) => {
+    if (props.device) {
+      return alert.deviceId === props.device.id && alert.status !== 'recovered'
+    }
+    return rackDeviceIds.value.has(alert.deviceId) && alert.status !== 'recovered'
+  }),
 )
 </script>
 
 <template>
   <aside class="detail-drawer">
-    <template v-if="rack && stats">
-      <p class="eyebrow">机柜详情</p>
-      <h3>{{ rack.name }}</h3>
-      <dl>
-        <div>
-          <dt>状态</dt>
-          <dd>{{ rack.status }}</dd>
-        </div>
-        <div>
-          <dt>设备</dt>
-          <dd>{{ stats.deviceCount }} 台</dd>
-        </div>
-        <div>
-          <dt>容量</dt>
-          <dd>{{ stats.capacityText }}</dd>
-        </div>
-        <div>
-          <dt>告警</dt>
-          <dd>{{ stats.alertCount }} 条</dd>
-        </div>
-      </dl>
+    <template v-if="rack">
+      <DeviceDetailPanel :device="device" />
+      <RackDetailPanel v-if="!device" :rack="rack" :devices="devices" :alerts="alerts" />
       <div class="device-list">
         <strong>设备概览</strong>
         <p v-for="device in rackDevices.slice(0, 5)" :key="device.id">
           {{ device.computerName }} / {{ device.businessIp }} / {{ device.purpose }}
         </p>
       </div>
+      <AlertDetailPanel :alerts="relatedAlerts" />
     </template>
     <template v-else>
       <p class="eyebrow">机柜详情</p>
@@ -56,6 +48,9 @@ const stats = computed(() =>
 <style scoped>
 .detail-drawer {
   min-height: 100%;
+  display: grid;
+  gap: 18px;
+  align-content: start;
   padding: 16px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
@@ -68,31 +63,9 @@ const stats = computed(() =>
   font-size: 12px;
 }
 
-h3 {
-  margin: 0 0 16px;
-  font-size: 18px;
-}
-
-dl {
-  display: grid;
-  gap: 10px;
-  margin: 0 0 18px;
-}
-
-dl div {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-dt,
 .empty,
 .device-list p {
   color: var(--color-text-muted);
-}
-
-dd {
-  margin: 0;
 }
 
 .device-list {

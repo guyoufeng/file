@@ -1,7 +1,11 @@
 <script setup lang="ts">
+import { ref } from 'vue'
 import { NButton } from 'naive-ui'
+import AiAssistantDrawer from '../../features/ai-assistant/AiAssistantDrawer.vue'
 import SideNav from './SideNav.vue'
 import TopBar from './TopBar.vue'
+
+const aiOpen = ref(false)
 </script>
 
 <template>
@@ -13,7 +17,8 @@ import TopBar from './TopBar.vue'
         <RouterView />
       </main>
     </div>
-    <NButton class="ai-entry" type="primary" round>AI 助手</NButton>
+    <NButton class="ai-entry" type="primary" round @click="aiOpen = true">AI 助手</NButton>
+    <AiAssistantDrawer :open="aiOpen" @close="aiOpen = false" />
   </div>
 </template>
 

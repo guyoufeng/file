@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import AiModelSettings from './components/AiModelSettings.vue'
+import AuditLogPanel from './components/AuditLogPanel.vue'
 </script>
 
 <template>
@@ -11,5 +12,6 @@ import AiModelSettings from './components/AiModelSettings.vue'
       </div>
     </div>
     <AiModelSettings />
+    <AuditLogPanel />
   </section>
 </template>

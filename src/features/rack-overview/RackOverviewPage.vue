@@ -23,7 +23,7 @@ const selectedDeviceId = ref<string | null>(null)
 const viewMode = ref<ViewMode>('layout')
 
 const roomOptions = computed(() => getRoomOptions(roomStore.rooms))
-const selectedRoom = computed(() => roomOptions.value.find((room) => room.id === selectedRoomId.value))
+const selectedRoom = computed(() => roomOptions.value.find((room) => room.id === selectedRoomId.value) ?? roomOptions.value[0])
 const selectedRoomRacks = computed(() => getRoomRacks(selectedRoom.value, roomStore.racks))
 const activeRack = computed(() => selectedRack.value ?? selectedRoomRacks.value[0] ?? null)
 const selectedDevice = computed(() => assetStore.devices.find((device) => device.id === selectedDeviceId.value) ?? null)

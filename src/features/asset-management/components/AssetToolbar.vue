@@ -6,6 +6,8 @@ defineProps<{
 const emit = defineEmits<{
   'update:search': [value: string]
   add: []
+  import: []
+  export: []
 }>()
 </script>
 
@@ -17,7 +19,11 @@ const emit = defineEmits<{
       placeholder="搜索计算机名、业务IP、资产编号、SN号、责任人"
       @input="emit('update:search', ($event.target as HTMLInputElement).value)"
     />
-    <button type="button" @click="emit('add')">新增设备</button>
+    <div class="actions">
+      <button type="button" @click="emit('import')">导入Excel</button>
+      <button type="button" @click="emit('export')">导出设备</button>
+      <button type="button" @click="emit('add')">新增设备</button>
+    </div>
   </div>
 </template>
 
@@ -47,5 +53,10 @@ button {
   color: var(--color-text);
   background: rgba(14, 165, 233, 0.16);
   cursor: pointer;
+}
+
+.actions {
+  display: flex;
+  gap: 8px;
 }
 </style>

@@ -1,5 +1,6 @@
 import { defaultDeviceCategories } from '../../constants/categories'
 import type { Alert, DataCenter, Device, Rack, Room } from '../../types/domain'
+import { invokeCommand } from './invoke'
 
 export interface SampleProject {
   schemaVersion: '0.1.0'
@@ -8,6 +9,24 @@ export interface SampleProject {
   racks: Rack[]
   devices: Device[]
   alerts: Alert[]
+}
+
+export interface ProjectJson {
+  schemaVersion: string
+  exportedAt: string
+  data: Partial<SampleProject>
+}
+
+export interface ProjectSummary {
+  roomCount: number
+  rackCount: number
+  deviceCount: number
+  alertCount: number
+}
+
+export interface ProjectValidationResult {
+  valid: boolean
+  message: string
 }
 
 function createSampleProject(): SampleProject {
@@ -157,3 +176,59 @@ function createSampleProject(): SampleProject {
 
 export const sampleProject = createSampleProject()
 export const sampleDeviceCategories = defaultDeviceCategories
+
+export function getProjectSummary(project: ProjectJson): ProjectSummary {
+  return {
+    roomCount: project.data.rooms?.length ?? 0,
+    rackCount: project.data.racks?.length ?? 0,
+    deviceCount: project.data.devices?.length ?? 0,
+    alertCount: project.data.alerts?.length ?? 0,
+  }
+}
+
+export function validateProjectJson(value: unknown): ProjectValidationResult {
+  if (!value || typeof value !== 'object') {
+    return { valid: false, message: '项目 JSON 格式不正确' }
+  }
+
+  const project = value as Partial<ProjectJson>
+  if (project.schemaVersion !== '0.1.0') {
+    return { valid: false, message: '仅支持 v0.1.0 项目 JSON' }
+  }
+
+  if (!project.data || typeof project.data !== 'object') {
+    return { valid: false, message: '项目 JSON 缺少 data 节点' }
+  }
+
+  const data = project.data as Partial<SampleProject>
+  if (!Array.isArray(data.rooms) || !Array.isArray(data.racks) || !Array.isArray(data.devices) || !Array.isArray(data.alerts)) {
+    return { valid: false, message: '项目 JSON 缺少 rooms、racks、devices 或 alerts 集合' }
+  }
+
+  return { valid: true, message: '项目 JSON 校验通过' }
+}
+
+export async function exportProjectJson(): Promise<ProjectJson> {
+  try {
+    return await invokeCommand<ProjectJson>('export_project_json')
+  } catch {
+    return {
+      schemaVersion: '0.1.0',
+      exportedAt: new Date().toISOString(),
+      data: sampleProject,
+    }
+  }
+}
+
+export async function importProjectJson(project: ProjectJson): Promise<void> {
+  const validation = validateProjectJson(project)
+  if (!validation.valid) {
+    throw new Error(validation.message)
+  }
+
+  await invokeCommand<void>('import_project_json', { project })
+}
+
+export async function restoreSampleProject(): Promise<void> {
+  await invokeCommand<void>('restore_sample_data', { confirmed: true })
+}

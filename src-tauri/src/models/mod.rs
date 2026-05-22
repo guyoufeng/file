@@ -2,12 +2,30 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
 #[serde(rename_all = "camelCase")]
+pub struct DataCenter {
+    pub id: String,
+    pub name: String,
+    pub location: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[serde(rename_all = "camelCase")]
 pub struct Room {
     pub id: String,
     pub data_center_id: String,
     pub name: String,
     pub layout_type: String,
     pub default_rack_height_u: i64,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]
+#[serde(rename_all = "camelCase")]
+pub struct MicroModule {
+    pub id: String,
+    pub room_id: String,
+    pub name: String,
+    pub rows: i64,
+    pub columns: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, sqlx::FromRow)]

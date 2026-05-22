@@ -1,0 +1,45 @@
+{
+  "name": "qf-ai-dcim",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vue-tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "tauri": "tauri",
+    "typecheck": "vue-tsc --noEmit",
+    "test": "vitest run",
+    "test:smoke": "playwright test"
+  },
+  "dependencies": {
+    "@tauri-apps/api": "^2.11.0",
+    "@vicons/ionicons5": "^0.13.0",
+    "dayjs": "^1.11.20",
+    "konva": "^10.3.0",
+    "naive-ui": "^2.44.1",
+    "pinia": "^3.0.4",
+    "three": "^0.184.0",
+    "uuid": "^14.0.0",
+    "vue": "^3.5.34",
+    "vue-konva": "^3.4.0",
+    "vue-router": "^5.0.7",
+    "xlsx": "^0.18.5"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.60.0",
+    "@tauri-apps/cli": "^2.11.2",
+    "@types/node": "^24.12.3",
+    "@vitejs/plugin-vue": "^6.0.6",
+    "@vue/test-utils": "^2.4.10",
+    "@vue/tsconfig": "^0.9.1",
+    "eslint": "^10.4.0",
+    "jsdom": "^29.1.1",
+    "playwright": "^1.60.0",
+    "prettier": "^3.8.3",
+    "typescript": "~6.0.2",
+    "vite": "^8.0.12",
+    "vitest": "^4.1.7",
+    "vue-tsc": "^3.2.8"
+  }
+}

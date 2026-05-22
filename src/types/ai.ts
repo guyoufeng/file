@@ -15,3 +15,8 @@ export interface AiQueryResult {
   toolCalls: AiToolCall[]
   queriedAt: string
 }
+
+export interface AiMessageInput {
+  role: 'system' | 'user' | 'assistant'
+  content: string
+}

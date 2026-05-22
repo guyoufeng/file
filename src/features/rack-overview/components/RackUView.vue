@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import type { Device, Rack } from '../../../types/domain'
+import type { Alert, Device, Rack } from '../../../types/domain'
 import RackColumnCanvas from './RackColumnCanvas.vue'
 import ZoomToolbar from './ZoomToolbar.vue'
 
 const props = defineProps<{
   rack: Rack | null
   devices: Device[]
+  alerts?: Alert[]
   highlightDeviceId?: string | null
 }>()
 
@@ -29,6 +30,7 @@ const activeHighlightDeviceId = computed(() => props.highlightDeviceId ?? rackDe
       v-if="rack"
       :rack="rack"
       :devices="devices"
+      :alerts="alerts"
       :zoom="zoom"
       :highlight-device-id="activeHighlightDeviceId"
     />

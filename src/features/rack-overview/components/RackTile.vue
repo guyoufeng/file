@@ -27,13 +27,19 @@ const rackTypeLabels: Record<string, string> = {
 }
 
 const stats = computed(() => getRackTileStats(props.rack, props.devices, props.alerts))
+const activeRackAlerts = computed(() => {
+  const deviceIds = new Set(props.devices.filter((device) => device.rackId === props.rack.id).map((device) => device.id))
+  return props.alerts.filter((alert) => deviceIds.has(alert.deviceId) && alert.status !== 'recovered')
+})
+const hasCriticalAlert = computed(() => activeRackAlerts.value.some((alert) => alert.level === 'critical'))
+const hasWarningAlert = computed(() => activeRackAlerts.value.some((alert) => alert.level === 'warning'))
 </script>
 
 <template>
   <button
     type="button"
     class="rack-tile"
-    :class="{ alert: stats.alertCount > 0, selected }"
+    :class="{ alert: stats.alertCount > 0, critical: hasCriticalAlert, warning: hasWarningAlert && !hasCriticalAlert, selected }"
     @click="emit('select', rack)"
   >
     <span class="rack-name">{{ rack.name }}</span>
@@ -73,6 +79,20 @@ const stats = computed(() => getRackTileStats(props.rack, props.devices, props.a
 .rack-tile.alert {
   border-color: rgba(239, 68, 68, 0.82);
   box-shadow: inset 0 0 0 1px rgba(239, 68, 68, 0.2);
+}
+
+.rack-tile.critical {
+  border-color: rgba(239, 68, 68, 0.95);
+  box-shadow:
+    inset 0 0 0 1px rgba(239, 68, 68, 0.28),
+    0 0 18px rgba(239, 68, 68, 0.18);
+}
+
+.rack-tile.warning {
+  border-color: rgba(245, 158, 11, 0.9);
+  box-shadow:
+    inset 0 0 0 1px rgba(245, 158, 11, 0.24),
+    0 0 18px rgba(245, 158, 11, 0.14);
 }
 
 .rack-name {

@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import type { Device, Rack } from '../../../types/domain'
+import type { Alert, Device, Rack } from '../../../types/domain'
 import { categoryColors } from '../../../constants/colors'
 import { getDeviceBlockHeight, getDeviceBlockY } from '../../../services/rack/uPosition'
 
 const props = defineProps<{
   rack: Rack
   devices: Device[]
+  alerts?: Alert[]
   zoom: number
   highlightDeviceId?: string | null
 }>()
@@ -34,6 +35,9 @@ function deviceText(device: Device): string {
 }
 
 function deviceColor(device: Device): string {
+  const activeAlert = props.alerts?.find((alert) => alert.deviceId === device.id && alert.status !== 'recovered')
+  if (activeAlert?.level === 'critical') return '#EF4444'
+  if (activeAlert?.level === 'warning') return '#F59E0B'
   return categoryColors[device.categoryId as keyof typeof categoryColors] ?? categoryColors.other
 }
 </script>
@@ -78,7 +82,7 @@ function deviceColor(device: Device): string {
               opacity: 0.86,
               cornerRadius: 4,
               stroke: device.id === highlightDeviceId ? '#FDE68A' : '#E5EEFB',
-              strokeWidth: device.id === highlightDeviceId ? 2 : 0.6,
+              strokeWidth: device.id === highlightDeviceId ? 2 : props.alerts?.some((alert) => alert.deviceId === device.id && alert.status !== 'recovered') ? 1.5 : 0.6,
             }"
           />
           <v-text

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { useRoute } from 'vue-router'
 import type { Rack } from '../../types/domain'
 import type { DeviceSearchResult } from '../../services/search/deviceSearch'
 import { useAlertStore } from '../../stores/alertStore'
@@ -16,6 +17,7 @@ import { getRoomOptions, getRoomRacks } from './layout'
 const roomStore = useRoomStore()
 const assetStore = useAssetStore()
 const alertStore = useAlertStore()
+const route = useRoute()
 
 const selectedRoomId = ref<string | null>(null)
 const selectedRack = ref<Rack | null>(null)
@@ -42,6 +44,9 @@ watch(selectedRoomId, () => {
 
 onMounted(async () => {
   await Promise.all([roomStore.loadRooms(), assetStore.loadDevices(), alertStore.loadAlerts()])
+  if (typeof route.query.roomId === 'string') selectedRoomId.value = route.query.roomId
+  if (typeof route.query.rackId === 'string') selectedRack.value = roomStore.racks.find((rack) => rack.id === route.query.rackId) ?? null
+  if (typeof route.query.deviceId === 'string') selectedDeviceId.value = route.query.deviceId
 })
 
 async function locateSearchResult(result: DeviceSearchResult) {
@@ -120,6 +125,7 @@ async function locateSearchResult(result: DeviceSearchResult) {
           v-else-if="viewMode === 'u-view'"
           :rack="activeRack"
           :devices="assetStore.devices"
+          :alerts="alertStore.alerts"
           :highlight-device-id="selectedDeviceId"
         />
         <div v-else class="empty-panel mode-placeholder">

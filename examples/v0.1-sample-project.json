@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "0.1.0",
+  "exportedAt": "2026-05-22T00:00:00+08:00",
+  "data": {
+    "summary": {
+      "rooms": 5,
+      "racks": 52,
+      "devices": 208,
+      "alerts": 12
+    },
+    "topology": [
+      {
+        "dataCenter": "南京",
+        "room": "529数据中心",
+        "layoutType": "micro_module",
+        "microModules": [
+          { "name": "华为微模块A", "rows": 2, "columns": 10 },
+          { "name": "华为微模块B", "rows": 2, "columns": 10 }
+        ],
+        "rackCount": 40
+      },
+      { "dataCenter": "南京", "room": "99数据中心", "layoutType": "simple_rows", "rackCount": 4 },
+      { "dataCenter": "南京", "room": "308数据中心", "layoutType": "simple_rows", "rackCount": 3 },
+      { "dataCenter": "杭州", "room": "杭州数据中心", "layoutType": "simple_rows", "rackCount": 3 },
+      { "dataCenter": "越南", "room": "越南C7数据中心", "layoutType": "single_rack", "rackCount": 2 }
+    ],
+    "defaultRackHeightU": 48,
+    "deviceDisplayFields": ["计算机名", "业务IP地址", "用途"]
+  }
+}

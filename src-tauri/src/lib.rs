@@ -1,12 +1,13 @@
 mod commands;
 mod db;
+mod export;
 mod models;
 
 use commands::{
     alerts::{get_alerts, upsert_alert},
     assets::{delete_device, export_project_json, get_devices, import_project_json, upsert_device},
     rooms::{get_racks, get_rooms},
-    settings::{get_ai_model_configs, get_audit_logs, save_ai_model_config},
+    settings::{get_ai_model_configs, get_audit_logs, restore_sample_data, save_ai_model_config},
     AppState,
 };
 use tauri::Manager;
@@ -39,6 +40,7 @@ pub fn run() {
             get_ai_model_configs,
             save_ai_model_config,
             get_audit_logs,
+            restore_sample_data,
             export_project_json,
             import_project_json
         ])

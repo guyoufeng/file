@@ -3,6 +3,7 @@ use uuid::Uuid;
 
 use crate::{
     commands::AppState,
+    db::seed,
     models::{AiModelConfig, AiModelConfigInput, AuditLog},
 };
 
@@ -11,11 +12,11 @@ pub async fn get_ai_model_configs(
     state: State<'_, AppState>,
 ) -> Result<Vec<AiModelConfig>, String> {
     sqlx::query_as::<_, AiModelConfig>(
-    "SELECT id, provider, name, base_url, model, api_key_ref, enabled FROM ai_model_configs ORDER BY provider, name",
-  )
-  .fetch_all(&state.pool)
-  .await
-  .map_err(|error| error.to_string())
+        "SELECT id, provider, name, base_url, model, api_key_ref, enabled FROM ai_model_configs ORDER BY provider, name",
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -34,7 +35,7 @@ pub async fn save_ai_model_config(
     }
 
     sqlx::query(
-    r#"
+        r#"
     INSERT INTO ai_model_configs (id, provider, name, base_url, model, api_key_ref, enabled, updated_at)
     VALUES (?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP)
     ON CONFLICT(id) DO UPDATE SET
@@ -46,25 +47,25 @@ pub async fn save_ai_model_config(
       enabled = excluded.enabled,
       updated_at = CURRENT_TIMESTAMP
     "#,
-  )
-  .bind(&id)
-  .bind(input.provider)
-  .bind(input.name)
-  .bind(input.base_url)
-  .bind(input.model)
-  .bind(input.api_key_ref)
-  .bind(enabled)
-  .execute(&state.pool)
-  .await
-  .map_err(|error| error.to_string())?;
+    )
+    .bind(&id)
+    .bind(input.provider)
+    .bind(input.name)
+    .bind(input.base_url)
+    .bind(input.model)
+    .bind(input.api_key_ref)
+    .bind(enabled)
+    .execute(&state.pool)
+    .await
+    .map_err(|error| error.to_string())?;
 
     sqlx::query_as::<_, AiModelConfig>(
-    "SELECT id, provider, name, base_url, model, api_key_ref, enabled FROM ai_model_configs WHERE id = ?",
-  )
-  .bind(id)
-  .fetch_one(&state.pool)
-  .await
-  .map_err(|error| error.to_string())
+        "SELECT id, provider, name, base_url, model, api_key_ref, enabled FROM ai_model_configs WHERE id = ?",
+    )
+    .bind(id)
+    .fetch_one(&state.pool)
+    .await
+    .map_err(|error| error.to_string())
 }
 
 #[tauri::command]
@@ -75,10 +76,20 @@ pub async fn get_audit_logs(
     let limit = limit.unwrap_or(100).clamp(1, 500);
 
     sqlx::query_as::<_, AuditLog>(
-    "SELECT id, actor, action, target_type, target_id, summary, metadata_json, created_at FROM audit_logs ORDER BY created_at DESC LIMIT ?",
-  )
-  .bind(limit)
-  .fetch_all(&state.pool)
-  .await
-  .map_err(|error| error.to_string())
+        "SELECT id, actor, action, target_type, target_id, summary, metadata_json, created_at FROM audit_logs ORDER BY created_at DESC LIMIT ?",
+    )
+    .bind(limit)
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub async fn restore_sample_data(
+    state: State<'_, AppState>,
+    confirmed: bool,
+) -> Result<(), String> {
+    seed::restore_sample_data(&state.pool, confirmed)
+        .await
+        .map_err(|error| error.to_string())
 }

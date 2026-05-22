@@ -7,6 +7,8 @@ use sqlx::{
 };
 use tauri::{AppHandle, Manager};
 
+pub mod seed;
+
 static MIGRATOR: Migrator = sqlx::migrate!("./src/db/migrations");
 
 pub async fn init(app: &AppHandle) -> anyhow::Result<SqlitePool> {

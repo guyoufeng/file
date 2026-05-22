@@ -3,6 +3,7 @@ use uuid::Uuid;
 
 use crate::{
     commands::AppState,
+    export::project_json::PROJECT_SCHEMA_VERSION,
     models::{AiModelConfig, Alert, AuditLog, Device, DeviceInput, ProjectJson, Rack, Room},
 };
 
@@ -167,7 +168,7 @@ pub async fn export_project_json(state: State<'_, AppState>) -> Result<ProjectJs
     .map_err(|error| error.to_string())?;
 
     Ok(ProjectJson {
-        schema_version: "0.1.0".to_string(),
+        schema_version: PROJECT_SCHEMA_VERSION.to_string(),
         exported_at: chrono::Utc::now().to_rfc3339(),
         data: serde_json::json!({
             "rooms": rooms,

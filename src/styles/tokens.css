@@ -1,0 +1,13 @@
+:root {
+  --color-bg: #050a16;
+  --color-panel: #111827;
+  --color-panel-soft: #151c2e;
+  --color-border: #263247;
+  --color-text: #e5eefb;
+  --color-text-muted: #94a3b8;
+  --color-primary: #0ea5e9;
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --color-critical: #ef4444;
+  --font-sans: Inter, "Microsoft YaHei", "PingFang SC", "Segoe UI", Arial, sans-serif;
+}

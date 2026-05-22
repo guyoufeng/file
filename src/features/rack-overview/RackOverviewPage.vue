@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import type { Rack } from '../../types/domain'
 import type { DeviceSearchResult } from '../../services/search/deviceSearch'
@@ -9,10 +9,13 @@ import { useRoomStore } from '../../stores/roomStore'
 import DataCenterSelector from './components/DataCenterSelector.vue'
 import GlobalSearchBox from './components/GlobalSearchBox.vue'
 import LayoutOverview from './components/LayoutOverview.vue'
+import LeadershipModeToggle from './components/LeadershipModeToggle.vue'
 import RackUView from './components/RackUView.vue'
 import RightDetailDrawer from './components/RightDetailDrawer.vue'
 import ViewModeTabs, { type ViewMode } from './components/ViewModeTabs.vue'
 import { getRoomOptions, getRoomRacks } from './layout'
+
+const Rack3DView = defineAsyncComponent(() => import('./components/Rack3DView.vue'))
 
 const roomStore = useRoomStore()
 const assetStore = useAssetStore()
@@ -23,6 +26,7 @@ const selectedRoomId = ref<string | null>(null)
 const selectedRack = ref<Rack | null>(null)
 const selectedDeviceId = ref<string | null>(null)
 const viewMode = ref<ViewMode>('layout')
+const leadershipMode = ref(false)
 
 const roomOptions = computed(() => getRoomOptions(roomStore.rooms))
 const selectedRoom = computed(() => roomOptions.value.find((room) => room.id === selectedRoomId.value) ?? roomOptions.value[0])
@@ -61,13 +65,16 @@ async function locateSearchResult(result: DeviceSearchResult) {
 </script>
 
 <template>
-  <section class="page rack-overview-page">
+  <section class="page rack-overview-page" :class="{ 'leadership-mode': leadershipMode }">
     <div class="page-header">
       <div>
         <h2 class="page-title">机柜总览</h2>
         <p class="page-subtitle">按实际机房查看机柜布局、设备数量、容量占用和告警状态。</p>
       </div>
-      <ViewModeTabs v-model="viewMode" />
+      <div class="header-actions">
+        <LeadershipModeToggle v-model="leadershipMode" />
+        <ViewModeTabs v-model="viewMode" />
+      </div>
     </div>
 
     <DataCenterSelector
@@ -128,12 +135,16 @@ async function locateSearchResult(result: DeviceSearchResult) {
           :alerts="alertStore.alerts"
           :highlight-device-id="selectedDeviceId"
         />
-        <div v-else class="empty-panel mode-placeholder">
-          <div class="empty-panel-inner">
-            <h2>{{ viewMode === 'u-view' ? 'U位大图' : '3D轻量视图' }}</h2>
-            <p>该视图将在后续任务中接入，当前先完成布局总览。</p>
-          </div>
-        </div>
+        <Rack3DView
+          v-else
+          :room="selectedRoom"
+          :racks="selectedRoomRacks"
+          :devices="assetStore.devices"
+          :alerts="alertStore.alerts"
+          :selected-rack-id="selectedRack?.id ?? null"
+          :leadership-mode="leadershipMode"
+          @select-rack="selectedRack = $event; selectedDeviceId = null"
+        />
       </div>
       <RightDetailDrawer
         :rack="activeRack"
@@ -152,6 +163,14 @@ async function locateSearchResult(result: DeviceSearchResult) {
 
 .selector-row {
   margin-bottom: 16px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .search-row {
@@ -180,6 +199,16 @@ async function locateSearchResult(result: DeviceSearchResult) {
   color: var(--color-text);
   font-size: 28px;
   line-height: 1;
+}
+
+.leadership-mode .overview-metrics strong {
+  color: #e0f2fe;
+  font-size: 34px;
+}
+
+.leadership-mode .overview-metrics div {
+  border-color: rgba(56, 189, 248, 0.34);
+  background: rgba(8, 47, 73, 0.46);
 }
 
 .overview-metrics span {

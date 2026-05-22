@@ -6,6 +6,7 @@ import { useAssetStore } from '../../stores/assetStore'
 import { useRoomStore } from '../../stores/roomStore'
 import DataCenterSelector from './components/DataCenterSelector.vue'
 import LayoutOverview from './components/LayoutOverview.vue'
+import RackUView from './components/RackUView.vue'
 import RightDetailDrawer from './components/RightDetailDrawer.vue'
 import ViewModeTabs, { type ViewMode } from './components/ViewModeTabs.vue'
 import { getRoomOptions, getRoomRacks } from './layout'
@@ -21,6 +22,7 @@ const viewMode = ref<ViewMode>('layout')
 const roomOptions = computed(() => getRoomOptions(roomStore.rooms))
 const selectedRoom = computed(() => roomOptions.value.find((room) => room.id === selectedRoomId.value))
 const selectedRoomRacks = computed(() => getRoomRacks(selectedRoom.value, roomStore.racks))
+const activeRack = computed(() => selectedRack.value ?? selectedRoomRacks.value[0] ?? null)
 const activeAlerts = computed(() => alertStore.alerts.filter((alert) => alert.status !== 'recovered').length)
 
 watch(roomOptions, (rooms) => {
@@ -91,6 +93,11 @@ onMounted(async () => {
           :alerts="alertStore.alerts"
           :selected-rack-id="selectedRack?.id ?? null"
           @select-rack="selectedRack = $event"
+        />
+        <RackUView
+          v-else-if="viewMode === 'u-view'"
+          :rack="activeRack"
+          :devices="assetStore.devices"
         />
         <div v-else class="empty-panel mode-placeholder">
           <div class="empty-panel-inner">

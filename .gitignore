@@ -1,0 +1,15 @@
+node_modules/
+dist/
+target/
+src-tauri/target/
+.env
+.env.*
+!.env.example
+.superpowers/
+*.db
+*.sqlite
+*.sqlite3
+*.log
+coverage/
+playwright-report/
+test-results/

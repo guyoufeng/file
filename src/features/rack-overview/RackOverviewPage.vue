@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, ref, watch } from 'vue'
 import type { Rack } from '../../types/domain'
 import type { DeviceSearchResult } from '../../services/search/deviceSearch'
 import { useAlertStore } from '../../stores/alertStore'
@@ -44,10 +44,11 @@ onMounted(async () => {
   await Promise.all([roomStore.loadRooms(), assetStore.loadDevices(), alertStore.loadAlerts()])
 })
 
-function locateSearchResult(result: DeviceSearchResult) {
+async function locateSearchResult(result: DeviceSearchResult) {
   if (result.room) {
     selectedRoomId.value = result.room.id
   }
+  await nextTick()
   selectedRack.value = result.rack ?? null
   selectedDeviceId.value = result.device.id
   viewMode.value = 'layout'

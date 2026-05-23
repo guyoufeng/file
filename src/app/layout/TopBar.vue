@@ -35,8 +35,8 @@ function formatTime(date: Date): string {
     </div>
     <div class="status-group">
       <span data-testid="app-clock" class="clock">{{ currentTime }}</span>
-      <button type="button" class="ai-icon-button" aria-label="打开 AI 助手" @click="emit('openAi')">
-        <span>AI</span>
+      <button type="button" class="ai-icon-button" aria-label="打开 AI助手" @click="emit('openAi')">
+        <span>AI助手</span>
       </button>
       <button type="button" data-testid="current-user" class="user-button">admin</button>
     </div>
@@ -97,11 +97,11 @@ h1 {
 }
 
 .ai-icon-button {
-  width: 36px;
+  min-width: 74px;
   height: 36px;
   display: grid;
   place-items: center;
-  padding: 0;
+  padding: 0 14px;
   color: #e0f2fe;
   background:
     radial-gradient(circle at 30% 18%, rgba(125, 211, 252, 0.52), transparent 34%),
@@ -111,7 +111,7 @@ h1 {
 }
 
 .ai-icon-button span {
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 800;
   letter-spacing: 0;
 }

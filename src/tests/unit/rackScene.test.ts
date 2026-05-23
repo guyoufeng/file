@@ -21,7 +21,8 @@ const racks: Rack[] = [
   { id: 'rack-a02', roomId: 'room-529', microModuleId: 'module-1', name: 'A02', type: 'cooling', rowName: 'A排', columnIndex: 2, heightU: 48, status: 'normal' },
   { id: 'rack-b01', roomId: 'room-529', microModuleId: 'module-1', name: 'B01', type: 'network', rowName: 'B排', columnIndex: 1, heightU: 48, status: 'normal' },
   { id: 'rack-c01', roomId: 'room-529', microModuleId: 'module-2', name: 'C01', type: 'empty', rowName: 'C排', columnIndex: 1, heightU: 48, status: 'normal' },
-  { id: 'rack-d01', roomId: 'room-529', microModuleId: 'module-2', name: 'D01', type: 'server', rowName: 'D排', columnIndex: 1, heightU: 48, status: 'normal' },
+  { id: 'rack-d01', roomId: 'room-529', microModuleId: 'module-2', name: '529-D1', type: 'server', rowName: 'D排', columnIndex: 1, heightU: 48, status: 'normal' },
+  { id: 'rack-d10', roomId: 'room-529', microModuleId: 'module-2', name: '529-D10', type: 'cooling', rowName: 'D排', columnIndex: 10, heightU: 48, status: 'normal' },
 ]
 
 const devices: Device[] = [
@@ -58,7 +59,7 @@ describe('rack 3d scene model', () => {
   it('places micro module racks into separated rows and modules', () => {
     const model = buildRackSceneModel(room, racks, devices, alerts)
 
-    expect(model.items).toHaveLength(5)
+    expect(model.items).toHaveLength(6)
     expect(model.modules).toHaveLength(2)
     expect(model.items.find((item) => item.rackId === 'rack-a01')?.position.z).not.toBe(
       model.items.find((item) => item.rackId === 'rack-b01')?.position.z,
@@ -72,6 +73,8 @@ describe('rack 3d scene model', () => {
     expect(model.items.find((item) => item.rackId === 'rack-c01')?.position.z).not.toBe(
       model.items.find((item) => item.rackId === 'rack-d01')?.position.z,
     )
+    expect(model.items.find((item) => item.rackId === 'rack-d10')?.displayName).toBe('529-A1')
+    expect(model.items.find((item) => item.rackId === 'rack-d01')?.displayName).toBe('529-A10')
   })
 
   it('marks critical alert racks and special rack types with distinct colors', () => {

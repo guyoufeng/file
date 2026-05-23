@@ -7,7 +7,7 @@ const emit = defineEmits<{
   'update:modelValue': [value: number]
 }>()
 
-const zoomLevels = [0.5, 0.75, 1, 1.25, 1.5]
+const zoomLevels = [1, 1.25, 1.5]
 </script>
 
 <template>

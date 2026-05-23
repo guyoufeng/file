@@ -115,7 +115,7 @@ function rebuildScene() {
     const mesh = createRackMesh(item)
     rackMeshes.set(item.rackId, mesh)
     rackGroup.add(mesh)
-    rackGroup.add(createTextSprite(item.name, '#f8fafc', 0.48, item.position.x, item.size.y + 0.56, item.position.z))
+    rackGroup.add(createTextSprite(item.displayName, '#f8fafc', 0.48, item.position.x, item.size.y + 0.56, item.position.z))
   }
 
   highlightSelectedRack(props.selectedRackId)

@@ -28,7 +28,7 @@ const rackTypeLabels: Record<string, string> = {
   other: '其他',
 }
 
-const zoom = ref(1)
+const zoom = ref(1.25)
 const visibleRacks = computed(() => props.racks?.length ? props.racks : props.rack ? [props.rack] : [])
 const rackRows = computed(() => {
   const rows = new Map<string, Rack[]>()

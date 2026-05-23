@@ -10,6 +10,7 @@ export interface SceneVector3 {
 export interface RackSceneItem {
   rackId: string
   name: string
+  displayName: string
   rack: Rack
   position: SceneVector3
   size: SceneVector3
@@ -63,6 +64,7 @@ function buildMicroModuleScene(room: Room, racks: Rack[], devices: Device[], ale
       }))
   const items: RackSceneItem[] = []
   const sceneModules: RackSceneModule[] = []
+  const visualRows = getVisualRowsForMicroModules(modules, racks)
   let moduleOriginZ = 0
   let maxColumns = 0
 
@@ -90,17 +92,39 @@ function buildMicroModuleScene(room: Room, racks: Rack[], devices: Device[], ale
     for (const rack of moduleRacks) {
       const column = Math.max((rack.columnIndex ?? 1) - 1, 0)
       const row = Math.max(rowNames.indexOf(rack.rowName ?? 'A排'), 0)
+      const displayName = getMicroModuleDisplayName(rack, visualRows, columnCount)
       items.push(createRackSceneItem(rack, devices, alerts, {
         x: moduleOriginX + column * columnGap,
         y: rackSize.y / 2,
         z: moduleOriginZ + row * rowGap,
-      }))
+      }, displayName))
     }
 
     moduleOriginZ += rowCount * rowGap + (moduleIndex < modules.length - 1 ? moduleGap : 0)
   })
 
   return { items, modules: sceneModules, bounds: { width: maxColumns * columnGap, depth: moduleOriginZ + 2.4 } }
+}
+
+function getVisualRowsForMicroModules(modules: NonNullable<Room['microModules']>, racks: Rack[]): string[] {
+  return modules
+    .flatMap((module) => {
+      const moduleRacks = racks.filter((rack) => rack.microModuleId === module.id)
+      return [...new Set(moduleRacks.map((rack) => rack.rowName ?? 'A排'))].sort((a, b) =>
+        a.localeCompare(b, 'zh-Hans-CN'),
+      )
+    })
+    .reverse()
+}
+
+function getMicroModuleDisplayName(rack: Rack, visualRows: string[], columnCount: number): string {
+  const rowIndex = visualRows.indexOf(rack.rowName ?? 'A排')
+  if (rowIndex < 0) return rack.name
+
+  const displayRow = String.fromCharCode('A'.charCodeAt(0) + rowIndex)
+  const displayColumn = Math.max(columnCount - (rack.columnIndex ?? 1) + 1, 1)
+  const prefix = rack.name.match(/^(.*-)[A-Z]\d+$/)?.[1] ?? '529-'
+  return `${prefix}${displayRow}${displayColumn}`
 }
 
 function buildSimpleRoomScene(racks: Rack[], devices: Device[], alerts: Alert[]): RackSceneModel {
@@ -128,10 +152,12 @@ function createRackSceneItem(
   devices: Device[],
   alerts: Alert[],
   position: SceneVector3,
+  displayName = rack.name,
 ): RackSceneItem {
   return {
     rackId: rack.id,
     name: rack.name,
+    displayName,
     rack,
     position,
     size: rackSize,

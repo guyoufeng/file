@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test'
 test('opens AI assistant and answers a read-only asset location question', async ({ page }) => {
   await page.goto('/#/rack-overview')
 
-  await page.getByRole('button', { name: '打开 AI 助手' }).click()
+  await page.getByRole('button', { name: '打开 AI助手' }).click()
   const drawer = page.getByTestId('ai-floating-window')
   await expect(drawer).toBeVisible()
   await expect(page.getByRole('heading', { name: '只读智能查询' })).toBeVisible()

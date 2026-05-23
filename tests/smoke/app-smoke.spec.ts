@@ -28,6 +28,11 @@ test('starts the app and navigates through v0.1 core pages', async ({ page }) =>
   await expect(page.getByTestId('rack-detail-floating-window').getByRole('button', { name: '放大' })).toHaveCount(0)
   await expect(page.getByTestId('rack-detail-floating-window').getByRole('button', { name: '收起' })).toBeVisible()
   await expect(page.locator('.overview-grid')).not.toHaveClass(/detail-open/)
+  await page.getByTestId('rack-detail-floating-window').getByRole('button', { name: '编辑 QF-SRV-001' }).click()
+  await expect(page.getByRole('heading', { name: '编辑设备' })).toBeVisible()
+  await page.getByLabel('用途').fill('核心生产业务')
+  await page.getByRole('button', { name: '保存' }).click()
+  await expect(page.getByTestId('rack-detail-floating-window').getByText('QF-SRV-001 / 10.10.0.21 / 核心生产业务')).toBeVisible()
 
   await page.getByRole('button', { name: '3D轻量视图' }).click()
   await expect(page.locator('canvas[aria-label="3D轻量机柜视图"]')).toBeVisible()

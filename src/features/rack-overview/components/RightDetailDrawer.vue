@@ -13,6 +13,7 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
+  editDevice: [device: Device]
   close: []
 }>()
 
@@ -112,9 +113,12 @@ function clampWindow() {
       </section>
       <div class="device-list">
         <strong>设备概览</strong>
-        <p v-for="device in rackDevices.slice(0, 5)" :key="device.id">
-          {{ device.computerName }} / {{ device.businessIp }} / {{ device.purpose }}
-        </p>
+        <article v-for="device in rackDevices.slice(0, 5)" :key="device.id" class="device-summary">
+          <p>{{ device.computerName }} / {{ device.businessIp }} / {{ device.purpose }}</p>
+          <button type="button" :aria-label="`编辑 ${device.computerName || device.name}`" @click="emit('editDevice', device)">
+            编辑
+          </button>
+        </article>
       </div>
       <AlertDetailPanel :alerts="relatedAlerts" />
     </template>
@@ -181,7 +185,7 @@ h3 {
 }
 
 .empty,
-.device-list p {
+.device-summary p {
   color: var(--color-text-muted);
 }
 
@@ -191,10 +195,27 @@ h3 {
   padding-top: 2px;
 }
 
-.device-list p {
+.device-summary {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+  align-items: center;
+}
+
+.device-summary p {
   margin: 0;
   font-size: 12px;
   line-height: 1.45;
+}
+
+.device-summary button {
+  min-height: 24px;
+  padding: 0 7px;
+  border: 1px solid rgba(56, 189, 248, 0.34);
+  border-radius: 6px;
+  color: #7dd3fc;
+  background: rgba(14, 165, 233, 0.08);
+  cursor: pointer;
 }
 
 .compact-summary {

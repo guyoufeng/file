@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, nextTick, onMounted, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import type { Rack } from '../../types/domain'
+import type { Device, Rack } from '../../types/domain'
 import type { DeviceSearchResult } from '../../services/search/deviceSearch'
 import { useAlertStore } from '../../stores/alertStore'
 import { useAssetStore } from '../../stores/assetStore'
@@ -13,6 +13,7 @@ import LeadershipModeToggle from './components/LeadershipModeToggle.vue'
 import RackUView from './components/RackUView.vue'
 import RightDetailDrawer from './components/RightDetailDrawer.vue'
 import ViewModeTabs, { type ViewMode } from './components/ViewModeTabs.vue'
+import DeviceFormDrawer from '../asset-management/components/DeviceFormDrawer.vue'
 import { getRoomOptions, getRoomRacks } from './layout'
 
 const Rack3DView = defineAsyncComponent(() => import('./components/Rack3DView.vue'))
@@ -28,6 +29,8 @@ const selectedDeviceId = ref<string | null>(null)
 const viewMode = ref<ViewMode>('layout')
 const leadershipMode = ref(false)
 const detailOpen = ref(false)
+const deviceEditorOpen = ref(false)
+const editingDevice = ref<Device | null>(null)
 
 const roomOptions = computed(() => getRoomOptions(roomStore.rooms))
 const selectedRoom = computed(() => roomOptions.value.find((room) => room.id === selectedRoomId.value) ?? roomOptions.value[0])
@@ -70,6 +73,24 @@ function selectRack(rack: Rack) {
   selectedRack.value = rack
   selectedDeviceId.value = null
   detailOpen.value = true
+}
+
+function openDeviceEditor(device: Device) {
+  editingDevice.value = device
+  selectedDeviceId.value = device.id
+  deviceEditorOpen.value = true
+}
+
+function saveDevice(device: Device) {
+  const index = assetStore.devices.findIndex((item) => item.id === device.id)
+  if (index >= 0) {
+    assetStore.devices.splice(index, 1, device)
+  } else {
+    assetStore.devices.unshift(device)
+  }
+  editingDevice.value = device
+  selectedDeviceId.value = device.id
+  deviceEditorOpen.value = false
 }
 </script>
 
@@ -163,7 +184,17 @@ function selectRack(rack: Rack) {
         :device="selectedDevice"
         :devices="assetStore.devices"
         :alerts="alertStore.alerts"
+        @edit-device="openDeviceEditor"
         @close="detailOpen = false"
+      />
+      <DeviceFormDrawer
+        :open="deviceEditorOpen"
+        :device="editingDevice"
+        :rooms="roomStore.rooms"
+        :racks="roomStore.racks"
+        :devices="assetStore.devices"
+        @close="deviceEditorOpen = false"
+        @save="saveDevice"
       />
     </div>
   </section>

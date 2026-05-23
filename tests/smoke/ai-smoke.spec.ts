@@ -7,6 +7,10 @@ test('opens AI assistant and answers a read-only asset location question', async
   const drawer = page.getByTestId('ai-floating-window')
   await expect(drawer).toBeVisible()
   await expect(page.getByRole('heading', { name: '只读智能查询' })).toBeVisible()
+  await expect(drawer.getByTestId('ai-message-list')).toBeVisible()
+  await expect(drawer.getByTestId('ai-composer')).toBeVisible()
+  await expect(drawer.getByRole('button', { name: '添加图片' })).toBeVisible()
+  await expect(drawer.getByRole('button', { name: '添加附件' })).toBeVisible()
 
   await page.getByPlaceholder('例如：IP 为 10.10.3.25 的服务器在哪里？').fill('IP 为 10.10.0.21 的服务器在哪里？')
   await page.getByRole('button', { name: '发送查询' }).click()

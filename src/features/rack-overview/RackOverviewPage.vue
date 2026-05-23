@@ -28,7 +28,6 @@ const selectedDeviceId = ref<string | null>(null)
 const viewMode = ref<ViewMode>('layout')
 const leadershipMode = ref(false)
 const detailOpen = ref(false)
-const detailMode = ref<'normal' | 'wide'>('normal')
 
 const roomOptions = computed(() => getRoomOptions(roomStore.rooms))
 const selectedRoom = computed(() => roomOptions.value.find((room) => room.id === selectedRoomId.value) ?? roomOptions.value[0])
@@ -164,8 +163,6 @@ function selectRack(rack: Rack) {
         :device="selectedDevice"
         :devices="assetStore.devices"
         :alerts="alertStore.alerts"
-        :mode="detailMode"
-        @update:mode="detailMode = $event"
         @close="detailOpen = false"
       />
     </div>

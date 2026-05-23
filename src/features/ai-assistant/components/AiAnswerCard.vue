@@ -12,17 +12,21 @@ defineProps<{
 
 <style scoped>
 .answer-card {
-  padding: 12px;
+  align-self: stretch;
+  padding: 11px 12px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: rgba(8, 17, 31, 0.82);
+  background:
+    linear-gradient(180deg, rgba(14, 165, 233, 0.08), transparent),
+    rgba(8, 17, 31, 0.86);
 }
 
 pre {
   margin: 0;
   color: var(--color-text);
   font-family: var(--font-sans);
-  line-height: 1.7;
+  font-size: 13px;
+  line-height: 1.65;
   white-space: pre-wrap;
 }
 </style>

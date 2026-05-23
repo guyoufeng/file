@@ -24,6 +24,9 @@ test('starts the app and navigates through v0.1 core pages', async ({ page }) =>
   await uView.getByTestId('rack-u-row-A排').getByRole('button', { name: /^529-A1\b/ }).click()
   await expect(page.getByTestId('rack-detail-floating-window')).toBeVisible()
   await expect(page.getByTestId('selected-rack-detail-title')).toHaveText('529-A1')
+  await expect(page.getByTestId('rack-detail-floating-window').getByRole('button', { name: '标准' })).toHaveCount(0)
+  await expect(page.getByTestId('rack-detail-floating-window').getByRole('button', { name: '放大' })).toHaveCount(0)
+  await expect(page.getByTestId('rack-detail-floating-window').getByRole('button', { name: '收起' })).toBeVisible()
   await expect(page.locator('.overview-grid')).not.toHaveClass(/detail-open/)
 
   await page.getByRole('button', { name: '3D轻量视图' }).click()

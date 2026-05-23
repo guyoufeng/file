@@ -10,11 +10,9 @@ const props = defineProps<{
   device: Device | null
   devices: Device[]
   alerts: Alert[]
-  mode: 'normal' | 'wide'
 }>()
 
 const emit = defineEmits<{
-  'update:mode': [mode: 'normal' | 'wide']
   close: []
 }>()
 
@@ -30,20 +28,8 @@ const relatedAlerts = computed(() =>
   }),
 )
 
-const windowRect = ref({ x: Math.max(window.innerWidth - 390, 860), y: 118, width: 360, height: 560 })
+const windowRect = ref({ x: Math.max(window.innerWidth - 330, 860), y: 108, width: 300, height: 440 })
 let dragState: { kind: 'move' | 'resize'; startX: number; startY: number; rect: typeof windowRect.value } | null = null
-
-watch(
-  () => props.mode,
-  (mode) => {
-    if (mode === 'wide') {
-      windowRect.value = { ...windowRect.value, width: 430, height: Math.max(windowRect.value.height, 600) }
-    } else {
-      windowRect.value = { ...windowRect.value, width: 360, height: 560 }
-    }
-    clampWindow()
-  },
-)
 
 onBeforeUnmount(() => {
   stopPointerTracking()
@@ -80,8 +66,8 @@ function handlePointerMove(event: PointerEvent) {
   } else {
     windowRect.value = {
       ...dragState.rect,
-      width: Math.max(320, dragState.rect.width + dx),
-      height: Math.max(360, dragState.rect.height + dy),
+      width: Math.max(280, dragState.rect.width + dx),
+      height: Math.max(340, dragState.rect.height + dy),
     }
   }
   clampWindow()
@@ -109,8 +95,6 @@ function clampWindow() {
         <h3 data-testid="selected-rack-detail-title">{{ rack?.name ?? '请选择一个机柜' }}</h3>
       </div>
       <div class="drawer-actions">
-        <button type="button" :class="{ active: mode === 'normal' }" @click="emit('update:mode', 'normal')">标准</button>
-        <button type="button" :class="{ active: mode === 'wide' }" @click="emit('update:mode', 'wide')">放大</button>
         <button type="button" @click="emit('close')">收起</button>
       </div>
     </header>
@@ -149,8 +133,8 @@ function clampWindow() {
   flex-direction: column;
   gap: 18px;
   overflow: auto;
-  padding: 16px;
-  padding-bottom: 84px;
+  padding: 12px;
+  padding-bottom: 48px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
   background:
@@ -161,8 +145,10 @@ function clampWindow() {
 }
 
 .drawer-header {
-  display: grid;
-  gap: 10px;
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
   cursor: move;
   user-select: none;
 }
@@ -170,32 +156,28 @@ function clampWindow() {
 .eyebrow {
   margin: 0 0 8px;
   color: #38bdf8;
-  font-size: 12px;
+  font-size: 11px;
 }
 
 h3 {
   margin: 0;
-  font-size: 17px;
+  font-size: 15px;
 }
 
 .drawer-actions {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 6px;
+  display: flex;
+  align-items: center;
+  padding-top: 1px;
 }
 
 .drawer-actions button {
-  min-height: 30px;
+  min-height: 26px;
+  padding: 0 10px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
   color: var(--color-text);
   background: rgba(17, 24, 39, 0.92);
   cursor: pointer;
-}
-
-.drawer-actions button.active {
-  border-color: rgba(56, 189, 248, 0.72);
-  background: rgba(14, 165, 233, 0.16);
 }
 
 .empty,
@@ -205,29 +187,31 @@ h3 {
 
 .device-list {
   display: grid;
-  gap: 8px;
+  gap: 6px;
   padding-top: 2px;
 }
 
 .device-list p {
   margin: 0;
-  line-height: 1.6;
+  font-size: 12px;
+  line-height: 1.45;
 }
 
 .compact-summary {
   display: grid;
-  gap: 10px;
+  gap: 7px;
 }
 
 .summary-rows {
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 
 .summary-rows div {
   display: grid;
-  grid-template-columns: 86px minmax(0, 1fr);
-  gap: 12px;
+  grid-template-columns: 70px minmax(0, 1fr);
+  gap: 10px;
+  font-size: 12px;
 }
 
 .summary-rows span {

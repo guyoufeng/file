@@ -56,12 +56,12 @@ const hasWarningAlert = computed(() => activeRackAlerts.value.some((alert) => al
 
 <style scoped>
 .rack-tile {
-  min-width: 92px;
-  min-height: 118px;
+  min-width: 72px;
+  min-height: 104px;
   display: grid;
   align-content: start;
-  gap: 7px;
-  padding: 10px;
+  gap: 6px;
+  padding: 9px;
   border: 1px solid rgba(38, 50, 71, 0.96);
   border-radius: 8px;
   text-align: left;
@@ -97,13 +97,14 @@ const hasWarningAlert = computed(() => activeRackAlerts.value.some((alert) => al
 
 .rack-name {
   font-weight: 700;
-  font-size: 14px;
+  font-size: 13px;
+  white-space: nowrap;
 }
 
 .rack-type,
 .rack-meta {
   color: var(--color-text-muted);
-  font-size: 12px;
+  font-size: 11px;
 }
 
 .alert-badge {

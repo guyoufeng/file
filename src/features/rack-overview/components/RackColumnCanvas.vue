@@ -12,10 +12,10 @@ const props = defineProps<{
   highlightDeviceId?: string | null
 }>()
 
-const rackWidth = 430
+const rackWidth = 300
 const labelWidth = 44
 const rackPadding = 8
-const baseRowHeight = 18
+const baseRowHeight = 14
 
 const rowHeight = computed(() => Math.round(baseRowHeight * props.zoom))
 const stageHeight = computed(() => props.rack.heightU * rowHeight.value)
@@ -106,10 +106,13 @@ function deviceColor(device: Device): string {
 
 <style scoped>
 .rack-canvas {
-  width: 430px;
-  padding: 12px;
-  border: 1px solid var(--color-border);
+  width: 300px;
+  padding: 10px;
+  border: 1px solid rgba(71, 85, 105, 0.78);
   border-radius: 8px;
-  background: rgba(8, 17, 31, 0.92);
+  background:
+    linear-gradient(90deg, rgba(148, 163, 184, 0.1), transparent 8%, transparent 92%, rgba(148, 163, 184, 0.1)),
+    rgba(8, 17, 31, 0.92);
+  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.9);
 }
 </style>

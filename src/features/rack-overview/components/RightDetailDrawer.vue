@@ -47,11 +47,13 @@ const relatedAlerts = computed(() =>
 
 <style scoped>
 .detail-drawer {
-  min-height: 100%;
+  max-height: calc(100vh - 128px);
   display: grid;
   gap: 18px;
   align-content: start;
+  overflow: auto;
   padding: 16px;
+  padding-bottom: 84px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
   background: rgba(8, 17, 31, 0.88);

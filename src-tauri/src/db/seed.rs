@@ -127,7 +127,7 @@ async fn seed_topology(pool: &SqlitePool) -> anyhow::Result<()> {
         .await?;
     }
 
-    for (id, name) in [("mm-529-a", "华为微模块A"), ("mm-529-b", "华为微模块B")] {
+    for (id, name) in [("mm-529-a", "529华为模块1"), ("mm-529-b", "529华为模块2")] {
         sqlx::query(
             "INSERT INTO micro_modules (id, room_id, name, rows, columns) VALUES (?, 'room-nj-529', ?, 2, 10)",
         )
@@ -138,13 +138,12 @@ async fn seed_topology(pool: &SqlitePool) -> anyhow::Result<()> {
     }
 
     let mut rack_index = 0_i64;
-    for module in ["a", "b"] {
-        for row_name in ["A排", "B排"] {
+    for (module, rows) in [("a", ["A", "B"]), ("b", ["C", "D"])] {
+        for row_letter in rows {
             for column in 1_i64..=10 {
                 rack_index += 1;
-                let module_label = module.to_uppercase();
-                let row_code = if row_name == "A排" { "1" } else { "2" };
-                let rack_no = format!("{module_label}{row_code}-{column:02}");
+                let row_name = format!("{row_letter}排");
+                let rack_no = format!("{row_letter}{column}");
                 let rack_id = format!("rack-529-{}", rack_no.to_lowercase());
                 let rack_type = match column {
                     1 => "row_head",
@@ -170,7 +169,7 @@ async fn seed_topology(pool: &SqlitePool) -> anyhow::Result<()> {
                     Some(&format!("mm-529-{module}")),
                     &format!("529-{rack_no}"),
                     rack_type,
-                    row_name,
+                    &row_name,
                     column,
                     status,
                     8000,

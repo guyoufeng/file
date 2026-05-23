@@ -20,7 +20,8 @@ const racks: Rack[] = [
   { id: 'rack-a01', roomId: 'room-529', microModuleId: 'module-1', name: 'A01', type: 'server', rowName: 'A排', columnIndex: 1, heightU: 48, status: 'normal' },
   { id: 'rack-a02', roomId: 'room-529', microModuleId: 'module-1', name: 'A02', type: 'cooling', rowName: 'A排', columnIndex: 2, heightU: 48, status: 'normal' },
   { id: 'rack-b01', roomId: 'room-529', microModuleId: 'module-1', name: 'B01', type: 'network', rowName: 'B排', columnIndex: 1, heightU: 48, status: 'normal' },
-  { id: 'rack-c01', roomId: 'room-529', microModuleId: 'module-2', name: 'C01', type: 'empty', rowName: 'A排', columnIndex: 1, heightU: 48, status: 'normal' },
+  { id: 'rack-c01', roomId: 'room-529', microModuleId: 'module-2', name: 'C01', type: 'empty', rowName: 'C排', columnIndex: 1, heightU: 48, status: 'normal' },
+  { id: 'rack-d01', roomId: 'room-529', microModuleId: 'module-2', name: 'D01', type: 'server', rowName: 'D排', columnIndex: 1, heightU: 48, status: 'normal' },
 ]
 
 const devices: Device[] = [
@@ -57,13 +58,16 @@ describe('rack 3d scene model', () => {
   it('places micro module racks into separated rows and modules', () => {
     const model = buildRackSceneModel(room, racks, devices, alerts)
 
-    expect(model.items).toHaveLength(4)
+    expect(model.items).toHaveLength(5)
     expect(model.modules).toHaveLength(2)
     expect(model.items.find((item) => item.rackId === 'rack-a01')?.position.z).not.toBe(
       model.items.find((item) => item.rackId === 'rack-b01')?.position.z,
     )
     expect(model.items.find((item) => item.rackId === 'rack-a01')?.position.x).toBeLessThan(
       model.items.find((item) => item.rackId === 'rack-c01')?.position.x ?? 0,
+    )
+    expect(model.items.find((item) => item.rackId === 'rack-c01')?.position.z).not.toBe(
+      model.items.find((item) => item.rackId === 'rack-d01')?.position.z,
     )
   })
 

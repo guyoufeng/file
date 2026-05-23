@@ -12,6 +12,22 @@ describe('sample project data', () => {
     expect(sampleProject.alerts.length).toBeLessThanOrEqual(20)
   })
 
+  it('models 529 data center as two Huawei modules with A/B/C/D rack rows', () => {
+    const rackNames = sampleProject.racks.filter((rack) => rack.roomId === 'room-nj-529').map((rack) => rack.name)
+    const rowNames = [...new Set(sampleProject.racks.filter((rack) => rack.roomId === 'room-nj-529').map((rack) => rack.rowName))]
+
+    expect(sampleProject.rooms.find((room) => room.id === 'room-nj-529')?.microModules?.map((module) => module.name)).toEqual([
+      '529华为模块1',
+      '529华为模块2',
+    ])
+    expect(rowNames).toEqual(['A排', 'B排', 'C排', 'D排'])
+    expect(rackNames).toContain('529-A1')
+    expect(rackNames).toContain('529-B10')
+    expect(rackNames).toContain('529-C1')
+    expect(rackNames).toContain('529-D10')
+    expect(rackNames).not.toContain('529-A1-01')
+  })
+
   it('keeps the example project json versioned', () => {
     const examplePath = fileURLToPath(new URL('../../../examples/v0.1-sample-project.json', import.meta.url))
     const example = JSON.parse(readFileSync(examplePath, 'utf-8')) as { schemaVersion?: string }

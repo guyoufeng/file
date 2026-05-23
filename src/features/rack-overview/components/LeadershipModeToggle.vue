@@ -17,7 +17,7 @@ const emit = defineEmits<{
     @click="emit('update:modelValue', !modelValue)"
   >
     <span class="indicator" />
-    <span>领导展示</span>
+    <span>系统展示</span>
   </button>
 </template>
 

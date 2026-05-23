@@ -45,8 +45,8 @@ function createSampleProject(): SampleProject {
       defaultRackHeightU: 48,
       racks: [],
       microModules: [
-        { id: 'mm-529-a', roomId: 'room-nj-529', name: '华为微模块A', rows: 2, columns: 10, rackIds: [] },
-        { id: 'mm-529-b', roomId: 'room-nj-529', name: '华为微模块B', rows: 2, columns: 10, rackIds: [] },
+        { id: 'mm-529-a', roomId: 'room-nj-529', name: '529华为模块1', rows: 2, columns: 10, rackIds: [] },
+        { id: 'mm-529-b', roomId: 'room-nj-529', name: '529华为模块2', rows: 2, columns: 10, rackIds: [] },
       ],
     },
     { id: 'room-nj-99', dataCenterId: 'dc-nanjing', name: '99数据中心', layoutType: 'simple_rows', defaultRackHeightU: 48, racks: [] },
@@ -102,21 +102,26 @@ function createSampleProject(): SampleProject {
     })
   }
 
-  for (const moduleName of ['a', 'b'] as const) {
-    for (const rowName of ['A排', 'B排']) {
+  const moduleRows = [
+    { moduleName: 'a', rows: ['A', 'B'] },
+    { moduleName: 'b', rows: ['C', 'D'] },
+  ] as const
+
+  for (const module of moduleRows) {
+    for (const rowLetter of module.rows) {
       for (let column = 1; column <= 10; column += 1) {
-        const rackNo = `${moduleName.toUpperCase()}${rowName === 'A排' ? '1' : '2'}-${column.toString().padStart(2, '0')}`
+        const rackNo = `${rowLetter}${column}`
         const specialType = column === 1 ? 'row_head' : column === 10 ? 'cooling' : column === 9 ? 'patching' : 'server'
         addRack({
           id: `rack-529-${rackNo.toLowerCase()}`,
           roomId: 'room-nj-529',
-          microModuleId: `mm-529-${moduleName}`,
+          microModuleId: `mm-529-${module.moduleName}`,
           name: `529-${rackNo}`,
           type: specialType,
-          rowName,
+          rowName: `${rowLetter}排`,
           columnIndex: column,
           heightU: 48,
-          status: column === 6 && moduleName === 'b' ? 'alert' : 'normal',
+          status: column === 6 && module.moduleName === 'b' ? 'alert' : 'normal',
           powerCapacityW: 8000,
           notes: specialType === 'cooling' ? '精密空调柜位' : undefined,
         })

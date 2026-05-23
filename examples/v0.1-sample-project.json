@@ -14,8 +14,8 @@
         "room": "529数据中心",
         "layoutType": "micro_module",
         "microModules": [
-          { "name": "华为微模块A", "rows": 2, "columns": 10 },
-          { "name": "华为微模块B", "rows": 2, "columns": 10 }
+          { "name": "529华为模块1", "rows": ["A排", "B排"], "columns": 10 },
+          { "name": "529华为模块2", "rows": ["C排", "D排"], "columns": 10 }
         ],
         "rackCount": 40
       },

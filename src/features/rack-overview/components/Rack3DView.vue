@@ -207,7 +207,7 @@ function fitCamera() {
   const { width, depth } = sceneModel.value.bounds
   const centerX = width / 2 - 0.7
   const centerZ = depth / 2 - 1.1
-  camera.position.set(centerX + width * 0.45, props.leadershipMode ? 11 : 9, centerZ + Math.max(depth, 8) * 1.45)
+  camera.position.set(centerX + width * 0.12, props.leadershipMode ? 13 : 11, centerZ + Math.max(depth, 8) * 2.5)
   controls.target.set(centerX, 1.4, centerZ)
   controls.update()
 }

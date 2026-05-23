@@ -67,6 +67,9 @@ function buildMicroModuleScene(room: Room, racks: Rack[], devices: Device[], ale
   modules.forEach((module, moduleIndex) => {
     const moduleOriginX = moduleIndex * (module.columns * columnGap + moduleGap)
     const moduleRacks = racks.filter((rack) => rack.microModuleId === module.id)
+    const rowNames = [...new Set(moduleRacks.map((rack) => rack.rowName ?? 'A排'))].sort((a, b) =>
+      a.localeCompare(b, 'zh-Hans-CN'),
+    )
 
     sceneModules.push({
       id: module.id,
@@ -77,7 +80,7 @@ function buildMicroModuleScene(room: Room, racks: Rack[], devices: Device[], ale
 
     for (const rack of moduleRacks) {
       const column = Math.max((rack.columnIndex ?? 1) - 1, 0)
-      const row = rack.rowName === 'B排' ? 1 : 0
+      const row = Math.max(rowNames.indexOf(rack.rowName ?? 'A排'), 0)
       items.push(createRackSceneItem(rack, devices, alerts, {
         x: moduleOriginX + column * columnGap,
         y: rackSize.y / 2,

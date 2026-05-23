@@ -131,9 +131,11 @@ async function locateSearchResult(result: DeviceSearchResult) {
         <RackUView
           v-else-if="viewMode === 'u-view'"
           :rack="activeRack"
+          :racks="selectedRoomRacks"
           :devices="assetStore.devices"
           :alerts="alertStore.alerts"
           :highlight-device-id="selectedDeviceId"
+          @select-rack="selectedRack = $event; selectedDeviceId = null"
         />
         <Rack3DView
           v-else
@@ -225,6 +227,7 @@ async function locateSearchResult(result: DeviceSearchResult) {
 .layout-panel {
   min-width: 0;
   overflow-x: auto;
+  padding-bottom: 8px;
 }
 
 .mode-placeholder {

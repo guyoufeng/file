@@ -3,6 +3,10 @@ import { computed, onMounted, ref } from "vue";
 import * as XLSX from "xlsx";
 import type { Device } from "../../types/domain";
 import type { ImportValidationResult } from "../../types/import";
+import {
+  buildAssetOperationError,
+  type AssetOperationNotice,
+} from "../../services/asset/operationNotice";
 import { buildImportedDevices } from "../../services/import/deviceImport";
 import type { DeviceImportSummary } from "../../stores/assetStore";
 import { useAssetStore } from "../../stores/assetStore";
@@ -20,6 +24,7 @@ const importOpen = ref(false);
 const importSaving = ref(false);
 const importSummary = ref<DeviceImportSummary | null>(null);
 const editingDevice = ref<Device | null>(null);
+const operationNotice = ref<AssetOperationNotice | null>(null);
 
 const filteredDevices = computed(() => {
   const keyword = search.value.trim().toLowerCase();
@@ -45,11 +50,13 @@ onMounted(async () => {
 });
 
 function openAddDrawer() {
+  operationNotice.value = null;
   editingDevice.value = null;
   drawerOpen.value = true;
 }
 
 function openEditDrawer(device: Device) {
+  operationNotice.value = null;
   editingDevice.value = device;
   drawerOpen.value = true;
 }
@@ -60,20 +67,31 @@ function openImportDialog() {
 }
 
 async function saveDevice(device: Device) {
-  await assetStore.upsertDevice(device);
-  drawerOpen.value = false;
+  operationNotice.value = null;
+  try {
+    await assetStore.upsertDevice(device);
+    drawerOpen.value = false;
+  } catch (error) {
+    operationNotice.value = buildAssetOperationError("save", error);
+  }
 }
 
 async function deleteDevice(device: Device) {
   if (!window.confirm(`确认删除设备 ${device.computerName || device.name}？`)) {
     return;
   }
-  await assetStore.deleteDevice(device.id);
+  operationNotice.value = null;
+  try {
+    await assetStore.deleteDevice(device.id);
+  } catch (error) {
+    operationNotice.value = buildAssetOperationError("delete", error);
+  }
 }
 
 async function confirmImport(result: ImportValidationResult) {
   importSaving.value = true;
   importSummary.value = null;
+  operationNotice.value = null;
   const importedDevices = buildImportedDevices(result);
   try {
     importSummary.value =
@@ -81,6 +99,8 @@ async function confirmImport(result: ImportValidationResult) {
     if (importSummary.value.failed === 0) {
       importOpen.value = false;
     }
+  } catch (error) {
+    operationNotice.value = buildAssetOperationError("import", error);
   } finally {
     importSaving.value = false;
   }
@@ -135,6 +155,17 @@ function exportDevices() {
       @import="openImportDialog"
       @export="exportDevices"
     />
+    <div v-if="operationNotice" class="operation-notice" role="alert">
+      <strong>{{ operationNotice.title }}</strong>
+      <span>{{ operationNotice.message }}</span>
+      <button
+        type="button"
+        aria-label="关闭提示"
+        @click="operationNotice = null"
+      >
+        ×
+      </button>
+    </div>
     <AssetTable
       :devices="filteredDevices"
       :racks="roomStore.racks"
@@ -161,3 +192,36 @@ function exportDevices() {
     />
   </section>
 </template>
+
+<style scoped>
+.operation-notice {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border: 1px solid rgba(239, 68, 68, 0.42);
+  border-radius: 8px;
+  background: rgba(127, 29, 29, 0.28);
+}
+
+.operation-notice strong {
+  color: #fecaca;
+}
+
+.operation-notice span {
+  min-width: 0;
+  color: var(--color-text-muted);
+}
+
+.operation-notice button {
+  width: 28px;
+  height: 28px;
+  border: 1px solid rgba(239, 68, 68, 0.34);
+  border-radius: 8px;
+  color: var(--color-text);
+  background: rgba(17, 24, 39, 0.66);
+  cursor: pointer;
+}
+</style>

@@ -203,9 +203,12 @@ input {
   flex-wrap: wrap;
 }
 
-.import-result span,
-.import-result li {
+.import-result span {
   color: var(--color-text-muted);
+}
+
+.import-result li {
+  color: #fed7aa;
 }
 
 .import-result ul {

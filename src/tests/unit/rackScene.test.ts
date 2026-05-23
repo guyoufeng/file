@@ -63,8 +63,11 @@ describe('rack 3d scene model', () => {
     expect(model.items.find((item) => item.rackId === 'rack-a01')?.position.z).not.toBe(
       model.items.find((item) => item.rackId === 'rack-b01')?.position.z,
     )
-    expect(model.items.find((item) => item.rackId === 'rack-a01')?.position.x).toBeLessThan(
-      model.items.find((item) => item.rackId === 'rack-c01')?.position.x ?? 0,
+    expect(model.items.find((item) => item.rackId === 'rack-a01')?.position.x).toBe(
+      model.items.find((item) => item.rackId === 'rack-c01')?.position.x,
+    )
+    expect(model.items.find((item) => item.rackId === 'rack-b01')?.position.z).toBeLessThan(
+      model.items.find((item) => item.rackId === 'rack-c01')?.position.z ?? 0,
     )
     expect(model.items.find((item) => item.rackId === 'rack-c01')?.position.z).not.toBe(
       model.items.find((item) => item.rackId === 'rack-d01')?.position.z,

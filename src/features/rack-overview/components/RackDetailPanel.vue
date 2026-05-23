@@ -50,8 +50,8 @@ dl {
 }
 
 dl div {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: 86px minmax(0, 1fr);
   gap: 12px;
 }
 
@@ -61,5 +61,7 @@ dt {
 
 dd {
   margin: 0;
+  text-align: right;
+  word-break: break-word;
 }
 </style>

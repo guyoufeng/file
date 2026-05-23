@@ -63,19 +63,28 @@ function buildMicroModuleScene(room: Room, racks: Rack[], devices: Device[], ale
       }))
   const items: RackSceneItem[] = []
   const sceneModules: RackSceneModule[] = []
+  let moduleOriginZ = 0
+  let maxColumns = 0
 
   modules.forEach((module, moduleIndex) => {
-    const moduleOriginX = moduleIndex * (module.columns * columnGap + moduleGap)
+    const moduleOriginX = 0
     const moduleRacks = racks.filter((rack) => rack.microModuleId === module.id)
     const rowNames = [...new Set(moduleRacks.map((rack) => rack.rowName ?? 'A排'))].sort((a, b) =>
       a.localeCompare(b, 'zh-Hans-CN'),
     )
+    const rowCount = Math.max(rowNames.length, module.rows, 1)
+    const columnCount = Math.max(module.columns, ...moduleRacks.map((rack) => rack.columnIndex ?? 1), 1)
+    maxColumns = Math.max(maxColumns, columnCount)
 
     sceneModules.push({
       id: module.id,
       name: module.name,
-      position: { x: moduleOriginX + ((module.columns - 1) * columnGap) / 2, y: 0.01, z: rowGap / 2 },
-      size: { x: module.columns * columnGap + 0.8, y: 0.02, z: rowGap + 2.1 },
+      position: {
+        x: moduleOriginX + ((columnCount - 1) * columnGap) / 2,
+        y: 0.01,
+        z: moduleOriginZ + ((rowCount - 1) * rowGap) / 2,
+      },
+      size: { x: columnCount * columnGap + 0.8, y: 0.02, z: rowCount * rowGap + 1.15 },
     })
 
     for (const rack of moduleRacks) {
@@ -84,13 +93,14 @@ function buildMicroModuleScene(room: Room, racks: Rack[], devices: Device[], ale
       items.push(createRackSceneItem(rack, devices, alerts, {
         x: moduleOriginX + column * columnGap,
         y: rackSize.y / 2,
-        z: row * rowGap,
+        z: moduleOriginZ + row * rowGap,
       }))
     }
+
+    moduleOriginZ += rowCount * rowGap + (moduleIndex < modules.length - 1 ? moduleGap : 0)
   })
 
-  const width = modules.length * 10 * columnGap + Math.max(modules.length - 1, 0) * moduleGap
-  return { items, modules: sceneModules, bounds: { width, depth: 5.8 } }
+  return { items, modules: sceneModules, bounds: { width: maxColumns * columnGap, depth: moduleOriginZ + 2.4 } }
 }
 
 function buildSimpleRoomScene(racks: Rack[], devices: Device[], alerts: Alert[]): RackSceneModel {

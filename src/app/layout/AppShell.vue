@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import { ref } from 'vue'
-import { NButton } from 'naive-ui'
 import AiAssistantDrawer from '../../features/ai-assistant/AiAssistantDrawer.vue'
 import SideNav from './SideNav.vue'
 import TopBar from './TopBar.vue'
@@ -12,12 +11,11 @@ const aiOpen = ref(false)
   <div class="app-shell">
     <SideNav />
     <div class="workspace">
-      <TopBar />
+      <TopBar @open-ai="aiOpen = true" />
       <main class="content">
         <RouterView />
       </main>
     </div>
-    <NButton class="ai-entry" type="primary" round @click="aiOpen = true">AI 助手</NButton>
     <AiAssistantDrawer :open="aiOpen" @close="aiOpen = false" />
   </div>
 </template>
@@ -46,11 +44,4 @@ const aiOpen = ref(false)
     var(--color-bg);
 }
 
-.ai-entry {
-  position: fixed;
-  right: 24px;
-  bottom: 24px;
-  z-index: 20;
-  box-shadow: 0 18px 40px rgba(14, 165, 233, 0.24);
-}
 </style>

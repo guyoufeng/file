@@ -36,10 +36,6 @@ const selectedRoomRacks = computed(() => getRoomRacks(selectedRoom.value, roomSt
 const activeRack = computed(() => selectedRack.value)
 const selectedDevice = computed(() => assetStore.devices.find((device) => device.id === selectedDeviceId.value) ?? null)
 const activeAlerts = computed(() => alertStore.alerts.filter((alert) => alert.status !== 'recovered').length)
-const overviewGridClass = computed(() => ({
-  'detail-open': detailOpen.value,
-  'detail-wide': detailOpen.value && detailMode.value === 'wide',
-}))
 
 watch(roomOptions, (rooms) => {
   if (!selectedRoomId.value && rooms.length > 0) {
@@ -131,7 +127,7 @@ function selectRack(rack: Rack) {
       </div>
     </div>
 
-    <div v-else class="overview-grid" :class="overviewGridClass">
+    <div v-else class="overview-grid">
       <div class="layout-panel">
         <LayoutOverview
           v-if="viewMode === 'layout'"
@@ -241,14 +237,6 @@ function selectRack(rack: Rack) {
   grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   align-items: start;
-}
-
-.overview-grid.detail-open {
-  grid-template-columns: minmax(0, 1fr) 320px;
-}
-
-.overview-grid.detail-open.detail-wide {
-  grid-template-columns: minmax(0, 1fr) 460px;
 }
 
 .layout-panel {

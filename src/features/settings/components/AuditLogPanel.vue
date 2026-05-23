@@ -1,14 +1,27 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import { getLocalAiAuditLogs } from '../../../services/backend/ai'
+import { computed, onMounted, ref } from "vue";
+import type { AuditLog } from "../../../types/domain";
+import { getLocalAiAuditLogs } from "../../../services/backend/ai";
+import { getAuditLogs } from "../../../services/backend/settings";
 
-const keyword = ref('')
+const keyword = ref("");
+const systemLogs = ref<AuditLog[]>([]);
 const logs = computed(() => {
-  const text = keyword.value.trim().toLowerCase()
-  const all = getLocalAiAuditLogs()
-  if (!text) return all
-  return all.filter((log) => `${log.summary} ${JSON.stringify(log.metadata)}`.toLowerCase().includes(text))
-})
+  const text = keyword.value.trim().toLowerCase();
+  const all = [...getLocalAiAuditLogs(), ...systemLogs.value].sort(
+    (first, second) => second.createdAt.localeCompare(first.createdAt),
+  );
+  if (!text) return all;
+  return all.filter((log) =>
+    `${log.summary} ${JSON.stringify(log.metadata)}`
+      .toLowerCase()
+      .includes(text),
+  );
+});
+
+onMounted(async () => {
+  systemLogs.value = await getAuditLogs(200);
+});
 </script>
 
 <template>
@@ -16,11 +29,15 @@ const logs = computed(() => {
     <header>
       <div>
         <p class="eyebrow">审计日志</p>
-        <h3>AI 查询历史</h3>
+        <h3>AI 查询与系统变更</h3>
       </div>
-      <input v-model="keyword" type="search" placeholder="搜索问题、设备、机柜、结果" />
+      <input
+        v-model="keyword"
+        type="search"
+        placeholder="搜索问题、设备、机柜、操作记录"
+      />
     </header>
-    <div v-if="logs.length === 0" class="empty">暂无 AI 查询审计记录。</div>
+    <div v-if="logs.length === 0" class="empty">暂无审计记录。</div>
     <article v-for="log in logs" :key="log.id">
       <strong>{{ log.summary }}</strong>
       <span>{{ log.createdAt }} / {{ log.action }}</span>

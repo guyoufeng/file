@@ -1,105 +1,135 @@
 <script setup lang="ts">
-import { computed, defineAsyncComponent, nextTick, onMounted, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
-import type { Device, Rack } from '../../types/domain'
-import type { DeviceSearchResult } from '../../services/search/deviceSearch'
-import { useAlertStore } from '../../stores/alertStore'
-import { useAssetStore } from '../../stores/assetStore'
-import { useRoomStore } from '../../stores/roomStore'
-import DataCenterSelector from './components/DataCenterSelector.vue'
-import GlobalSearchBox from './components/GlobalSearchBox.vue'
-import LayoutOverview from './components/LayoutOverview.vue'
-import LeadershipModeToggle from './components/LeadershipModeToggle.vue'
-import RackUView from './components/RackUView.vue'
-import RightDetailDrawer from './components/RightDetailDrawer.vue'
-import ViewModeTabs, { type ViewMode } from './components/ViewModeTabs.vue'
-import DeviceFormDrawer from '../asset-management/components/DeviceFormDrawer.vue'
-import { getRoomOptions, getRoomRacks } from './layout'
+import {
+  computed,
+  defineAsyncComponent,
+  nextTick,
+  onMounted,
+  ref,
+  watch,
+} from "vue";
+import { useRoute } from "vue-router";
+import type { Device, Rack } from "../../types/domain";
+import type { DeviceSearchResult } from "../../services/search/deviceSearch";
+import { useAlertStore } from "../../stores/alertStore";
+import { useAssetStore } from "../../stores/assetStore";
+import { useRoomStore } from "../../stores/roomStore";
+import DataCenterSelector from "./components/DataCenterSelector.vue";
+import GlobalSearchBox from "./components/GlobalSearchBox.vue";
+import LayoutOverview from "./components/LayoutOverview.vue";
+import LeadershipModeToggle from "./components/LeadershipModeToggle.vue";
+import RackUView from "./components/RackUView.vue";
+import RightDetailDrawer from "./components/RightDetailDrawer.vue";
+import ViewModeTabs, { type ViewMode } from "./components/ViewModeTabs.vue";
+import DeviceFormDrawer from "../asset-management/components/DeviceFormDrawer.vue";
+import { getRoomOptions, getRoomRacks } from "./layout";
 
-const Rack3DView = defineAsyncComponent(() => import('./components/Rack3DView.vue'))
+const Rack3DView = defineAsyncComponent(
+  () => import("./components/Rack3DView.vue"),
+);
 
-const roomStore = useRoomStore()
-const assetStore = useAssetStore()
-const alertStore = useAlertStore()
-const route = useRoute()
+const roomStore = useRoomStore();
+const assetStore = useAssetStore();
+const alertStore = useAlertStore();
+const route = useRoute();
 
-const selectedRoomId = ref<string | null>(null)
-const selectedRack = ref<Rack | null>(null)
-const selectedDeviceId = ref<string | null>(null)
-const viewMode = ref<ViewMode>('layout')
-const leadershipMode = ref(false)
-const detailOpen = ref(false)
-const deviceEditorOpen = ref(false)
-const editingDevice = ref<Device | null>(null)
+const selectedRoomId = ref<string | null>(null);
+const selectedRack = ref<Rack | null>(null);
+const selectedDeviceId = ref<string | null>(null);
+const viewMode = ref<ViewMode>("layout");
+const leadershipMode = ref(false);
+const detailOpen = ref(false);
+const deviceEditorOpen = ref(false);
+const editingDevice = ref<Device | null>(null);
 
-const roomOptions = computed(() => getRoomOptions(roomStore.rooms))
-const selectedRoom = computed(() => roomOptions.value.find((room) => room.id === selectedRoomId.value) ?? roomOptions.value[0])
-const selectedRoomRacks = computed(() => getRoomRacks(selectedRoom.value, roomStore.racks))
-const activeRack = computed(() => selectedRack.value)
-const selectedDevice = computed(() => assetStore.devices.find((device) => device.id === selectedDeviceId.value) ?? null)
-const activeAlerts = computed(() => alertStore.alerts.filter((alert) => alert.status !== 'recovered').length)
+const roomOptions = computed(() => getRoomOptions(roomStore.rooms));
+const selectedRoom = computed(
+  () =>
+    roomOptions.value.find((room) => room.id === selectedRoomId.value) ??
+    roomOptions.value[0],
+);
+const selectedRoomRacks = computed(() =>
+  getRoomRacks(selectedRoom.value, roomStore.racks),
+);
+const activeRack = computed(() => selectedRack.value);
+const selectedDevice = computed(
+  () =>
+    assetStore.devices.find((device) => device.id === selectedDeviceId.value) ??
+    null,
+);
+const activeAlerts = computed(
+  () =>
+    alertStore.alerts.filter((alert) => alert.status !== "recovered").length,
+);
 
 watch(roomOptions, (rooms) => {
   if (!selectedRoomId.value && rooms.length > 0) {
-    selectedRoomId.value = rooms[0].id
+    selectedRoomId.value = rooms[0].id;
   }
-})
+});
 
 watch(selectedRoomId, () => {
-  selectedRack.value = null
-  selectedDeviceId.value = null
-  detailOpen.value = false
-})
+  selectedRack.value = null;
+  selectedDeviceId.value = null;
+  detailOpen.value = false;
+});
 
 onMounted(async () => {
-  await Promise.all([roomStore.loadRooms(), assetStore.loadDevices(), alertStore.loadAlerts()])
-  if (typeof route.query.roomId === 'string') selectedRoomId.value = route.query.roomId
-  if (typeof route.query.rackId === 'string') selectedRack.value = roomStore.racks.find((rack) => rack.id === route.query.rackId) ?? null
-  if (typeof route.query.deviceId === 'string') selectedDeviceId.value = route.query.deviceId
-})
+  await Promise.all([
+    roomStore.loadRooms(),
+    assetStore.loadDevices(),
+    alertStore.loadAlerts(),
+  ]);
+  if (typeof route.query.roomId === "string")
+    selectedRoomId.value = route.query.roomId;
+  if (typeof route.query.rackId === "string")
+    selectedRack.value =
+      roomStore.racks.find((rack) => rack.id === route.query.rackId) ?? null;
+  if (typeof route.query.deviceId === "string")
+    selectedDeviceId.value = route.query.deviceId;
+});
 
 async function locateSearchResult(result: DeviceSearchResult) {
   if (result.room) {
-    selectedRoomId.value = result.room.id
+    selectedRoomId.value = result.room.id;
   }
-  await nextTick()
-  selectedRack.value = result.rack ?? null
-  selectedDeviceId.value = result.device.id
-  detailOpen.value = true
-  viewMode.value = 'layout'
+  await nextTick();
+  selectedRack.value = result.rack ?? null;
+  selectedDeviceId.value = result.device.id;
+  detailOpen.value = true;
+  viewMode.value = "layout";
 }
 
 function selectRack(rack: Rack) {
-  selectedRack.value = rack
-  selectedDeviceId.value = null
-  detailOpen.value = true
+  selectedRack.value = rack;
+  selectedDeviceId.value = null;
+  detailOpen.value = true;
 }
 
 function openDeviceEditor(device: Device) {
-  editingDevice.value = device
-  selectedDeviceId.value = device.id
-  deviceEditorOpen.value = true
+  editingDevice.value = device;
+  selectedDeviceId.value = device.id;
+  deviceEditorOpen.value = true;
 }
 
-function saveDevice(device: Device) {
-  const index = assetStore.devices.findIndex((item) => item.id === device.id)
-  if (index >= 0) {
-    assetStore.devices.splice(index, 1, device)
-  } else {
-    assetStore.devices.unshift(device)
-  }
-  editingDevice.value = device
-  selectedDeviceId.value = device.id
-  deviceEditorOpen.value = false
+async function saveDevice(device: Device) {
+  const saved = await assetStore.upsertDevice(device);
+  editingDevice.value = saved;
+  selectedDeviceId.value = saved.id;
+  deviceEditorOpen.value = false;
 }
 </script>
 
 <template>
-  <section class="page rack-overview-page" :class="{ 'leadership-mode': leadershipMode }">
+  <section
+    class="page rack-overview-page"
+    :class="{ 'leadership-mode': leadershipMode }"
+  >
     <div class="page-header">
       <div>
         <h2 class="page-title">机柜总览</h2>
-        <p class="page-subtitle">按实际机房查看机柜布局、设备数量、容量占用和告警状态。</p>
+        <p class="page-subtitle">
+          按实际机房查看机柜布局、设备数量、容量占用和告警状态。
+        </p>
       </div>
       <div class="header-actions">
         <LeadershipModeToggle v-model="leadershipMode" />
@@ -140,7 +170,10 @@ function saveDevice(device: Device) {
       </div>
     </div>
 
-    <div v-if="roomStore.loading || assetStore.loading || alertStore.loading" class="empty-panel">
+    <div
+      v-if="roomStore.loading || assetStore.loading || alertStore.loading"
+      class="empty-panel"
+    >
       <div class="empty-panel-inner">
         <h2>正在加载本地数据</h2>
         <p>正在读取机房、机柜、设备和告警信息。</p>

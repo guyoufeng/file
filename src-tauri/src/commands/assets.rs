@@ -44,6 +44,9 @@ pub async fn upsert_device(
     let id = input.id.unwrap_or_else(|| Uuid::new_v4().to_string());
     let ips_json = input.ips_json.unwrap_or_else(|| "[]".to_string());
     let metadata_json = input.metadata_json.unwrap_or_else(|| "{}".to_string());
+    let display_name = device_display_name(&input.computer_name, &input.name);
+    let audit_metadata =
+        build_device_audit_metadata(&input.rack_id, &input.side, input.start_u, input.end_u);
 
     sqlx::query(
     r#"
@@ -107,6 +110,16 @@ pub async fn upsert_device(
   .await
   .map_err(|error| error.to_string())?;
 
+    write_audit_log(
+        &state.pool,
+        "device.upsert",
+        "device",
+        Some(&id),
+        &format!("保存设备 {display_name}"),
+        &audit_metadata,
+    )
+    .await?;
+
     sqlx::query_as::<_, Device>(
     "SELECT id, rack_id, category_id, subtype, name, computer_name, business_ip, management_ip, ips_json, purpose, owner, vendor, model, serial_number, asset_no, warranty_expire_at, hardware_spec, operating_system, side, start_u, end_u, height_u, status, metadata_json FROM devices WHERE id = ?",
   )
@@ -118,12 +131,35 @@ pub async fn upsert_device(
 
 #[tauri::command]
 pub async fn delete_device(state: State<'_, AppState>, id: String) -> Result<(), String> {
+    let existing = sqlx::query_as::<_, (String, Option<String>, String, String, i64, i64)>(
+        "SELECT rack_id, computer_name, name, side, start_u, end_u FROM devices WHERE id = ?",
+    )
+    .bind(&id)
+    .fetch_optional(&state.pool)
+    .await
+    .map_err(|error| error.to_string())?;
+
     sqlx::query("DELETE FROM devices WHERE id = ?")
-        .bind(id)
+        .bind(&id)
         .execute(&state.pool)
         .await
-        .map(|_| ())
-        .map_err(|error| error.to_string())
+        .map_err(|error| error.to_string())?;
+
+    if let Some((rack_id, computer_name, name, side, start_u, end_u)) = existing {
+        let display_name = device_display_name(&computer_name, &name);
+        let audit_metadata = build_device_audit_metadata(&rack_id, &side, start_u, end_u);
+        write_audit_log(
+            &state.pool,
+            "device.delete",
+            "device",
+            Some(&id),
+            &format!("删除设备 {display_name}"),
+            &audit_metadata,
+        )
+        .await?;
+    }
+
+    Ok(())
 }
 
 #[tauri::command]
@@ -220,9 +256,14 @@ pub async fn import_project_json(
             .ok_or_else(|| "项目 JSON 缺少 rooms".to_string())?,
     )
     .map_err(|error| error.to_string())?;
-    let micro_modules: Vec<MicroModule> =
-        serde_json::from_value(project.data.get("microModules").cloned().unwrap_or_default())
-            .unwrap_or_default();
+    let micro_modules: Vec<MicroModule> = serde_json::from_value(
+        project
+            .data
+            .get("microModules")
+            .cloned()
+            .unwrap_or_default(),
+    )
+    .unwrap_or_default();
     let racks: Vec<Rack> = serde_json::from_value(
         project
             .data
@@ -248,7 +289,11 @@ pub async fn import_project_json(
     )
     .map_err(|error| error.to_string())?;
 
-    let mut tx = state.pool.begin().await.map_err(|error| error.to_string())?;
+    let mut tx = state
+        .pool
+        .begin()
+        .await
+        .map_err(|error| error.to_string())?;
 
     for table in [
         "alerts",
@@ -306,15 +351,17 @@ pub async fn import_project_json(
     }
 
     for module in micro_modules {
-        sqlx::query("INSERT INTO micro_modules (id, room_id, name, rows, columns) VALUES (?, ?, ?, ?, ?)")
-            .bind(module.id)
-            .bind(module.room_id)
-            .bind(module.name)
-            .bind(module.rows)
-            .bind(module.columns)
-            .execute(&mut *tx)
-            .await
-            .map_err(|error| error.to_string())?;
+        sqlx::query(
+            "INSERT INTO micro_modules (id, room_id, name, rows, columns) VALUES (?, ?, ?, ?, ?)",
+        )
+        .bind(module.id)
+        .bind(module.room_id)
+        .bind(module.name)
+        .bind(module.rows)
+        .bind(module.columns)
+        .execute(&mut *tx)
+        .await
+        .map_err(|error| error.to_string())?;
     }
 
     for rack in racks {
@@ -452,4 +499,74 @@ async fn ensure_default_categories(
     }
 
     Ok(())
+}
+
+fn device_display_name(computer_name: &Option<String>, name: &str) -> String {
+    computer_name
+        .as_deref()
+        .filter(|value| !value.trim().is_empty())
+        .unwrap_or(name)
+        .to_string()
+}
+
+fn build_device_audit_metadata(rack_id: &str, side: &str, start_u: i64, end_u: i64) -> String {
+    serde_json::json!({
+        "rackId": rack_id,
+        "side": side,
+        "startU": start_u,
+        "endU": end_u
+    })
+    .to_string()
+}
+
+async fn write_audit_log(
+    pool: &sqlx::SqlitePool,
+    action: &str,
+    target_type: &str,
+    target_id: Option<&str>,
+    summary: &str,
+    metadata_json: &str,
+) -> Result<(), String> {
+    sqlx::query(
+        "INSERT INTO audit_logs (id, actor, action, target_type, target_id, summary, metadata_json) VALUES (?, ?, ?, ?, ?, ?, ?)",
+    )
+    .bind(Uuid::new_v4().to_string())
+    .bind("admin")
+    .bind(action)
+    .bind(target_type)
+    .bind(target_id)
+    .bind(summary)
+    .bind(metadata_json)
+    .execute(pool)
+    .await
+    .map(|_| ())
+    .map_err(|error| error.to_string())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn device_audit_metadata_contains_location_fields() {
+        let metadata = build_device_audit_metadata("rack-529-a1", "front", 21, 22);
+        let value: serde_json::Value = serde_json::from_str(&metadata).unwrap();
+
+        assert_eq!(value["rackId"], "rack-529-a1");
+        assert_eq!(value["side"], "front");
+        assert_eq!(value["startU"], 21);
+        assert_eq!(value["endU"], 22);
+    }
+
+    #[test]
+    fn display_name_prefers_computer_name() {
+        assert_eq!(
+            device_display_name(&Some("DB-SRV-01".to_string()), "数据库服务器-01"),
+            "DB-SRV-01"
+        );
+        assert_eq!(
+            device_display_name(&None, "数据库服务器-01"),
+            "数据库服务器-01"
+        );
+    }
 }

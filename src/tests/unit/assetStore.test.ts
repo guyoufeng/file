@@ -97,4 +97,37 @@ describe("asset store", () => {
     expect(saved).toEqual([device, secondDevice]);
     expect(store.devices).toEqual([secondDevice, device]);
   });
+
+  it("returns import summary with failed device details", async () => {
+    const { useAssetStore } = await import("../../stores/assetStore");
+    const store = useAssetStore();
+    const secondDevice = {
+      ...device,
+      id: "dev-store-002",
+      computerName: "APP-SRV-01",
+    };
+    saveDevice
+      .mockResolvedValueOnce(device)
+      .mockRejectedValueOnce(new Error("数据库写入失败"));
+
+    const summary = await store.importDevicesWithSummary([
+      device,
+      secondDevice,
+    ]);
+
+    expect(summary).toMatchObject({
+      total: 2,
+      saved: 1,
+      failed: 1,
+      savedDevices: [device],
+      errors: [
+        {
+          deviceId: "dev-store-002",
+          deviceName: "APP-SRV-01",
+          message: "数据库写入失败",
+        },
+      ],
+    });
+    expect(store.devices).toEqual([device]);
+  });
 });

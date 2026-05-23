@@ -4,6 +4,7 @@ import * as XLSX from "xlsx";
 import type { Device } from "../../types/domain";
 import type { ImportValidationResult } from "../../types/import";
 import { buildImportedDevices } from "../../services/import/deviceImport";
+import type { DeviceImportSummary } from "../../stores/assetStore";
 import { useAssetStore } from "../../stores/assetStore";
 import { useRoomStore } from "../../stores/roomStore";
 import AssetTable from "./components/AssetTable.vue";
@@ -16,6 +17,8 @@ const roomStore = useRoomStore();
 const search = ref("");
 const drawerOpen = ref(false);
 const importOpen = ref(false);
+const importSaving = ref(false);
+const importSummary = ref<DeviceImportSummary | null>(null);
 const editingDevice = ref<Device | null>(null);
 
 const filteredDevices = computed(() => {
@@ -51,6 +54,11 @@ function openEditDrawer(device: Device) {
   drawerOpen.value = true;
 }
 
+function openImportDialog() {
+  importSummary.value = null;
+  importOpen.value = true;
+}
+
 async function saveDevice(device: Device) {
   await assetStore.upsertDevice(device);
   drawerOpen.value = false;
@@ -64,9 +72,18 @@ async function deleteDevice(device: Device) {
 }
 
 async function confirmImport(result: ImportValidationResult) {
+  importSaving.value = true;
+  importSummary.value = null;
   const importedDevices = buildImportedDevices(result);
-  await assetStore.importDevices(importedDevices);
-  importOpen.value = false;
+  try {
+    importSummary.value =
+      await assetStore.importDevicesWithSummary(importedDevices);
+    if (importSummary.value.failed === 0) {
+      importOpen.value = false;
+    }
+  } finally {
+    importSaving.value = false;
+  }
 }
 
 function exportDevices() {
@@ -115,7 +132,7 @@ function exportDevices() {
     <AssetToolbar
       v-model:search="search"
       @add="openAddDrawer"
-      @import="importOpen = true"
+      @import="openImportDialog"
       @export="exportDevices"
     />
     <AssetTable
@@ -137,6 +154,8 @@ function exportDevices() {
       :open="importOpen"
       :racks="roomStore.racks"
       :devices="assetStore.devices"
+      :saving="importSaving"
+      :import-summary="importSummary"
       @close="importOpen = false"
       @confirm="confirmImport"
     />

@@ -6,6 +6,18 @@ import {
   saveDevice,
 } from "../services/backend/assets";
 
+export interface DeviceImportSummary {
+  total: number;
+  saved: number;
+  failed: number;
+  savedDevices: Device[];
+  errors: {
+    deviceId: string;
+    deviceName: string;
+    message: string;
+  }[];
+}
+
 export const useAssetStore = defineStore("assets", {
   state: () => ({
     devices: [] as Device[],
@@ -40,12 +52,36 @@ export const useAssetStore = defineStore("assets", {
       this.devices = this.devices.filter((device) => device.id !== id);
     },
     async importDevices(devices: Device[]) {
-      const savedDevices: Device[] = [];
+      const summary = await this.importDevicesWithSummary(devices);
+      return summary.savedDevices;
+    },
+    async importDevicesWithSummary(
+      devices: Device[],
+    ): Promise<DeviceImportSummary> {
+      const summary: DeviceImportSummary = {
+        total: devices.length,
+        saved: 0,
+        failed: 0,
+        savedDevices: [],
+        errors: [],
+      };
+
       for (const device of devices) {
-        const saved = await this.upsertDevice(device);
-        savedDevices.push(saved);
+        try {
+          const saved = await this.upsertDevice(device);
+          summary.saved += 1;
+          summary.savedDevices.push(saved);
+        } catch (error) {
+          summary.failed += 1;
+          summary.errors.push({
+            deviceId: device.id,
+            deviceName: device.computerName || device.name,
+            message: error instanceof Error ? error.message : "设备保存失败",
+          });
+        }
       }
-      return savedDevices;
+
+      return summary;
     },
   },
 });

@@ -3,7 +3,7 @@ import { computed, onMounted, ref } from "vue";
 import * as XLSX from "xlsx";
 import type { Device } from "../../types/domain";
 import type { ImportValidationResult } from "../../types/import";
-import { getEndU } from "../../services/rack/uPosition";
+import { buildImportedDevices } from "../../services/import/deviceImport";
 import { useAssetStore } from "../../stores/assetStore";
 import { useRoomStore } from "../../stores/roomStore";
 import AssetTable from "./components/AssetTable.vue";
@@ -63,39 +63,9 @@ async function deleteDevice(device: Device) {
   await assetStore.deleteDevice(device.id);
 }
 
-function confirmImport(result: ImportValidationResult) {
-  const importedDevices = result.rows
-    .filter((item) => item.errors.length === 0 && item.rackId)
-    .map((item) => ({
-      id: `dev-import-${Date.now()}-${item.row.rowIndex}`,
-      name: item.row.computerName,
-      computerName: item.row.computerName,
-      rackId: item.rackId!,
-      categoryId: item.row.categoryId,
-      subtype: item.row.subtype,
-      businessIp: item.row.businessIp,
-      managementIp: item.row.managementIp,
-      ips: [item.row.businessIp, item.row.managementIp].filter(
-        Boolean,
-      ) as string[],
-      purpose: item.row.purpose,
-      owner: item.row.owner,
-      vendor: item.row.vendor,
-      model: item.row.model,
-      serialNumber: item.row.serialNumber,
-      assetNo: item.row.assetNo,
-      warrantyExpireAt: item.row.warrantyExpireAt,
-      hardwareSpec: item.row.hardwareSpec,
-      operatingSystem: item.row.operatingSystem,
-      side: item.row.side,
-      startU: item.row.startU,
-      endU: getEndU(item.row.startU, item.row.heightU),
-      heightU: item.row.heightU,
-      status: "normal" as const,
-      ports: [],
-    }));
-
-  assetStore.devices = [...importedDevices, ...assetStore.devices];
+async function confirmImport(result: ImportValidationResult) {
+  const importedDevices = buildImportedDevices(result);
+  await assetStore.importDevices(importedDevices);
   importOpen.value = false;
 }
 

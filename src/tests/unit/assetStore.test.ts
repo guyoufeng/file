@@ -78,4 +78,23 @@ describe("asset store", () => {
     expect(removeDevice).toHaveBeenCalledWith(device.id);
     expect(store.devices).toEqual([]);
   });
+
+  it("imports devices through the same save pipeline", async () => {
+    const { useAssetStore } = await import("../../stores/assetStore");
+    const store = useAssetStore();
+    const secondDevice = {
+      ...device,
+      id: "dev-store-002",
+      computerName: "APP-SRV-01",
+    };
+    saveDevice
+      .mockResolvedValueOnce(device)
+      .mockResolvedValueOnce(secondDevice);
+
+    const saved = await store.importDevices([device, secondDevice]);
+
+    expect(saveDevice).toHaveBeenCalledTimes(2);
+    expect(saved).toEqual([device, secondDevice]);
+    expect(store.devices).toEqual([secondDevice, device]);
+  });
 });

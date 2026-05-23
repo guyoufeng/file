@@ -39,5 +39,13 @@ export const useAssetStore = defineStore("assets", {
       await removeDevice(id);
       this.devices = this.devices.filter((device) => device.id !== id);
     },
+    async importDevices(devices: Device[]) {
+      const savedDevices: Device[] = [];
+      for (const device of devices) {
+        const saved = await this.upsertDevice(device);
+        savedDevices.push(saved);
+      }
+      return savedDevices;
+    },
   },
 });

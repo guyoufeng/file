@@ -27,13 +27,19 @@ const selectedRack = ref<Rack | null>(null)
 const selectedDeviceId = ref<string | null>(null)
 const viewMode = ref<ViewMode>('layout')
 const leadershipMode = ref(false)
+const detailOpen = ref(false)
+const detailMode = ref<'normal' | 'wide'>('normal')
 
 const roomOptions = computed(() => getRoomOptions(roomStore.rooms))
 const selectedRoom = computed(() => roomOptions.value.find((room) => room.id === selectedRoomId.value) ?? roomOptions.value[0])
 const selectedRoomRacks = computed(() => getRoomRacks(selectedRoom.value, roomStore.racks))
-const activeRack = computed(() => selectedRack.value ?? selectedRoomRacks.value[0] ?? null)
+const activeRack = computed(() => selectedRack.value)
 const selectedDevice = computed(() => assetStore.devices.find((device) => device.id === selectedDeviceId.value) ?? null)
 const activeAlerts = computed(() => alertStore.alerts.filter((alert) => alert.status !== 'recovered').length)
+const overviewGridClass = computed(() => ({
+  'detail-open': detailOpen.value,
+  'detail-wide': detailOpen.value && detailMode.value === 'wide',
+}))
 
 watch(roomOptions, (rooms) => {
   if (!selectedRoomId.value && rooms.length > 0) {
@@ -44,6 +50,7 @@ watch(roomOptions, (rooms) => {
 watch(selectedRoomId, () => {
   selectedRack.value = null
   selectedDeviceId.value = null
+  detailOpen.value = false
 })
 
 onMounted(async () => {
@@ -60,7 +67,14 @@ async function locateSearchResult(result: DeviceSearchResult) {
   await nextTick()
   selectedRack.value = result.rack ?? null
   selectedDeviceId.value = result.device.id
+  detailOpen.value = true
   viewMode.value = 'layout'
+}
+
+function selectRack(rack: Rack) {
+  selectedRack.value = rack
+  selectedDeviceId.value = null
+  detailOpen.value = true
 }
 </script>
 
@@ -117,7 +131,7 @@ async function locateSearchResult(result: DeviceSearchResult) {
       </div>
     </div>
 
-    <div v-else class="overview-grid">
+    <div v-else class="overview-grid" :class="overviewGridClass">
       <div class="layout-panel">
         <LayoutOverview
           v-if="viewMode === 'layout'"
@@ -126,7 +140,7 @@ async function locateSearchResult(result: DeviceSearchResult) {
           :devices="assetStore.devices"
           :alerts="alertStore.alerts"
           :selected-rack-id="selectedRack?.id ?? null"
-          @select-rack="selectedRack = $event; selectedDeviceId = null"
+          @select-rack="selectRack"
         />
         <RackUView
           v-else-if="viewMode === 'u-view'"
@@ -135,7 +149,7 @@ async function locateSearchResult(result: DeviceSearchResult) {
           :devices="assetStore.devices"
           :alerts="alertStore.alerts"
           :highlight-device-id="selectedDeviceId"
-          @select-rack="selectedRack = $event; selectedDeviceId = null"
+          @select-rack="selectRack"
         />
         <Rack3DView
           v-else
@@ -145,14 +159,18 @@ async function locateSearchResult(result: DeviceSearchResult) {
           :alerts="alertStore.alerts"
           :selected-rack-id="selectedRack?.id ?? null"
           :leadership-mode="leadershipMode"
-          @select-rack="selectedRack = $event; selectedDeviceId = null"
+          @select-rack="selectRack"
         />
       </div>
       <RightDetailDrawer
+        v-if="detailOpen"
         :rack="activeRack"
         :device="selectedDevice"
         :devices="assetStore.devices"
         :alerts="alertStore.alerts"
+        :mode="detailMode"
+        @update:mode="detailMode = $event"
+        @close="detailOpen = false"
       />
     </div>
   </section>
@@ -218,10 +236,19 @@ async function locateSearchResult(result: DeviceSearchResult) {
 }
 
 .overview-grid {
+  position: relative;
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 300px;
+  grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   align-items: start;
+}
+
+.overview-grid.detail-open {
+  grid-template-columns: minmax(0, 1fr) 320px;
+}
+
+.overview-grid.detail-open.detail-wide {
+  grid-template-columns: minmax(0, 1fr) 460px;
 }
 
 .layout-panel {

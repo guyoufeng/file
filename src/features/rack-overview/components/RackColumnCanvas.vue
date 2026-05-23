@@ -10,16 +10,17 @@ const props = defineProps<{
   alerts?: Alert[]
   zoom: number
   highlightDeviceId?: string | null
+  compact?: boolean
 }>()
 
-const rackWidth = 300
-const labelWidth = 44
 const rackPadding = 8
-const baseRowHeight = 14
 
-const rowHeight = computed(() => Math.round(baseRowHeight * props.zoom))
+const rackWidth = computed(() => props.compact ? 154 : 300)
+const labelWidth = computed(() => props.compact ? 30 : 44)
+const baseRowHeight = computed(() => props.compact ? 8 : 14)
+const rowHeight = computed(() => Math.round(baseRowHeight.value * props.zoom))
 const stageHeight = computed(() => props.rack.heightU * rowHeight.value)
-const rackBodyWidth = rackWidth - labelWidth - rackPadding
+const rackBodyWidth = computed(() => rackWidth.value - labelWidth.value - rackPadding)
 const rackDevices = computed(() =>
   props.devices
     .filter((device) => device.rackId === props.rack.id && device.side === 'front')
@@ -28,7 +29,7 @@ const rackDevices = computed(() =>
 
 function deviceText(device: Device): string {
   const lines = [device.computerName || device.name, device.businessIp]
-  if (props.zoom >= 1) {
+  if (!props.compact && props.zoom >= 1) {
     lines.push(device.purpose)
   }
   return lines.filter(Boolean).join('\n')
@@ -43,7 +44,7 @@ function deviceColor(device: Device): string {
 </script>
 
 <template>
-  <div class="rack-canvas">
+  <div class="rack-canvas" :class="{ compact }" :style="{ width: `${rackWidth}px` }">
     <v-stage :config="{ width: rackWidth, height: stageHeight }">
       <v-layer>
         <template v-for="u in rack.heightU" :key="u">
@@ -92,7 +93,7 @@ function deviceColor(device: Device): string {
               width: rackBodyWidth - 28,
               height: getDeviceBlockHeight(device.heightU, rowHeight) - 12,
               text: deviceText(device),
-              fontSize: props.zoom >= 1 ? 12 : 10,
+              fontSize: props.compact ? 9 : props.zoom >= 1 ? 12 : 10,
               lineHeight: 1.25,
               fill: '#F8FAFC',
               ellipsis: true,
@@ -106,7 +107,6 @@ function deviceColor(device: Device): string {
 
 <style scoped>
 .rack-canvas {
-  width: 300px;
   padding: 10px;
   border: 1px solid rgba(71, 85, 105, 0.78);
   border-radius: 8px;
@@ -114,5 +114,10 @@ function deviceColor(device: Device): string {
     linear-gradient(90deg, rgba(148, 163, 184, 0.1), transparent 8%, transparent 92%, rgba(148, 163, 184, 0.1)),
     rgba(8, 17, 31, 0.92);
   box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.9);
+}
+
+.rack-canvas.compact {
+  padding: 7px;
+  border-color: rgba(71, 85, 105, 0.62);
 }
 </style>

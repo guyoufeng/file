@@ -33,9 +33,9 @@ onMounted(async () => {
           <h3>只读智能查询</h3>
         </div>
         <div class="actions">
-          <button type="button" @click="mode = 'default'">默认</button>
-          <button type="button" @click="mode = 'expanded'">放大</button>
-          <button type="button" @click="mode = 'fullscreen'">全屏</button>
+          <button type="button" :class="{ active: mode === 'default' }" @click="mode = 'default'">窄窗</button>
+          <button type="button" :class="{ active: mode === 'expanded' }" @click="mode = 'expanded'">宽窗</button>
+          <button type="button" :class="{ active: mode === 'fullscreen' }" @click="mode = 'fullscreen'">全屏</button>
           <button type="button" @click="emit('close')">关闭</button>
         </div>
       </header>
@@ -74,7 +74,7 @@ onMounted(async () => {
 }
 
 .drawer-panel.expanded {
-  width: 720px;
+  width: 760px;
 }
 
 .drawer-panel.fullscreen {
@@ -117,5 +117,10 @@ button {
   color: var(--color-text);
   background: rgba(17, 24, 39, 0.92);
   cursor: pointer;
+}
+
+button.active {
+  border-color: rgba(56, 189, 248, 0.72);
+  background: rgba(14, 165, 233, 0.16);
 }
 </style>

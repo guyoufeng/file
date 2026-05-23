@@ -30,8 +30,20 @@ const rackTypeLabels: Record<string, string> = {
 
 const zoom = ref(1)
 const visibleRacks = computed(() => props.racks?.length ? props.racks : props.rack ? [props.rack] : [])
-const rackDevices = computed(() => props.devices.filter((device) => device.rackId === props.rack?.id))
-const activeHighlightDeviceId = computed(() => props.highlightDeviceId ?? rackDevices.value[0]?.id ?? null)
+const rackRows = computed(() => {
+  const rows = new Map<string, Rack[]>()
+  visibleRacks.value.forEach((rack) => {
+    const rowName = rack.rowName ?? '未分排'
+    rows.set(rowName, [...(rows.get(rowName) ?? []), rack])
+  })
+
+  return [...rows.entries()]
+    .sort(([left], [right]) => left.localeCompare(right, 'zh-Hans-CN', { numeric: true }))
+    .map(([rowName, racks]) => ({
+      rowName,
+      racks: racks.sort((left, right) => (left.columnIndex ?? 0) - (right.columnIndex ?? 0)),
+    }))
+})
 </script>
 
 <template>
@@ -39,30 +51,44 @@ const activeHighlightDeviceId = computed(() => props.highlightDeviceId ?? rackDe
     <header>
       <div>
         <p class="eyebrow">U位大图</p>
-        <h3>{{ visibleRacks.length > 1 ? '多柜 U 位总览' : rack?.name ?? '请选择机柜' }}</h3>
-        <span v-if="visibleRacks.length > 1" class="hint">横向查看当前机房多个 48U 机柜，点击机柜标题同步右侧详情。</span>
+        <h3>{{ visibleRacks.length > 1 ? '多排多柜 U 位工作区' : rack?.name ?? '请选择机柜' }}</h3>
+        <span v-if="visibleRacks.length > 1" class="hint">横向查看 1-10 列，纵向查看 A/B/C/D 排；点击机柜标题后右侧显示详细信息。</span>
       </div>
       <ZoomToolbar v-model="zoom" />
     </header>
 
     <div v-if="visibleRacks.length > 0" class="rack-u-scroll" data-testid="rack-u-overview">
       <section
-        v-for="item in visibleRacks"
-        :key="item.id"
-        class="rack-u-column"
-        :class="{ active: item.id === rack?.id }"
+        v-for="row in rackRows"
+        :key="row.rowName"
+        class="rack-u-row"
+        :data-testid="`rack-u-row-${row.rowName}`"
       >
-        <button type="button" class="rack-u-title" @click="emit('selectRack', item)">
-          <strong>{{ item.name }}</strong>
-          <span>{{ rackTypeLabels[item.type] ?? item.type }} / {{ item.heightU }}U</span>
-        </button>
-        <RackColumnCanvas
-          :rack="item"
-          :devices="devices"
-          :alerts="alerts"
-          :zoom="zoom"
-          :highlight-device-id="item.id === rack?.id ? activeHighlightDeviceId : null"
-        />
+        <div class="rack-u-row-label">
+          <strong>{{ row.rowName }}</strong>
+          <span>{{ row.racks.length }}柜</span>
+        </div>
+        <div class="rack-u-row-track">
+          <article
+            v-for="item in row.racks"
+            :key="item.id"
+            class="rack-u-column"
+            :class="{ active: item.id === rack?.id }"
+          >
+            <button type="button" class="rack-u-title" @click="emit('selectRack', item)">
+              <strong>{{ item.name }}</strong>
+              <span>{{ rackTypeLabels[item.type] ?? item.type }} / {{ item.heightU }}U</span>
+            </button>
+            <RackColumnCanvas
+              :rack="item"
+              :devices="devices"
+              :alerts="alerts"
+              :zoom="zoom"
+              :highlight-device-id="item.id === rack?.id ? highlightDeviceId : null"
+              compact
+            />
+          </article>
+        </div>
       </section>
     </div>
     <div v-else class="empty-panel">
@@ -107,23 +133,64 @@ h3 {
 
 .rack-u-scroll {
   max-width: 100%;
-  display: flex;
+  max-height: calc(100vh - 330px);
+  min-height: 420px;
+  display: grid;
   gap: 14px;
-  overflow-x: auto;
+  overflow: auto;
   padding: 2px 2px 14px;
+}
+
+.rack-u-row {
+  min-width: max-content;
+  display: grid;
+  grid-template-columns: 62px 1fr;
+  gap: 10px;
+  align-items: start;
+}
+
+.rack-u-row-label {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  min-height: 66px;
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  padding: 8px 6px;
+  border: 1px solid rgba(38, 50, 71, 0.92);
+  border-radius: 8px;
+  background: rgba(5, 10, 22, 0.96);
+  box-shadow: 8px 0 16px rgba(5, 10, 22, 0.34);
+}
+
+.rack-u-row-label strong {
+  font-size: 14px;
+}
+
+.rack-u-row-label span {
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.rack-u-row-track {
+  display: flex;
+  gap: 10px;
+  align-items: start;
 }
 
 .rack-u-column {
   flex: 0 0 auto;
   display: grid;
-  gap: 8px;
+  gap: 6px;
 }
 
 .rack-u-title {
-  min-height: 50px;
+  width: 154px;
+  min-height: 54px;
   display: grid;
   gap: 3px;
-  padding: 8px 12px;
+  padding: 8px 9px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
   color: var(--color-text);
@@ -138,7 +205,9 @@ h3 {
 }
 
 .rack-u-title strong {
+  overflow: hidden;
   white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
 .rack-u-column.active .rack-u-title {

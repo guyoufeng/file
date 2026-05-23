@@ -7,6 +7,26 @@ use crate::{
     models::{AiModelConfig, AiModelConfigInput, AuditLog},
 };
 
+#[derive(serde::Deserialize)]
+struct OpenAiModelList {
+    data: Vec<OpenAiModelItem>,
+}
+
+#[derive(serde::Deserialize)]
+struct OpenAiModelItem {
+    id: String,
+}
+
+#[derive(serde::Deserialize)]
+struct OllamaModelList {
+    models: Vec<OllamaModelItem>,
+}
+
+#[derive(serde::Deserialize)]
+struct OllamaModelItem {
+    name: String,
+}
+
 #[tauri::command]
 pub async fn get_ai_model_configs(
     state: State<'_, AppState>,
@@ -66,6 +86,56 @@ pub async fn save_ai_model_config(
     .fetch_one(&state.pool)
     .await
     .map_err(|error| error.to_string())
+}
+
+#[tauri::command]
+pub async fn discover_ai_models(input: AiModelConfigInput) -> Result<Vec<String>, String> {
+    let client = reqwest::Client::new();
+    let base_url = input.base_url.trim_end_matches('/');
+
+    match input.provider.as_str() {
+        "ollama" => {
+            let response = client
+                .get(format!("{base_url}/api/tags"))
+                .send()
+                .await
+                .map_err(|error| error.to_string())?;
+
+            if !response.status().is_success() {
+                return Err(format!("模型发现失败：HTTP {}", response.status()));
+            }
+
+            let data: OllamaModelList = response
+                .json()
+                .await
+                .map_err(|error| error.to_string())?;
+            Ok(data.models.into_iter().map(|item| item.name).collect())
+        }
+        "gemini" => {
+            if input.model.trim().is_empty() {
+                Err("Gemini 需要手工填写模型标识".to_string())
+            } else {
+                Ok(vec![input.model])
+            }
+        }
+        _ => {
+            let mut request = client.get(format!("{base_url}/models"));
+            if let Some(api_key) = input.api_key_ref.filter(|value| !value.trim().is_empty()) {
+                request = request.bearer_auth(api_key);
+            }
+
+            let response = request.send().await.map_err(|error| error.to_string())?;
+            if !response.status().is_success() {
+                return Err(format!("模型发现失败：HTTP {}", response.status()));
+            }
+
+            let data: OpenAiModelList = response
+                .json()
+                .await
+                .map_err(|error| error.to_string())?;
+            Ok(data.data.into_iter().map(|item| item.id).collect())
+        }
+    }
 }
 
 #[tauri::command]

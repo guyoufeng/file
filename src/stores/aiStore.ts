@@ -1,6 +1,10 @@
 import { defineStore } from 'pinia'
 import type { AiModelConfig } from '../types/domain'
-import { getAiModelConfigs } from '../services/backend/settings'
+import {
+  discoverAiModels,
+  getAiModelConfigs,
+  saveAiModelConfig,
+} from '../services/backend/settings'
 import { getProviderAdapter } from '../services/ai/aiGateway'
 
 export const useAiStore = defineStore('ai', {
@@ -29,6 +33,14 @@ export const useAiStore = defineStore('ai', {
       }
       if (index >= 0) this.configs.splice(index, 1, config)
       else this.configs.unshift(config)
+    },
+    async discoverModels(config: AiModelConfig) {
+      return await discoverAiModels(config)
+    },
+    async saveConfig(config: AiModelConfig) {
+      const saved = await saveAiModelConfig(config)
+      this.addLocalConfig(saved)
+      return saved
     },
     async testConfig(config: AiModelConfig) {
       const result = await getProviderAdapter(config).testConnection(config)

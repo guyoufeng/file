@@ -1,7 +1,10 @@
 import type { Alert, Device, Rack, Room } from "../../types/domain";
 import {
+  formatActiveAlertDevicesAnswer,
+  formatDeviceAlertsAnswer,
   formatDeviceLocationAnswer,
   formatRackDeviceListAnswer,
+  formatRackAlertRankingAnswer,
   formatRoomDeviceSummaryAnswer,
   sourceFooter,
 } from "./answerFormatter";
@@ -33,6 +36,9 @@ export function runDeterministicAiQuery(
   const queriedAt = new Date().toLocaleString("zh-CN", { hour12: false });
   const normalized = question.toLowerCase();
   const ip = question.match(/\b\d{1,3}(?:\.\d{1,3}){3}\b/)?.[0];
+  const asksAlert = /告警|报警|异常|故障/.test(question);
+  const asksAlertRanking =
+    asksAlert && /最多|排行|排名|哪个机柜/.test(question);
 
   if (ip) {
     const device = devices.find(
@@ -44,6 +50,17 @@ export function runDeterministicAiQuery(
     if (device) {
       const rack = racks.find((item) => item.id === device.rackId);
       const room = rooms.find((item) => item.id === rack?.roomId);
+      if (asksAlert) {
+        return {
+          toolName: "list_alert_devices",
+          relatedDeviceId: device.id,
+          relatedRackId: rack?.id,
+          relatedRoomId: room?.id,
+          answer:
+            formatDeviceAlertsAnswer(device, rooms, racks, alerts) +
+            sourceFooter({ label: "本地资产库、机柜库、告警库", queriedAt }),
+        };
+      }
       return {
         toolName: "locate_device",
         relatedDeviceId: device.id,
@@ -54,6 +71,15 @@ export function runDeterministicAiQuery(
           sourceFooter({ label: "本地资产库、机柜库、告警库", queriedAt }),
       };
     }
+  }
+
+  if (asksAlertRanking) {
+    return {
+      toolName: "list_alert_devices",
+      answer:
+        formatRackAlertRankingAnswer(rooms, racks, devices, alerts) +
+        sourceFooter({ label: "本地资产库、机柜库、告警库", queriedAt }),
+    };
   }
 
   const rack = racks.find((item) =>
@@ -90,6 +116,15 @@ export function runDeterministicAiQuery(
           label: "本地资产库、机房库、机柜库、告警库",
           queriedAt,
         }),
+    };
+  }
+
+  if (asksAlert && /哪些|所有|当前|现在/.test(question)) {
+    return {
+      toolName: "list_alert_devices",
+      answer:
+        formatActiveAlertDevicesAnswer(rooms, racks, devices, alerts) +
+        sourceFooter({ label: "本地资产库、机柜库、告警库", queriedAt }),
     };
   }
 

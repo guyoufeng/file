@@ -112,3 +112,132 @@ export function formatRoomDeviceSummaryAnswer(
     ...keyDevices.map((device) => `- ${device}`),
   ].join("\n");
 }
+
+function alertLevelLabel(level: Alert["level"]): string {
+  if (level === "critical") return "严重";
+  if (level === "warning") return "警告";
+  return "提示";
+}
+
+function findDeviceLocation(
+  device: Device,
+  racks: Rack[],
+  rooms: Room[],
+): string {
+  const rack = racks.find((item) => item.id === device.rackId);
+  const room = rooms.find((item) => item.id === rack?.roomId);
+  return `${room?.name || "-"} / ${rack?.name || "-"} / ${device.side === "front" ? "正面" : "背面"} ${device.startU}U-${device.endU}U`;
+}
+
+export function formatActiveAlertDevicesAnswer(
+  rooms: Room[],
+  racks: Rack[],
+  devices: Device[],
+  alerts: Alert[],
+): string {
+  const activeAlerts = alerts.filter((alert) => alert.status !== "recovered");
+  const alertDevices = devices
+    .map((device) => ({
+      device,
+      alerts: activeAlerts.filter((alert) => alert.deviceId === device.id),
+    }))
+    .filter((item) => item.alerts.length > 0)
+    .slice(0, 20);
+
+  return [
+    `当前活动告警设备：${alertDevices.length} 台`,
+    `活动告警总数：${activeAlerts.length} 条`,
+    "",
+    ...alertDevices.map(({ device, alerts: deviceAlerts }, index) => {
+      const highest = deviceAlerts.some((alert) => alert.level === "critical")
+        ? "严重"
+        : "警告";
+      return [
+        `${index + 1}. ${device.computerName || device.name}`,
+        `业务IP：${device.businessIp || "-"}`,
+        `位置：${findDeviceLocation(device, racks, rooms)}`,
+        `责任人：${device.owner || "-"}`,
+        `告警：${deviceAlerts.length}条，最高${highest}`,
+        `最新：${deviceAlerts[0]?.title || "-"}`,
+      ].join(" / ");
+    }),
+  ].join("\n");
+}
+
+export function formatDeviceAlertsAnswer(
+  device: Device,
+  rooms: Room[],
+  racks: Rack[],
+  alerts: Alert[],
+): string {
+  const activeAlerts = alerts.filter(
+    (alert) => alert.deviceId === device.id && alert.status !== "recovered",
+  );
+  const lines =
+    activeAlerts.length > 0
+      ? activeAlerts.map(
+          (alert, index) =>
+            `${index + 1}. ${alertLevelLabel(alert.level)}(${alert.level}) / ${alert.title} / ${alert.description || "-"} / 状态：${alert.status} / 开始：${alert.startedAt}`,
+        )
+      : ["无活动告警"];
+
+  return [
+    `设备：${device.computerName || device.name}`,
+    `业务IP：${device.businessIp || "-"}`,
+    `位置：${findDeviceLocation(device, racks, rooms)}`,
+    `责任人：${device.owner || "-"}`,
+    `告警详情：${activeAlerts.length} 条`,
+    ...lines,
+  ].join("\n");
+}
+
+export function formatRackAlertRankingAnswer(
+  rooms: Room[],
+  racks: Rack[],
+  devices: Device[],
+  alerts: Alert[],
+): string {
+  const activeAlerts = alerts.filter((alert) => alert.status !== "recovered");
+  const devicesByRack = new Map<string, Device[]>();
+  for (const device of devices) {
+    devicesByRack.set(device.rackId, [
+      ...(devicesByRack.get(device.rackId) || []),
+      device,
+    ]);
+  }
+
+  const rankings = racks
+    .map((rack) => {
+      const rackDevices = devicesByRack.get(rack.id) || [];
+      const rackDeviceIds = new Set(rackDevices.map((device) => device.id));
+      const rackAlerts = activeAlerts.filter((alert) =>
+        rackDeviceIds.has(alert.deviceId),
+      );
+      return {
+        rack,
+        room: rooms.find((room) => room.id === rack.roomId),
+        alerts: rackAlerts,
+        criticalCount: rackAlerts.filter((alert) => alert.level === "critical")
+          .length,
+      };
+    })
+    .filter((item) => item.alerts.length > 0)
+    .sort(
+      (first, second) =>
+        second.alerts.length - first.alerts.length ||
+        second.criticalCount - first.criticalCount,
+    )
+    .slice(0, 10);
+
+  return [
+    "机柜告警排行",
+    `活动告警总数：${activeAlerts.length} 条`,
+    "",
+    ...rankings.map(
+      (item, index) =>
+        `${index + 1}. ${item.room?.name || "-"} / ${item.rack.name}：活动告警 ${item.alerts.length} 条，严重 ${item.criticalCount} 条`,
+    ),
+    "",
+    "建议：优先处理严重告警数量最多的机柜，并结合机柜图定位到具体 U 位和责任人。",
+  ].join("\n");
+}

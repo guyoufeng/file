@@ -78,4 +78,66 @@ describe("ai tools", () => {
     expect(result.answer).toContain("活动告警");
     expect(result.answer).toContain("重点设备");
   });
+
+  it("lists active alert devices with location and owner", () => {
+    const alert = sampleProject.alerts.find(
+      (item) => item.status !== "recovered",
+    )!;
+    const device = sampleProject.devices.find(
+      (item) => item.id === alert.deviceId,
+    )!;
+    const result = runDeterministicAiQuery(
+      "现在有哪些服务器有告警？",
+      sampleProject.rooms,
+      sampleProject.racks,
+      sampleProject.devices,
+      sampleProject.alerts,
+    );
+
+    expect(result.toolName).toBe("list_alert_devices");
+    expect(result.answer).toContain("当前活动告警设备");
+    expect(result.answer).toContain(device.computerName!);
+    expect(result.answer).toContain("位置");
+    expect(result.answer).toContain("责任人");
+    expect(result.answer).toContain(alert.title);
+  });
+
+  it("shows active alerts for a specific device IP", () => {
+    const alert = sampleProject.alerts.find(
+      (item) => item.status !== "recovered",
+    )!;
+    const device = sampleProject.devices.find(
+      (item) => item.id === alert.deviceId,
+    )!;
+    const result = runDeterministicAiQuery(
+      `${device.businessIp} 有什么告警？`,
+      sampleProject.rooms,
+      sampleProject.racks,
+      sampleProject.devices,
+      sampleProject.alerts,
+    );
+
+    expect(result.toolName).toBe("list_alert_devices");
+    expect(result.relatedDeviceId).toBe(device.id);
+    expect(result.answer).toContain(device.computerName!);
+    expect(result.answer).toContain("告警详情");
+    expect(result.answer).toContain(alert.title);
+    expect(result.answer).toContain(alert.level);
+  });
+
+  it("ranks racks by active alert count", () => {
+    const result = runDeterministicAiQuery(
+      "哪个机柜告警最多？",
+      sampleProject.rooms,
+      sampleProject.racks,
+      sampleProject.devices,
+      sampleProject.alerts,
+    );
+
+    expect(result.toolName).toBe("list_alert_devices");
+    expect(result.answer).toContain("机柜告警排行");
+    expect(result.answer).toContain("活动告警");
+    expect(result.answer).toContain("严重");
+    expect(result.answer).toContain("建议");
+  });
 });

@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
 import type { Alert, Device, Rack, Room } from '../../../types/domain'
+import { getDefaultRackCameraPose } from '../../../services/three/rackCamera'
 import { buildRackSceneModel } from '../../../services/three/rackScene'
 
 const props = defineProps<{
@@ -205,10 +206,9 @@ function resizeScene() {
 function fitCamera() {
   if (!camera || !controls) return
   const { width, depth } = sceneModel.value.bounds
-  const centerX = width / 2 - 0.7
-  const centerZ = depth / 2 - 1.1
-  camera.position.set(centerX + width * 0.1, props.leadershipMode ? 12.8 : 10.6, centerZ + Math.max(depth, 8) * 2.35)
-  controls.target.set(centerX, 1.4, centerZ)
+  const pose = getDefaultRackCameraPose(width, depth, props.leadershipMode)
+  camera.position.set(pose.position.x, pose.position.y, pose.position.z)
+  controls.target.set(pose.target.x, pose.target.y, pose.target.z)
   controls.update()
 }
 

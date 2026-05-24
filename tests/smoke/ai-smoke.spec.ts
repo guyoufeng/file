@@ -8,26 +8,35 @@ test("opens AI assistant and answers a read-only asset location question", async
   await page.getByRole("button", { name: "打开 AI助手" }).click();
   const drawer = page.getByTestId("ai-floating-window");
   await expect(drawer).toBeVisible();
-  await expect(
-    page.getByRole("heading", { name: "只读智能查询" }),
-  ).toBeVisible();
+  await expect(drawer.getByRole("heading", { name: "AI 助手" })).toBeVisible();
+  await expect(drawer.getByText(/当前模型/)).toBeVisible();
+  await expect(drawer.getByText("只读智能查询")).toHaveCount(0);
   await expect(drawer.getByTestId("ai-message-list")).toBeVisible();
   await expect(drawer.getByTestId("ai-composer")).toBeVisible();
   await expect(drawer.getByRole("button", { name: "添加图片" })).toBeVisible();
   await expect(drawer.getByRole("button", { name: "添加附件" })).toBeVisible();
 
-  await page
-    .getByPlaceholder("例如：IP 为 10.10.3.25 的服务器在哪里？")
-    .fill("IP 为 10.10.0.21 的服务器在哪里？");
-  await page.getByRole("button", { name: "发送查询" }).click();
+  const promptInput = page.getByPlaceholder(
+    "输入问题，按 Enter 发送，Shift+Enter 换行",
+  );
+  await expect(promptInput).toHaveValue("");
+  await promptInput.fill("IP 为 10.10.0.21 的服务器在哪里？");
+  await promptInput.press("Enter");
 
   await expect(drawer.getByText("QF-SRV-001")).toBeVisible();
   await expect(drawer.getByText(/529数据中心/)).toBeVisible();
+  await expect(drawer.getByText(/模型：qwen3.6-35b-a3b-awq/)).toHaveCount(0);
 
   await drawer.getByRole("button", { name: "定位到机柜/设备" }).click();
 
   await expect(page).toHaveURL(/rack-overview/);
   await expect(page).toHaveURL(/deviceId=dev-001/);
+  await expect(page.getByTestId("location-focus-banner")).toContainText(
+    "已定位",
+  );
+  await expect(page.getByTestId("location-focus-banner")).toContainText(
+    "529-A1",
+  );
   await expect(page.getByTestId("selected-rack-detail-title")).toContainText(
     "529-A1",
   );

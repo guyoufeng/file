@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { nextTick, onMounted, ref } from "vue";
 import type { Alert, Device, Rack, Room } from "../../../types/domain";
 import type { AiNavigationTarget } from "../../../types/aiNavigation";
 import { answerWithAiAssistant } from "../../../services/ai/aiAssistant";
@@ -25,9 +25,10 @@ interface ChatAnswer {
 }
 
 const aiStore = useAiStore();
-const question = ref("IP 为 10.10.3.31 的服务器在哪里？");
+const question = ref("");
 const answers = ref<ChatAnswer[]>([]);
 const asking = ref(false);
+const messageListRef = ref<HTMLElement | null>(null);
 
 onMounted(() => {
   void aiStore.loadConfigs();
@@ -47,16 +48,13 @@ async function ask() {
       devices: props.devices,
       alerts: props.alerts,
     });
-    const modelLine = result.usedModel
-      ? `\n\n模型：${result.usedModel}`
-      : result.fallbackReason
-        ? `\n\n模型：未使用，${result.fallbackReason}`
-        : "";
-    answers.value.unshift({
+    answers.value.push({
       id: `${Date.now()}-${answers.value.length}`,
-      content: `${result.answer}${modelLine}`,
+      content: result.answer,
       target: buildNavigationTarget(result),
     });
+    question.value = "";
+    await scrollToLatestMessage();
     writeAiAuditLog({
       question: currentQuestion,
       tools: [result.toolName],
@@ -69,6 +67,18 @@ async function ask() {
   } finally {
     asking.value = false;
   }
+}
+
+async function scrollToLatestMessage() {
+  await nextTick();
+  if (!messageListRef.value) return;
+  messageListRef.value.scrollTop = messageListRef.value.scrollHeight;
+}
+
+function handleComposerKeydown(event: KeyboardEvent) {
+  if (event.key !== "Enter" || event.shiftKey) return;
+  event.preventDefault();
+  void ask();
 }
 
 function buildNavigationTarget(result: {
@@ -89,7 +99,11 @@ function buildNavigationTarget(result: {
 
 <template>
   <div class="chat-panel">
-    <div class="message-list" data-testid="ai-message-list">
+    <div
+      ref="messageListRef"
+      class="message-list"
+      data-testid="ai-message-list"
+    >
       <div v-if="answers.length === 0" class="welcome-message">
         <strong>我可以查询资产、机柜位置和当前告警。</strong>
         <span>例如：IP 为 10.10.0.21 的服务器在哪里？</span>
@@ -110,7 +124,8 @@ function buildNavigationTarget(result: {
       <textarea
         v-model="question"
         rows="2"
-        placeholder="例如：IP 为 10.10.3.25 的服务器在哪里？"
+        placeholder="输入问题，按 Enter 发送，Shift+Enter 换行"
+        @keydown="handleComposerKeydown"
       />
       <div class="composer-actions">
         <button type="button" class="tool-button" aria-label="添加图片">

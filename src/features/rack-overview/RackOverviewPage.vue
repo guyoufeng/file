@@ -56,6 +56,16 @@ const selectedDevice = computed(
     assetStore.devices.find((device) => device.id === selectedDeviceId.value) ??
     null,
 );
+const locationFocusText = computed(() => {
+  if (!selectedRack.value && !selectedDevice.value) return "";
+
+  const rackName = selectedRack.value?.name ?? "未知机柜";
+  if (!selectedDevice.value) return `已定位：${rackName}`;
+
+  const deviceName =
+    selectedDevice.value.computerName || selectedDevice.value.name;
+  return `已定位：${rackName} / ${deviceName} / ${selectedDevice.value.businessIp ?? "无业务IP"} / ${selectedDevice.value.startU}U-${selectedDevice.value.endU}U`;
+});
 const activeAlerts = computed(
   () =>
     alertStore.alerts.filter((alert) => alert.status !== "recovered").length,
@@ -98,7 +108,10 @@ async function applyRouteSelection() {
       roomStore.racks.find((rack) => rack.id === route.query.rackId) ?? null;
   if (typeof route.query.deviceId === "string")
     selectedDeviceId.value = route.query.deviceId;
-  if (selectedRack.value || selectedDeviceId.value) detailOpen.value = true;
+  if (selectedRack.value || selectedDeviceId.value) {
+    detailOpen.value = true;
+    if (selectedDeviceId.value) viewMode.value = "u-view";
+  }
 }
 
 async function locateSearchResult(result: DeviceSearchResult) {
@@ -194,6 +207,14 @@ async function saveDevice(device: Device) {
     </div>
 
     <div v-else class="overview-grid">
+      <div
+        v-if="locationFocusText"
+        class="location-focus-banner"
+        data-testid="location-focus-banner"
+      >
+        <span>{{ locationFocusText }}</span>
+        <strong>当前机柜与设备已高亮</strong>
+      </div>
       <div class="layout-panel">
         <LayoutOverview
           v-if="viewMode === 'layout'"
@@ -311,6 +332,35 @@ async function saveDevice(device: Device) {
   grid-template-columns: minmax(0, 1fr);
   gap: 16px;
   align-items: start;
+}
+
+.location-focus-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 10px 14px;
+  border: 1px solid rgba(253, 230, 138, 0.58);
+  border-radius: 8px;
+  color: #fef3c7;
+  background:
+    linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(14, 165, 233, 0.1)),
+    rgba(8, 17, 31, 0.94);
+  box-shadow:
+    0 0 0 1px rgba(253, 230, 138, 0.1),
+    0 14px 36px rgba(245, 158, 11, 0.12);
+}
+
+.location-focus-banner span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.location-focus-banner strong {
+  flex: 0 0 auto;
+  color: #7dd3fc;
+  font-size: 12px;
 }
 
 .layout-panel {

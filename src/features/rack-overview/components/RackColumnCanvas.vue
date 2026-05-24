@@ -1,50 +1,66 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import type { Alert, Device, Rack } from '../../../types/domain'
-import { categoryColors } from '../../../constants/colors'
-import { getDeviceBlockHeight, getDeviceBlockY } from '../../../services/rack/uPosition'
+import { computed } from "vue";
+import type { Alert, Device, Rack } from "../../../types/domain";
+import { categoryColors } from "../../../constants/colors";
+import {
+  getDeviceBlockHeight,
+  getDeviceBlockY,
+} from "../../../services/rack/uPosition";
 
 const props = defineProps<{
-  rack: Rack
-  devices: Device[]
-  alerts?: Alert[]
-  zoom: number
-  highlightDeviceId?: string | null
-  compact?: boolean
-}>()
+  rack: Rack;
+  devices: Device[];
+  alerts?: Alert[];
+  zoom: number;
+  highlightDeviceId?: string | null;
+  compact?: boolean;
+}>();
 
-const rackPadding = 8
+const rackPadding = 8;
 
-const rackWidth = computed(() => props.compact ? 154 : 300)
-const labelWidth = computed(() => props.compact ? 30 : 44)
-const baseRowHeight = computed(() => props.compact ? 8 : 14)
-const rowHeight = computed(() => Math.round(baseRowHeight.value * props.zoom))
-const stageHeight = computed(() => props.rack.heightU * rowHeight.value)
-const rackBodyWidth = computed(() => rackWidth.value - labelWidth.value - rackPadding)
+const rackWidth = computed(() => (props.compact ? 154 : 300));
+const labelWidth = computed(() => (props.compact ? 30 : 44));
+const baseRowHeight = computed(() => (props.compact ? 8 : 14));
+const rowHeight = computed(() => Math.round(baseRowHeight.value * props.zoom));
+const stageHeight = computed(() => props.rack.heightU * rowHeight.value);
+const rackBodyWidth = computed(
+  () => rackWidth.value - labelWidth.value - rackPadding,
+);
 const rackDevices = computed(() =>
   props.devices
-    .filter((device) => device.rackId === props.rack.id && device.side === 'front')
+    .filter(
+      (device) => device.rackId === props.rack.id && device.side === "front",
+    )
     .sort((a, b) => b.startU - a.startU),
-)
+);
 
 function deviceText(device: Device): string {
-  const lines = [device.computerName || device.name, device.businessIp]
+  const lines = [device.computerName || device.name, device.businessIp];
   if (!props.compact && props.zoom >= 1) {
-    lines.push(device.purpose)
+    lines.push(device.purpose);
   }
-  return lines.filter(Boolean).join('\n')
+  return lines.filter(Boolean).join("\n");
 }
 
 function deviceColor(device: Device): string {
-  const activeAlert = props.alerts?.find((alert) => alert.deviceId === device.id && alert.status !== 'recovered')
-  if (activeAlert?.level === 'critical') return '#EF4444'
-  if (activeAlert?.level === 'warning') return '#F59E0B'
-  return categoryColors[device.categoryId as keyof typeof categoryColors] ?? categoryColors.other
+  const activeAlert = props.alerts?.find(
+    (alert) => alert.deviceId === device.id && alert.status !== "recovered",
+  );
+  if (activeAlert?.level === "critical") return "#EF4444";
+  if (activeAlert?.level === "warning") return "#F59E0B";
+  return (
+    categoryColors[device.categoryId as keyof typeof categoryColors] ??
+    categoryColors.other
+  );
 }
 </script>
 
 <template>
-  <div class="rack-canvas" :class="{ compact }" :style="{ width: `${rackWidth}px` }">
+  <div
+    class="rack-canvas"
+    :class="{ compact }"
+    :style="{ width: `${rackWidth}px` }"
+  >
     <v-stage :config="{ width: rackWidth, height: stageHeight }">
       <v-layer>
         <template v-for="u in rack.heightU" :key="u">
@@ -76,20 +92,45 @@ function deviceColor(device: Device): string {
           <v-rect
             :config="{
               x: labelWidth + 6,
-              y: getDeviceBlockY(device.startU, device.heightU, rack.heightU, rowHeight) + 3,
+              y:
+                getDeviceBlockY(
+                  device.startU,
+                  device.heightU,
+                  rack.heightU,
+                  rowHeight,
+                ) + 3,
               width: rackBodyWidth - 12,
               height: getDeviceBlockHeight(device.heightU, rowHeight) - 6,
               fill: deviceColor(device),
               opacity: 0.86,
               cornerRadius: 4,
               stroke: device.id === highlightDeviceId ? '#FDE68A' : '#E5EEFB',
-              strokeWidth: device.id === highlightDeviceId ? 2 : props.alerts?.some((alert) => alert.deviceId === device.id && alert.status !== 'recovered') ? 1.5 : 0.6,
+              strokeWidth:
+                device.id === highlightDeviceId
+                  ? 4
+                  : props.alerts?.some(
+                        (alert) =>
+                          alert.deviceId === device.id &&
+                          alert.status !== 'recovered',
+                      )
+                    ? 1.5
+                    : 0.6,
+              shadowColor:
+                device.id === highlightDeviceId ? '#FDE68A' : undefined,
+              shadowBlur: device.id === highlightDeviceId ? 14 : 0,
+              shadowOpacity: device.id === highlightDeviceId ? 0.75 : 0,
             }"
           />
           <v-text
             :config="{
               x: labelWidth + 14,
-              y: getDeviceBlockY(device.startU, device.heightU, rack.heightU, rowHeight) + 8,
+              y:
+                getDeviceBlockY(
+                  device.startU,
+                  device.heightU,
+                  rack.heightU,
+                  rowHeight,
+                ) + 8,
               width: rackBodyWidth - 28,
               height: getDeviceBlockHeight(device.heightU, rowHeight) - 12,
               text: deviceText(device),
@@ -111,7 +152,13 @@ function deviceColor(device: Device): string {
   border: 1px solid rgba(71, 85, 105, 0.78);
   border-radius: 8px;
   background:
-    linear-gradient(90deg, rgba(148, 163, 184, 0.1), transparent 8%, transparent 92%, rgba(148, 163, 184, 0.1)),
+    linear-gradient(
+      90deg,
+      rgba(148, 163, 184, 0.1),
+      transparent 8%,
+      transparent 92%,
+      rgba(148, 163, 184, 0.1)
+    ),
     rgba(8, 17, 31, 0.92);
   box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.9);
 }

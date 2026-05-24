@@ -1,49 +1,55 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import type { Alert, Device, Rack } from '../../../types/domain'
-import RackColumnCanvas from './RackColumnCanvas.vue'
-import ZoomToolbar from './ZoomToolbar.vue'
+import { computed, ref } from "vue";
+import type { Alert, Device, Rack } from "../../../types/domain";
+import RackColumnCanvas from "./RackColumnCanvas.vue";
+import ZoomToolbar from "./ZoomToolbar.vue";
 
 const props = defineProps<{
-  rack: Rack | null
-  racks?: Rack[]
-  devices: Device[]
-  alerts?: Alert[]
-  highlightDeviceId?: string | null
-}>()
+  rack: Rack | null;
+  racks?: Rack[];
+  devices: Device[];
+  alerts?: Alert[];
+  highlightDeviceId?: string | null;
+}>();
 
 const emit = defineEmits<{
-  selectRack: [rack: Rack]
-}>()
+  selectRack: [rack: Rack];
+}>();
 
 const rackTypeLabels: Record<string, string> = {
-  server: '服务器柜',
-  network: '网络柜',
-  storage: '存储柜',
-  patching: '配线柜',
-  row_head: '列头柜',
-  cooling: '精密空调',
-  ups_pdu: '供电柜',
-  empty: '空柜',
-  other: '其他',
-}
+  server: "服务器柜",
+  network: "网络柜",
+  storage: "存储柜",
+  patching: "配线柜",
+  row_head: "列头柜",
+  cooling: "精密空调",
+  ups_pdu: "供电柜",
+  empty: "空柜",
+  other: "其他",
+};
 
-const zoom = ref(1.25)
-const visibleRacks = computed(() => props.racks?.length ? props.racks : props.rack ? [props.rack] : [])
+const zoom = ref(1.25);
+const visibleRacks = computed(() =>
+  props.racks?.length ? props.racks : props.rack ? [props.rack] : [],
+);
 const rackRows = computed(() => {
-  const rows = new Map<string, Rack[]>()
+  const rows = new Map<string, Rack[]>();
   visibleRacks.value.forEach((rack) => {
-    const rowName = rack.rowName ?? '未分排'
-    rows.set(rowName, [...(rows.get(rowName) ?? []), rack])
-  })
+    const rowName = rack.rowName ?? "未分排";
+    rows.set(rowName, [...(rows.get(rowName) ?? []), rack]);
+  });
 
   return [...rows.entries()]
-    .sort(([left], [right]) => left.localeCompare(right, 'zh-Hans-CN', { numeric: true }))
+    .sort(([left], [right]) =>
+      left.localeCompare(right, "zh-Hans-CN", { numeric: true }),
+    )
     .map(([rowName, racks]) => ({
       rowName,
-      racks: racks.sort((left, right) => (left.columnIndex ?? 0) - (right.columnIndex ?? 0)),
-    }))
-})
+      racks: racks.sort(
+        (left, right) => (left.columnIndex ?? 0) - (right.columnIndex ?? 0),
+      ),
+    }));
+});
 </script>
 
 <template>
@@ -51,13 +57,26 @@ const rackRows = computed(() => {
     <header>
       <div>
         <p class="eyebrow">U位大图</p>
-        <h3>{{ visibleRacks.length > 1 ? '多排多柜 U 位工作区' : rack?.name ?? '请选择机柜' }}</h3>
-        <span v-if="visibleRacks.length > 1" class="hint">横向查看 1-10 列，纵向查看 A/B/C/D 排；点击机柜标题后右侧显示详细信息。</span>
+        <h3>
+          {{
+            visibleRacks.length > 1
+              ? "多排多柜 U 位工作区"
+              : (rack?.name ?? "请选择机柜")
+          }}
+        </h3>
+        <span v-if="visibleRacks.length > 1" class="hint"
+          >横向查看 1-10 列，纵向查看 A/B/C/D
+          排；点击机柜标题后右侧显示详细信息。</span
+        >
       </div>
       <ZoomToolbar v-model="zoom" />
     </header>
 
-    <div v-if="visibleRacks.length > 0" class="rack-u-scroll" data-testid="rack-u-overview">
+    <div
+      v-if="visibleRacks.length > 0"
+      class="rack-u-scroll"
+      data-testid="rack-u-overview"
+    >
       <section
         v-for="row in rackRows"
         :key="row.rowName"
@@ -75,16 +94,25 @@ const rackRows = computed(() => {
             class="rack-u-column"
             :class="{ active: item.id === rack?.id }"
           >
-            <button type="button" class="rack-u-title" @click="emit('selectRack', item)">
+            <button
+              type="button"
+              class="rack-u-title"
+              @click="emit('selectRack', item)"
+            >
               <strong>{{ item.name }}</strong>
-              <span>{{ rackTypeLabels[item.type] ?? item.type }} / {{ item.heightU }}U</span>
+              <span
+                >{{ rackTypeLabels[item.type] ?? item.type }} /
+                {{ item.heightU }}U</span
+              >
             </button>
             <RackColumnCanvas
               :rack="item"
               :devices="devices"
               :alerts="alerts"
               :zoom="zoom"
-              :highlight-device-id="item.id === rack?.id ? highlightDeviceId : null"
+              :highlight-device-id="
+                item.id === rack?.id ? highlightDeviceId : null
+              "
               compact
             />
           </article>
@@ -211,7 +239,13 @@ h3 {
 }
 
 .rack-u-column.active .rack-u-title {
-  border-color: rgba(56, 189, 248, 0.72);
-  background: rgba(14, 165, 233, 0.14);
+  border-color: rgba(253, 230, 138, 0.92);
+  color: #fef3c7;
+  background:
+    linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(14, 165, 233, 0.12)),
+    rgba(8, 17, 31, 0.96);
+  box-shadow:
+    0 0 0 2px rgba(253, 230, 138, 0.22),
+    0 10px 24px rgba(245, 158, 11, 0.12);
 }
 </style>

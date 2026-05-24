@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { useAlertStore } from "../../stores/alertStore";
+import { useAiStore } from "../../stores/aiStore";
 import { useAssetStore } from "../../stores/assetStore";
 import { useRoomStore } from "../../stores/roomStore";
 import type { AiNavigationTarget } from "../../types/aiNavigation";
@@ -18,11 +19,17 @@ const emit = defineEmits<{
 const roomStore = useRoomStore();
 const assetStore = useAssetStore();
 const alertStore = useAlertStore();
+const aiStore = useAiStore();
 const router = useRouter();
 const mode = ref<"default" | "expanded" | "fullscreen">("default");
 const drawerClass = computed(() => `drawer-panel ${mode.value}`);
+const currentModelLabel = computed(() => {
+  const config =
+    aiStore.configs.find((item) => item.enabled) ?? aiStore.configs[0];
+  return config?.model ?? "未配置模型";
+});
 const windowRect = ref({
-  x: Math.max(window.innerWidth - 430, 900),
+  x: Math.max(252, window.innerWidth - 430),
   y: 92,
   width: 400,
   height: 560,
@@ -54,7 +61,9 @@ onMounted(async () => {
     roomStore.loadRooms(),
     assetStore.loadDevices(),
     alertStore.loadAlerts(),
+    aiStore.loadConfigs(),
   ]);
+  clampWindow();
 });
 
 onBeforeUnmount(() => {
@@ -128,11 +137,14 @@ function handlePointerMove(event: PointerEvent) {
 
 function clampWindow() {
   const margin = 12;
+  const minLeft = window.innerWidth < 760 ? margin : 252;
+  const maxWidth = Math.max(360, window.innerWidth - minLeft - margin);
   windowRect.value = {
     ...windowRect.value,
+    width: Math.min(windowRect.value.width, maxWidth),
     x: Math.min(
-      Math.max(252, windowRect.value.x),
-      Math.max(252, window.innerWidth - windowRect.value.width - margin),
+      Math.max(minLeft, windowRect.value.x),
+      Math.max(minLeft, window.innerWidth - windowRect.value.width - margin),
     ),
     y: Math.min(
       Math.max(76, windowRect.value.y),
@@ -162,8 +174,8 @@ async function locateTarget(target: AiNavigationTarget) {
   >
     <header @pointerdown="startMove">
       <div>
-        <p class="eyebrow">AI 助手</p>
-        <h3>只读智能查询</h3>
+        <h3>AI 助手</h3>
+        <p class="eyebrow">当前模型：{{ currentModelLabel }}</p>
       </div>
       <div class="actions">
         <button
@@ -190,9 +202,6 @@ async function locateTarget(target: AiNavigationTarget) {
         <button type="button" @click="emit('close')">关闭</button>
       </div>
     </header>
-    <p class="hint">
-      第一版 AI 只读取本地资产、机柜和告警数据，不执行新增、修改或删除。
-    </p>
     <AiChatPanel
       :rooms="roomStore.rooms"
       :racks="roomStore.racks"
@@ -238,14 +247,14 @@ header {
 }
 
 .eyebrow {
-  margin: 0 0 4px;
+  margin: 5px 0 0;
   color: #38bdf8;
   font-size: 12px;
 }
 
-h3,
-.hint {
+h3 {
   margin: 0;
+  font-size: 18px;
 }
 
 .hint {

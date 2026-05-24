@@ -1,32 +1,59 @@
 <script setup lang="ts">
-import { ref } from 'vue'
-import type { Alert, Device, Rack, Room } from '../../../types/domain'
-import { runDeterministicAiQuery } from '../../../services/ai/aiTools'
-import { writeAiAuditLog } from '../../../services/backend/ai'
-import AiAnswerCard from './AiAnswerCard.vue'
+import { onMounted, ref } from "vue";
+import type { Alert, Device, Rack, Room } from "../../../types/domain";
+import { answerWithAiAssistant } from "../../../services/ai/aiAssistant";
+import { writeAiAuditLog } from "../../../services/backend/ai";
+import { useAiStore } from "../../../stores/aiStore";
+import AiAnswerCard from "./AiAnswerCard.vue";
 
 const props = defineProps<{
-  rooms: Room[]
-  racks: Rack[]
-  devices: Device[]
-  alerts: Alert[]
-}>()
+  rooms: Room[];
+  racks: Rack[];
+  devices: Device[];
+  alerts: Alert[];
+}>();
 
-const question = ref('IP 为 10.10.3.31 的服务器在哪里？')
-const answers = ref<string[]>([])
+const aiStore = useAiStore();
+const question = ref("IP 为 10.10.3.31 的服务器在哪里？");
+const answers = ref<string[]>([]);
+const asking = ref(false);
 
-function ask() {
-  const result = runDeterministicAiQuery(question.value, props.rooms, props.racks, props.devices, props.alerts)
-  answers.value.unshift(result.answer)
-  writeAiAuditLog({
-    question: question.value,
-    tools: [result.toolName],
-    answerSummary: result.answer.split('\n').slice(0, 2).join(' / '),
-    relatedDeviceId: result.relatedDeviceId,
-    relatedRackId: result.relatedRackId,
-    relatedRoomId: result.relatedRoomId,
-    status: 'success',
-  })
+onMounted(() => {
+  void aiStore.loadConfigs();
+});
+
+async function ask() {
+  if (!question.value.trim() || asking.value) return;
+
+  asking.value = true;
+  const currentQuestion = question.value;
+  try {
+    const result = await answerWithAiAssistant({
+      question: currentQuestion,
+      configs: aiStore.configs,
+      rooms: props.rooms,
+      racks: props.racks,
+      devices: props.devices,
+      alerts: props.alerts,
+    });
+    const modelLine = result.usedModel
+      ? `\n\n模型：${result.usedModel}`
+      : result.fallbackReason
+        ? `\n\n模型：未使用，${result.fallbackReason}`
+        : "";
+    answers.value.unshift(`${result.answer}${modelLine}`);
+    writeAiAuditLog({
+      question: currentQuestion,
+      tools: [result.toolName],
+      answerSummary: result.answer.split("\n").slice(0, 2).join(" / "),
+      relatedDeviceId: result.relatedDeviceId,
+      relatedRackId: result.relatedRackId,
+      relatedRoomId: result.relatedRoomId,
+      status: "success",
+    });
+  } finally {
+    asking.value = false;
+  }
 }
 </script>
 
@@ -40,11 +67,21 @@ function ask() {
       <AiAnswerCard v-for="answer in answers" :key="answer" :answer="answer" />
     </div>
     <form class="composer" data-testid="ai-composer" @submit.prevent="ask">
-      <textarea v-model="question" rows="2" placeholder="例如：IP 为 10.10.3.25 的服务器在哪里？" />
+      <textarea
+        v-model="question"
+        rows="2"
+        placeholder="例如：IP 为 10.10.3.25 的服务器在哪里？"
+      />
       <div class="composer-actions">
-        <button type="button" class="tool-button" aria-label="添加图片">图片</button>
-        <button type="button" class="tool-button" aria-label="添加附件">附件</button>
-        <button type="submit" class="send-button">发送查询</button>
+        <button type="button" class="tool-button" aria-label="添加图片">
+          图片
+        </button>
+        <button type="button" class="tool-button" aria-label="添加附件">
+          附件
+        </button>
+        <button type="submit" class="send-button" :disabled="asking">
+          {{ asking ? "分析中..." : "发送查询" }}
+        </button>
       </div>
     </form>
   </div>
@@ -130,5 +167,10 @@ textarea {
   padding: 0 14px;
   background: rgba(14, 165, 233, 0.18);
   cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
+  opacity: 0.58;
 }
 </style>

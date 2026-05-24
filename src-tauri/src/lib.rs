@@ -8,8 +8,8 @@ use commands::{
     assets::{delete_device, export_project_json, get_devices, import_project_json, upsert_device},
     rooms::{get_racks, get_rooms},
     settings::{
-        discover_ai_models, get_ai_model_configs, get_audit_logs, restore_sample_data,
-        save_ai_model_config,
+        chat_with_ai_model, discover_ai_models, get_ai_model_configs, get_audit_logs,
+        restore_sample_data, save_ai_model_config,
     },
     AppState,
 };
@@ -43,6 +43,7 @@ pub fn run() {
             get_ai_model_configs,
             save_ai_model_config,
             discover_ai_models,
+            chat_with_ai_model,
             get_audit_logs,
             restore_sample_data,
             export_project_json,

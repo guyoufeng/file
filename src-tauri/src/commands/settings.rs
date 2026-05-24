@@ -27,6 +27,35 @@ struct OllamaModelItem {
     name: String,
 }
 
+#[derive(serde::Deserialize, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AiChatMessageInput {
+    role: String,
+    content: String,
+}
+
+#[derive(serde::Serialize)]
+struct OpenAiChatRequest {
+    model: String,
+    messages: Vec<AiChatMessageInput>,
+    temperature: f32,
+}
+
+#[derive(serde::Deserialize)]
+struct OpenAiChatResponse {
+    choices: Vec<OpenAiChatChoice>,
+}
+
+#[derive(serde::Deserialize)]
+struct OpenAiChatChoice {
+    message: OpenAiChatMessage,
+}
+
+#[derive(serde::Deserialize)]
+struct OpenAiChatMessage {
+    content: String,
+}
+
 #[tauri::command]
 pub async fn get_ai_model_configs(
     state: State<'_, AppState>,
@@ -105,10 +134,7 @@ pub async fn discover_ai_models(input: AiModelConfigInput) -> Result<Vec<String>
                 return Err(format!("模型发现失败：HTTP {}", response.status()));
             }
 
-            let data: OllamaModelList = response
-                .json()
-                .await
-                .map_err(|error| error.to_string())?;
+            let data: OllamaModelList = response.json().await.map_err(|error| error.to_string())?;
             Ok(data.models.into_iter().map(|item| item.name).collect())
         }
         "gemini" => {
@@ -129,11 +155,74 @@ pub async fn discover_ai_models(input: AiModelConfigInput) -> Result<Vec<String>
                 return Err(format!("模型发现失败：HTTP {}", response.status()));
             }
 
-            let data: OpenAiModelList = response
-                .json()
+            let data: OpenAiModelList = response.json().await.map_err(|error| error.to_string())?;
+            Ok(data.data.into_iter().map(|item| item.id).collect())
+        }
+    }
+}
+
+#[tauri::command]
+pub async fn chat_with_ai_model(
+    input: AiModelConfigInput,
+    messages: Vec<AiChatMessageInput>,
+) -> Result<String, String> {
+    let client = reqwest::Client::new();
+    let base_url = input.base_url.trim_end_matches('/');
+
+    match input.provider.as_str() {
+        "ollama" => {
+            let response = client
+                .post(format!("{base_url}/api/chat"))
+                .json(&serde_json::json!({
+                    "model": input.model,
+                    "messages": messages,
+                    "stream": false
+                }))
+                .send()
                 .await
                 .map_err(|error| error.to_string())?;
-            Ok(data.data.into_iter().map(|item| item.id).collect())
+
+            if !response.status().is_success() {
+                return Err(format!("模型调用失败：HTTP {}", response.status()));
+            }
+
+            let data: serde_json::Value =
+                response.json().await.map_err(|error| error.to_string())?;
+            Ok(data
+                .get("message")
+                .and_then(|message| message.get("content"))
+                .and_then(|content| content.as_str())
+                .unwrap_or_default()
+                .to_string())
+        }
+        _ => {
+            let mut request = client.post(format!("{base_url}/chat/completions"));
+            if let Some(api_key) = input.api_key_ref.filter(|value| !value.trim().is_empty()) {
+                request = request.bearer_auth(api_key);
+            }
+
+            let response = request
+                .json(&OpenAiChatRequest {
+                    model: input.model,
+                    messages,
+                    temperature: 0.2,
+                })
+                .send()
+                .await
+                .map_err(|error| error.to_string())?;
+
+            if !response.status().is_success() {
+                return Err(format!("模型调用失败：HTTP {}", response.status()));
+            }
+
+            let data: OpenAiChatResponse =
+                response.json().await.map_err(|error| error.to_string())?;
+            Ok(data
+                .choices
+                .into_iter()
+                .next()
+                .map(|choice| choice.message.content)
+                .unwrap_or_default())
         }
     }
 }

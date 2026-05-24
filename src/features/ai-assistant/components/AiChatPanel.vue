@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from "vue";
 import type { Alert, Device, Rack, Room } from "../../../types/domain";
+import type { AiNavigationTarget } from "../../../types/aiNavigation";
 import { answerWithAiAssistant } from "../../../services/ai/aiAssistant";
 import { writeAiAuditLog } from "../../../services/backend/ai";
 import { useAiStore } from "../../../stores/aiStore";
@@ -13,9 +14,19 @@ const props = defineProps<{
   alerts: Alert[];
 }>();
 
+const emit = defineEmits<{
+  locate: [target: AiNavigationTarget];
+}>();
+
+interface ChatAnswer {
+  id: string;
+  content: string;
+  target?: AiNavigationTarget;
+}
+
 const aiStore = useAiStore();
 const question = ref("IP 为 10.10.3.31 的服务器在哪里？");
-const answers = ref<string[]>([]);
+const answers = ref<ChatAnswer[]>([]);
 const asking = ref(false);
 
 onMounted(() => {
@@ -41,7 +52,11 @@ async function ask() {
       : result.fallbackReason
         ? `\n\n模型：未使用，${result.fallbackReason}`
         : "";
-    answers.value.unshift(`${result.answer}${modelLine}`);
+    answers.value.unshift({
+      id: `${Date.now()}-${answers.value.length}`,
+      content: `${result.answer}${modelLine}`,
+      target: buildNavigationTarget(result),
+    });
     writeAiAuditLog({
       question: currentQuestion,
       tools: [result.toolName],
@@ -55,6 +70,21 @@ async function ask() {
     asking.value = false;
   }
 }
+
+function buildNavigationTarget(result: {
+  relatedRoomId?: string;
+  relatedRackId?: string;
+  relatedDeviceId?: string;
+}): AiNavigationTarget | undefined {
+  if (!result.relatedRoomId && !result.relatedRackId && !result.relatedDeviceId)
+    return undefined;
+
+  return {
+    roomId: result.relatedRoomId,
+    rackId: result.relatedRackId,
+    deviceId: result.relatedDeviceId,
+  };
+}
 </script>
 
 <template>
@@ -64,7 +94,17 @@ async function ask() {
         <strong>我可以查询资产、机柜位置和当前告警。</strong>
         <span>例如：IP 为 10.10.0.21 的服务器在哪里？</span>
       </div>
-      <AiAnswerCard v-for="answer in answers" :key="answer" :answer="answer" />
+      <div v-for="answer in answers" :key="answer.id" class="answer-item">
+        <AiAnswerCard :answer="answer.content" />
+        <button
+          v-if="answer.target"
+          type="button"
+          class="locate-button"
+          @click="emit('locate', answer.target)"
+        >
+          定位到机柜/设备
+        </button>
+      </div>
     </div>
     <form class="composer" data-testid="ai-composer" @submit.prevent="ask">
       <textarea
@@ -172,5 +212,24 @@ textarea {
 button:disabled {
   cursor: not-allowed;
   opacity: 0.58;
+}
+
+.answer-item {
+  display: grid;
+  gap: 8px;
+}
+
+.locate-button {
+  justify-self: start;
+  min-height: 30px;
+  padding: 0 12px;
+  border: 1px solid rgba(56, 189, 248, 0.46);
+  border-radius: 8px;
+  color: #dff7ff;
+  background:
+    linear-gradient(135deg, rgba(14, 165, 233, 0.24), rgba(37, 99, 235, 0.16)),
+    rgba(8, 17, 31, 0.9);
+  box-shadow: 0 10px 24px rgba(14, 165, 233, 0.12);
+  cursor: pointer;
 }
 </style>

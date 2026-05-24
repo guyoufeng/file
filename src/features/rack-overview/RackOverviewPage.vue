@@ -73,20 +73,33 @@ watch(selectedRoomId, () => {
   detailOpen.value = false;
 });
 
+watch(
+  () => route.query,
+  async () => {
+    await applyRouteSelection();
+  },
+);
+
 onMounted(async () => {
   await Promise.all([
     roomStore.loadRooms(),
     assetStore.loadDevices(),
     alertStore.loadAlerts(),
   ]);
+  await applyRouteSelection();
+});
+
+async function applyRouteSelection() {
   if (typeof route.query.roomId === "string")
     selectedRoomId.value = route.query.roomId;
+  await nextTick();
   if (typeof route.query.rackId === "string")
     selectedRack.value =
       roomStore.racks.find((rack) => rack.id === route.query.rackId) ?? null;
   if (typeof route.query.deviceId === "string")
     selectedDeviceId.value = route.query.deviceId;
-});
+  if (selectedRack.value || selectedDeviceId.value) detailOpen.value = true;
+}
 
 async function locateSearchResult(result: DeviceSearchResult) {
   if (result.room) {

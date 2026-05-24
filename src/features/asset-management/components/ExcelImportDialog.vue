@@ -29,7 +29,7 @@ const emit = defineEmits<{
 
 const result = ref<ImportValidationResult | null>(null);
 const error = ref<string | null>(null);
-const replaceExisting = ref(true);
+const replaceExisting = ref(false);
 
 async function handleFileChange(event: Event) {
   const file = (event.target as HTMLInputElement).files?.[0];

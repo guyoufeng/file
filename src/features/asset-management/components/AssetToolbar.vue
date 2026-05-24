@@ -1,18 +1,35 @@
 <script setup lang="ts">
 defineProps<{
-  search: string
-}>()
+  search: string;
+  category: string;
+  categories: { id: string; label: string; count: number }[];
+}>();
 
 const emit = defineEmits<{
-  'update:search': [value: string]
-  add: []
-  import: []
-  export: []
-}>()
+  "update:search": [value: string];
+  "update:category": [value: string];
+  add: [];
+  import: [];
+  export: [];
+}>();
 </script>
 
 <template>
   <div class="asset-toolbar">
+    <div class="filter-tabs" aria-label="资产分类筛选">
+      <button
+        v-for="item in categories"
+        :key="item.id"
+        type="button"
+        class="filter-tab"
+        :class="{ active: item.id === category }"
+        :aria-pressed="item.id === category"
+        @click="emit('update:category', item.id)"
+      >
+        <span>{{ item.label }}</span>
+        <strong>{{ item.count }}</strong>
+      </button>
+    </div>
     <input
       :value="search"
       type="search"
@@ -29,10 +46,16 @@ const emit = defineEmits<{
 
 <style scoped>
 .asset-toolbar {
-  display: flex;
-  justify-content: space-between;
+  display: grid;
   gap: 12px;
   margin-bottom: 14px;
+}
+
+.filter-tabs {
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  padding-bottom: 2px;
 }
 
 input {
@@ -53,6 +76,29 @@ button {
   color: var(--color-text);
   background: rgba(14, 165, 233, 0.16);
   cursor: pointer;
+}
+
+.filter-tab {
+  min-height: 34px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  border-color: var(--color-border);
+  background: rgba(8, 17, 31, 0.78);
+}
+
+.filter-tab strong {
+  min-width: 22px;
+  padding: 2px 6px;
+  border-radius: 999px;
+  color: #bae6fd;
+  background: rgba(14, 165, 233, 0.16);
+  font-size: 11px;
+}
+
+.filter-tab.active {
+  border-color: rgba(56, 189, 248, 0.72);
+  background: rgba(14, 165, 233, 0.18);
 }
 
 .actions {

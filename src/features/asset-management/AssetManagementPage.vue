@@ -7,6 +7,11 @@ import {
   buildAssetOperationError,
   type AssetOperationNotice,
 } from "../../services/asset/operationNotice";
+import {
+  assetCategoryFilters,
+  filterDevicesForAssetView,
+  type AssetCategoryFilter,
+} from "./assetFilters";
 import { buildImportedDevices } from "../../services/import/deviceImport";
 import type { DeviceImportSummary } from "../../stores/assetStore";
 import { useAssetStore } from "../../stores/assetStore";
@@ -19,6 +24,7 @@ import ExcelImportDialog from "./components/ExcelImportDialog.vue";
 const assetStore = useAssetStore();
 const roomStore = useRoomStore();
 const search = ref("");
+const selectedCategory = ref<AssetCategoryFilter>("physical_server");
 const drawerOpen = ref(false);
 const importOpen = ref(false);
 const importSaving = ref(false);
@@ -27,22 +33,18 @@ const editingDevice = ref<Device | null>(null);
 const operationNotice = ref<AssetOperationNotice | null>(null);
 
 const filteredDevices = computed(() => {
-  const keyword = search.value.trim().toLowerCase();
-  if (!keyword) return assetStore.devices;
-
-  return assetStore.devices.filter((device) =>
-    [
-      device.computerName,
-      device.businessIp,
-      device.managementIp,
-      device.assetNo,
-      device.serialNumber,
-      device.purpose,
-      device.owner,
-    ]
-      .filter(Boolean)
-      .some((field) => field!.toLowerCase().includes(keyword)),
+  return filterDevicesForAssetView(
+    assetStore.devices,
+    selectedCategory.value,
+    search.value,
   );
+});
+
+const categoryTabs = computed(() => {
+  return assetCategoryFilters.map((item) => ({
+    ...item,
+    count: filterDevicesForAssetView(assetStore.devices, item.id, "").length,
+  }));
 });
 
 onMounted(async () => {
@@ -155,6 +157,8 @@ function exportDevices() {
 
     <AssetToolbar
       v-model:search="search"
+      v-model:category="selectedCategory"
+      :categories="categoryTabs"
       @add="openAddDrawer"
       @import="openImportDialog"
       @export="exportDevices"

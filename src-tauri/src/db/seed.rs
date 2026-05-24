@@ -117,7 +117,7 @@ async fn seed_topology(pool: &SqlitePool) -> anyhow::Result<()> {
         ("room-vn-c7", "dc-vietnam", "越南C7数据中心", "single_rack"),
     ] {
         sqlx::query(
-            "INSERT INTO rooms (id, data_center_id, name, layout_type, default_rack_height_u) VALUES (?, ?, ?, ?, 48)",
+            "INSERT INTO rooms (id, data_center_id, name, layout_type, default_rack_height_u) VALUES (?, ?, ?, ?, 42)",
         )
         .bind(id)
         .bind(data_center_id)
@@ -144,13 +144,9 @@ async fn seed_topology(pool: &SqlitePool) -> anyhow::Result<()> {
                 rack_index += 1;
                 let row_name = format!("{row_letter}排");
                 let rack_no = format!("{row_letter}{column}");
+                let rack_name = format!("529-{rack_no}");
                 let rack_id = format!("rack-529-{}", rack_no.to_lowercase());
-                let rack_type = match column {
-                    1 => "row_head",
-                    9 => "patching",
-                    10 => "cooling",
-                    _ => "server",
-                };
+                let rack_type = get_529_rack_type(&rack_name);
                 let status = if module == "b" && column == 6 {
                     "alert"
                 } else {
@@ -167,7 +163,7 @@ async fn seed_topology(pool: &SqlitePool) -> anyhow::Result<()> {
                     &rack_id,
                     "room-nj-529",
                     Some(&format!("mm-529-{module}")),
-                    &format!("529-{rack_no}"),
+                    &rack_name,
                     rack_type,
                     &row_name,
                     column,
@@ -227,7 +223,7 @@ async fn insert_rack(
     notes: Option<&str>,
 ) -> anyhow::Result<()> {
     sqlx::query(
-        "INSERT INTO racks (id, room_id, micro_module_id, name, type, row_name, column_index, height_u, status, power_capacity_w, notes) VALUES (?, ?, ?, ?, ?, ?, ?, 48, ?, ?, ?)",
+        "INSERT INTO racks (id, room_id, micro_module_id, name, type, row_name, column_index, height_u, status, power_capacity_w, notes) VALUES (?, ?, ?, ?, ?, ?, ?, 42, ?, ?, ?)",
     )
     .bind(id)
     .bind(room_id)
@@ -250,7 +246,7 @@ async fn seed_devices_for_rack(
     rack_id: &str,
     rack_index: i64,
 ) -> anyhow::Result<()> {
-    for (slot_index, start_u) in [42_i64, 34, 25, 14].iter().enumerate() {
+    for (slot_index, start_u) in [38_i64, 30, 21, 10].iter().enumerate() {
         let sequence = rack_index * 4 + slot_index as i64 + 1;
         let subtype = match slot_index {
             1 => "数据库服务器",
@@ -317,6 +313,16 @@ async fn seed_devices_for_rack(
     }
 
     Ok(())
+}
+
+fn get_529_rack_type(rack_name: &str) -> &'static str {
+    match rack_name {
+        "529-A3" | "529-A7" | "529-B5" | "529-C3" | "529-C7" | "529-D5" => "cooling",
+        "529-B1" | "529-D1" => "row_head",
+        "529-A10" | "529-B10" | "529-C10" | "529-D10" | "529-B2" | "529-D2" => "patching",
+        "529-A8" | "529-A9" | "529-B9" | "529-C8" | "529-D9" => "network",
+        _ => "server",
+    }
 }
 
 async fn seed_alerts(pool: &SqlitePool) -> anyhow::Result<()> {

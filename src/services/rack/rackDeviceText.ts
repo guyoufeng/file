@@ -46,7 +46,7 @@ export function getRackDeviceTextLayout(input: {
   zoom: number;
   blockHeight: number;
 }): RackDeviceTextLayout {
-  const centered = shouldCenterRackDeviceText(input.device);
+  const centered = input.compact || shouldCenterRackDeviceText(input.device);
   const availableHeight = Math.max(12, input.blockHeight - 8);
   const lineCount = getRackDeviceText(input.device, input.compact).split("\n")
     .length;
@@ -66,6 +66,8 @@ export function getRackDeviceTextLayout(input: {
     lineHeight,
     align: centered ? "center" : "left",
     verticalAlign: centered ? "middle" : "top",
-    yOffset: centered ? Math.max(0, (input.blockHeight - estimatedTextHeight) / 2) : 4,
+    yOffset: centered
+      ? Math.max(0, (input.blockHeight - estimatedTextHeight) / 2)
+      : 4,
   };
 }

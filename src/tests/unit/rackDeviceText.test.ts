@@ -40,8 +40,9 @@ describe("rack device text layout", () => {
     });
 
     expect(layout.fontSize).toBeGreaterThanOrEqual(9);
-    expect(layout.align).toBe("left");
-    expect(layout.verticalAlign).toBe("top");
+    expect(layout.align).toBe("center");
+    expect(layout.verticalAlign).toBe("middle");
+    expect(layout.yOffset).toBeGreaterThan(0);
   });
 
   it("centers facility rack labels vertically", () => {

@@ -109,7 +109,7 @@ function submit() {
 </script>
 
 <template>
-  <div v-if="open" class="drawer">
+  <div v-if="open" class="drawer" @pointerdown.self="emit('close')">
     <div class="drawer-panel">
       <header>
         <h3>{{ device ? '编辑设备' : '新增设备' }}</h3>

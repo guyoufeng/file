@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import type { Alert, Device, Rack } from '../../../types/domain'
 import AlertDetailPanel from './AlertDetailPanel.vue'
 import DeviceDetailPanel from './DeviceDetailPanel.vue'
@@ -34,6 +34,12 @@ let dragState: { kind: 'move' | 'resize'; startX: number; startY: number; rect: 
 
 onBeforeUnmount(() => {
   stopPointerTracking()
+  document.removeEventListener('pointerdown', handleOutsidePointerDown)
+})
+
+onMounted(async () => {
+  await nextTick()
+  document.addEventListener('pointerdown', handleOutsidePointerDown)
 })
 
 function startMove(event: PointerEvent) {
@@ -47,6 +53,16 @@ function startResize(event: PointerEvent) {
   event.stopPropagation()
   dragState = { kind: 'resize', startX: event.clientX, startY: event.clientY, rect: { ...windowRect.value } }
   startPointerTracking()
+}
+
+function handleOutsidePointerDown(event: PointerEvent) {
+  const target = event.target as HTMLElement | null
+  if (
+    !target?.closest('[data-testid="rack-detail-floating-window"]') &&
+    !target?.closest('.drawer')
+  ) {
+    emit('close')
+  }
 }
 
 function startPointerTracking() {

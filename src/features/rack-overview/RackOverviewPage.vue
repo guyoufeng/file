@@ -22,6 +22,7 @@ import RightDetailDrawer from "./components/RightDetailDrawer.vue";
 import ViewModeTabs, { type ViewMode } from "./components/ViewModeTabs.vue";
 import DeviceFormDrawer from "../asset-management/components/DeviceFormDrawer.vue";
 import { getRoomOptions, getRoomRacks } from "./layout";
+import { getRackOverviewMetrics } from "./metrics";
 
 const Rack3DView = defineAsyncComponent(
   () => import("./components/Rack3DView.vue"),
@@ -56,6 +57,15 @@ const selectedDevice = computed(
     assetStore.devices.find((device) => device.id === selectedDeviceId.value) ??
     null,
 );
+const overviewMetrics = computed(() =>
+  getRackOverviewMetrics(
+    roomStore.rooms,
+    roomStore.racks,
+    assetStore.devices,
+    alertStore.alerts,
+    selectedRoom.value?.id,
+  ),
+);
 const locationFocusText = computed(() => {
   if (!selectedRack.value && !selectedDevice.value) return "";
 
@@ -66,11 +76,6 @@ const locationFocusText = computed(() => {
     selectedDevice.value.computerName || selectedDevice.value.name;
   return `已定位：${rackName} / ${deviceName} / ${selectedDevice.value.businessIp ?? "无业务IP"} / ${selectedDevice.value.startU}U-${selectedDevice.value.endU}U`;
 });
-const activeAlerts = computed(
-  () =>
-    alertStore.alerts.filter((alert) => alert.status !== "recovered").length,
-);
-
 watch(roomOptions, (rooms) => {
   if (!selectedRoomId.value && rooms.length > 0) {
     selectedRoomId.value = rooms[0].id;
@@ -141,8 +146,8 @@ function selectDeviceFromRack(device: Device) {
   const rack = roomStore.racks.find((item) => item.id === device.rackId);
   if (rack) {
     selectedRack.value = rack;
-    detailOpen.value = true;
   }
+  detailOpen.value = false;
   openDeviceEditor(device);
 }
 
@@ -188,20 +193,24 @@ async function saveDevice(device: Device) {
 
     <div class="overview-metrics" aria-label="数据加载状态">
       <div>
-        <strong>{{ roomStore.rooms.length }}</strong>
-        <span>机房</span>
+        <strong>{{ overviewMetrics.totalRooms }}</strong>
+        <span>总机房</span>
       </div>
       <div>
-        <strong>{{ selectedRoomRacks.length }}</strong>
+        <strong>{{ overviewMetrics.totalDevices }}</strong>
+        <span>总设备</span>
+      </div>
+      <div>
+        <strong>{{ overviewMetrics.currentRacks }}</strong>
         <span>当前机柜</span>
       </div>
       <div>
-        <strong>{{ assetStore.devices.length }}</strong>
-        <span>设备</span>
+        <strong>{{ overviewMetrics.currentDevices }}</strong>
+        <span>当前设备</span>
       </div>
       <div>
-        <strong>{{ activeAlerts }}</strong>
-        <span>活动告警</span>
+        <strong>{{ overviewMetrics.currentAlerts }}</strong>
+        <span>当前报警</span>
       </div>
     </div>
 
@@ -300,7 +309,7 @@ async function saveDevice(device: Device) {
 
 .overview-metrics {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
   margin-bottom: 16px;
 }

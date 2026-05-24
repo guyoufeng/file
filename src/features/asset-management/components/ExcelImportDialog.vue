@@ -24,11 +24,12 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   close: [];
-  confirm: [result: ImportValidationResult];
+  confirm: [result: ImportValidationResult, replaceExisting: boolean];
 }>();
 
 const result = ref<ImportValidationResult | null>(null);
 const error = ref<string | null>(null);
+const replaceExisting = ref(true);
 
 async function handleFileChange(event: Event) {
   const file = (event.target as HTMLInputElement).files?.[0];
@@ -41,7 +42,7 @@ async function handleFileChange(event: Event) {
     result.value = parseAndValidateDeviceWorkbook(
       buffer,
       props.racks,
-      props.devices,
+      replaceExisting.value ? [] : props.devices,
     );
   } catch (unknownError) {
     error.value =
@@ -51,7 +52,7 @@ async function handleFileChange(event: Event) {
 
 function confirmImport() {
   if (!result.value || props.saving) return;
-  emit("confirm", result.value);
+  emit("confirm", result.value, replaceExisting.value);
 }
 </script>
 
@@ -65,9 +66,13 @@ function confirmImport() {
         </button>
       </header>
       <p class="hint">
-        请选择包含“机柜清单”和“设备清单”的 Excel
-        文件。只有没有错误的设备行会被导入。
+        支持标准模板“设备清单”，也支持当前资产表格式：机柜号、机柜位置、固定资产号、计算机名、IP、外接管理口等列。
+        只有没有错误的设备行会被导入。
       </p>
+      <label class="replace-option">
+        <input v-model="replaceExisting" type="checkbox" :disabled="saving" />
+        <span>清空当前设备后导入这份 Excel</span>
+      </label>
       <input
         type="file"
         accept=".xlsx,.xls"
@@ -104,7 +109,9 @@ function confirmImport() {
           {{
             saving
               ? "正在保存设备..."
-              : `确认导入 ${result?.importableRows ?? 0} 台设备`
+              : replaceExisting
+                ? `确认替换为 ${result?.importableRows ?? 0} 台设备`
+                : `确认追加 ${result?.importableRows ?? 0} 台设备`
           }}
         </button>
       </footer>
@@ -174,6 +181,20 @@ button:disabled {
 
 input {
   color: var(--color-text);
+}
+
+.replace-option {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  color: var(--color-text);
+  font-size: 13px;
+}
+
+.replace-option input {
+  width: 16px;
+  height: 16px;
 }
 
 .error {

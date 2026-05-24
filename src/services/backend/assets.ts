@@ -15,6 +15,29 @@ type DeviceInput = Omit<Device, "ips" | "ports" | "metadata"> & {
   metadataJson: string;
 };
 
+const WEB_DEVICE_STORAGE_KEY = "qf-ai-dcim.devices";
+
+function isWebStorageAvailable() {
+  return typeof window !== "undefined" && Boolean(window.localStorage);
+}
+
+function readStoredDevices(): Device[] | null {
+  if (!isWebStorageAvailable()) return null;
+  const raw = window.localStorage.getItem(WEB_DEVICE_STORAGE_KEY);
+  if (raw === null) return null;
+
+  try {
+    return JSON.parse(raw) as Device[];
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredDevices(devices: Device[]) {
+  if (!isWebStorageAvailable()) return;
+  window.localStorage.setItem(WEB_DEVICE_STORAGE_KEY, JSON.stringify(devices));
+}
+
 function parseJsonField<T>(value: string | undefined, fallback: T): T {
   if (!value) return fallback;
 
@@ -60,6 +83,12 @@ export async function getDevices(rackId?: string): Promise<Device[]> {
       ? sampleProject.devices.filter((device) => device.rackId === rackId)
       : sampleProject.devices;
   } catch {
+    const storedDevices = readStoredDevices();
+    if (storedDevices) {
+      return rackId
+        ? storedDevices.filter((device) => device.rackId === rackId)
+        : storedDevices;
+    }
     return rackId
       ? sampleProject.devices.filter((device) => device.rackId === rackId)
       : sampleProject.devices;
@@ -73,10 +102,22 @@ export async function saveDevice(device: Device): Promise<Device> {
     });
     return normalizeDevice(saved);
   } catch {
+    const storedDevices = readStoredDevices() ?? sampleProject.devices;
+    const index = storedDevices.findIndex((item) => item.id === device.id);
+    const nextDevices =
+      index >= 0
+        ? storedDevices.map((item) => (item.id === device.id ? device : item))
+        : [device, ...storedDevices];
+    writeStoredDevices(nextDevices);
     return device;
   }
 }
 
 export async function removeDevice(id: string): Promise<void> {
-  await invokeCommand<void>("delete_device", { id });
+  try {
+    await invokeCommand<void>("delete_device", { id });
+  } catch {
+    const storedDevices = readStoredDevices() ?? sampleProject.devices;
+    writeStoredDevices(storedDevices.filter((device) => device.id !== id));
+  }
 }

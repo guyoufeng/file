@@ -88,14 +88,18 @@ async function deleteDevice(device: Device) {
   }
 }
 
-async function confirmImport(result: ImportValidationResult) {
+async function confirmImport(
+  result: ImportValidationResult,
+  replaceExisting: boolean,
+) {
   importSaving.value = true;
   importSummary.value = null;
   operationNotice.value = null;
   const importedDevices = buildImportedDevices(result);
   try {
-    importSummary.value =
-      await assetStore.importDevicesWithSummary(importedDevices);
+    importSummary.value = replaceExisting
+      ? await assetStore.replaceDevicesWithSummary(importedDevices)
+      : await assetStore.importDevicesWithSummary(importedDevices);
     if (importSummary.value.failed === 0) {
       importOpen.value = false;
     }

@@ -83,5 +83,15 @@ export const useAssetStore = defineStore("assets", {
 
       return summary;
     },
+    async replaceDevicesWithSummary(
+      devices: Device[],
+    ): Promise<DeviceImportSummary> {
+      const existingIds = this.devices.map((device) => device.id);
+      for (const id of existingIds) {
+        await removeDevice(id);
+      }
+      this.devices = [];
+      return this.importDevicesWithSummary(devices);
+    },
   },
 });

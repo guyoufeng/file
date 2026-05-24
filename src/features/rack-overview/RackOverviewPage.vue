@@ -137,6 +137,15 @@ function openDeviceEditor(device: Device) {
   deviceEditorOpen.value = true;
 }
 
+function selectDeviceFromRack(device: Device) {
+  const rack = roomStore.racks.find((item) => item.id === device.rackId);
+  if (rack) {
+    selectedRack.value = rack;
+    detailOpen.value = true;
+  }
+  openDeviceEditor(device);
+}
+
 async function saveDevice(device: Device) {
   const saved = await assetStore.upsertDevice(device);
   editingDevice.value = saved;
@@ -233,6 +242,7 @@ async function saveDevice(device: Device) {
           :alerts="alertStore.alerts"
           :highlight-device-id="selectedDeviceId"
           @select-rack="selectRack"
+          @select-device="selectDeviceFromRack"
         />
         <Rack3DView
           v-else

@@ -14,6 +14,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   selectRack: [rack: Rack];
+  selectDevice: [device: Device];
 }>();
 
 const rackTypeLabels: Record<string, string> = {
@@ -66,7 +67,7 @@ const rackRows = computed(() => {
         </h3>
         <span v-if="visibleRacks.length > 1" class="hint"
           >横向查看 1-10 列，纵向查看 A/B/C/D
-          排；点击机柜标题后右侧显示详细信息。</span
+          排；点击机柜标题查看详情，点击设备块可直接编辑。</span
         >
       </div>
       <ZoomToolbar v-model="zoom" />
@@ -114,6 +115,7 @@ const rackRows = computed(() => {
                 item.id === rack?.id ? highlightDeviceId : null
               "
               compact
+              @select-device="emit('selectDevice', $event)"
             />
           </article>
         </div>
@@ -214,7 +216,7 @@ h3 {
 }
 
 .rack-u-title {
-  width: 154px;
+  width: 186px;
   min-height: 54px;
   display: grid;
   gap: 3px;

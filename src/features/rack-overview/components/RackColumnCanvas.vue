@@ -6,6 +6,7 @@ import {
   getDeviceBlockHeight,
   getDeviceBlockY,
 } from "../../../services/rack/uPosition";
+import { getRackDeviceTextLayout } from "../../../services/rack/rackDeviceText";
 
 const props = defineProps<{
   rack: Rack;
@@ -16,11 +17,15 @@ const props = defineProps<{
   compact?: boolean;
 }>();
 
+const emit = defineEmits<{
+  selectDevice: [device: Device];
+}>();
+
 const rackPadding = 8;
 
-const rackWidth = computed(() => (props.compact ? 154 : 300));
+const rackWidth = computed(() => (props.compact ? 186 : 300));
 const labelWidth = computed(() => (props.compact ? 30 : 44));
-const baseRowHeight = computed(() => (props.compact ? 8 : 14));
+const baseRowHeight = computed(() => (props.compact ? 13 : 14));
 const rowHeight = computed(() => Math.round(baseRowHeight.value * props.zoom));
 const stageHeight = computed(() => props.rack.heightU * rowHeight.value);
 const rackBodyWidth = computed(
@@ -34,14 +39,6 @@ const rackDevices = computed(() =>
     .sort((a, b) => b.startU - a.startU),
 );
 
-function deviceText(device: Device): string {
-  const lines = [device.computerName || device.name, device.businessIp];
-  if (!props.compact && props.zoom >= 1) {
-    lines.push(device.purpose);
-  }
-  return lines.filter(Boolean).join("\n");
-}
-
 function deviceColor(device: Device): string {
   const activeAlert = props.alerts?.find(
     (alert) => alert.deviceId === device.id && alert.status !== "recovered",
@@ -52,6 +49,32 @@ function deviceColor(device: Device): string {
     categoryColors[device.categoryId as keyof typeof categoryColors] ??
     categoryColors.other
   );
+}
+
+function deviceBlockY(device: Device): number {
+  return getDeviceBlockY(
+    device.startU,
+    device.heightU,
+    props.rack.heightU,
+    rowHeight.value,
+  );
+}
+
+function deviceBlockHeight(device: Device): number {
+  return getDeviceBlockHeight(device.heightU, rowHeight.value);
+}
+
+function deviceTextLayout(device: Device) {
+  return getRackDeviceTextLayout({
+    device,
+    compact: Boolean(props.compact),
+    zoom: props.zoom,
+    blockHeight: deviceBlockHeight(device) - 6,
+  });
+}
+
+function selectDevice(device: Device) {
+  emit("selectDevice", device);
 }
 </script>
 
@@ -90,17 +113,13 @@ function deviceColor(device: Device): string {
 
         <template v-for="device in rackDevices" :key="device.id">
           <v-rect
+            @click="selectDevice(device)"
+            @tap="selectDevice(device)"
             :config="{
               x: labelWidth + 6,
-              y:
-                getDeviceBlockY(
-                  device.startU,
-                  device.heightU,
-                  rack.heightU,
-                  rowHeight,
-                ) + 3,
+              y: deviceBlockY(device) + 3,
               width: rackBodyWidth - 12,
-              height: getDeviceBlockHeight(device.heightU, rowHeight) - 6,
+              height: deviceBlockHeight(device) - 6,
               fill: deviceColor(device),
               opacity: 0.86,
               cornerRadius: 4,
@@ -119,25 +138,25 @@ function deviceColor(device: Device): string {
                 device.id === highlightDeviceId ? '#FDE68A' : undefined,
               shadowBlur: device.id === highlightDeviceId ? 14 : 0,
               shadowOpacity: device.id === highlightDeviceId ? 0.75 : 0,
+              cursor: 'pointer',
             }"
           />
           <v-text
+            @click="selectDevice(device)"
+            @tap="selectDevice(device)"
             :config="{
               x: labelWidth + 14,
-              y:
-                getDeviceBlockY(
-                  device.startU,
-                  device.heightU,
-                  rack.heightU,
-                  rowHeight,
-                ) + 8,
+              y: deviceBlockY(device) + 3 + deviceTextLayout(device).yOffset,
               width: rackBodyWidth - 28,
-              height: getDeviceBlockHeight(device.heightU, rowHeight) - 12,
-              text: deviceText(device),
-              fontSize: props.compact ? 9 : props.zoom >= 1 ? 12 : 10,
-              lineHeight: 1.25,
+              height: Math.max(14, deviceBlockHeight(device) - 10),
+              text: deviceTextLayout(device).text,
+              fontSize: deviceTextLayout(device).fontSize,
+              lineHeight: deviceTextLayout(device).lineHeight,
+              align: deviceTextLayout(device).align,
+              verticalAlign: deviceTextLayout(device).verticalAlign,
               fill: '#F8FAFC',
               ellipsis: true,
+              cursor: 'pointer',
             }"
           />
         </template>

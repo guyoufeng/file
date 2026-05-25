@@ -1,17 +1,19 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import AboutSystem from './components/AboutSystem.vue'
+import AiAgentSettings from './components/AiAgentSettings.vue'
 import AiModelSettings from './components/AiModelSettings.vue'
 import AuditLogPanel from './components/AuditLogPanel.vue'
 import DataManagementSettings from './components/DataManagementSettings.vue'
 import ThemeSettings from './components/ThemeSettings.vue'
 
-type SettingsTab = 'ai' | 'data' | 'theme' | 'audit' | 'about'
+type SettingsTab = 'ai' | 'agent' | 'data' | 'theme' | 'audit' | 'about'
 
 const activeTab = ref<SettingsTab>('ai')
 
 const tabs: Array<{ value: SettingsTab; label: string }> = [
   { value: 'ai', label: 'AI模型' },
+  { value: 'agent', label: 'AI Agent' },
   { value: 'data', label: '数据管理' },
   { value: 'theme', label: '主题' },
   { value: 'audit', label: '审计日志' },
@@ -41,6 +43,7 @@ const tabs: Array<{ value: SettingsTab; label: string }> = [
     </div>
 
     <AiModelSettings v-if="activeTab === 'ai'" />
+    <AiAgentSettings v-else-if="activeTab === 'agent'" />
     <DataManagementSettings v-else-if="activeTab === 'data'" />
     <ThemeSettings v-else-if="activeTab === 'theme'" />
     <AuditLogPanel v-else-if="activeTab === 'audit'" />

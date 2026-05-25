@@ -8,6 +8,11 @@ import type {
 import { getProviderAdapter } from "./aiGateway";
 import { runDeterministicAiQuery, type AiToolResult } from "./aiTools";
 import { buildSkillPrompt, qfDcimAgentRole } from "./agentProfile";
+import {
+  buildCapabilityPrompt,
+  getAiAgentCapabilitySettings,
+  type AiAgentCapabilitySettings,
+} from "./agentCapabilities";
 
 export interface AiAssistantRequest {
   question: string;
@@ -16,6 +21,7 @@ export interface AiAssistantRequest {
   racks: Rack[];
   devices: Device[];
   alerts: Alert[];
+  capabilities?: AiAgentCapabilitySettings;
 }
 
 export interface AiAssistantAnswer extends AiToolResult {
@@ -49,13 +55,13 @@ function isDcimQuestion(question: string, rooms: Room[], racks: Rack[]) {
   return false;
 }
 
-function buildGeneralPrompt(question: string) {
+function buildGeneralPrompt(question: string, capabilities: AiAgentCapabilitySettings) {
   return [
     `用户问题：${question}`,
     "",
     "请以泉峰AI数据中心管理平台助手的身份回答。",
+    buildCapabilityPrompt(capabilities),
     "如果问题涉及平台能力，可以说明你能查询资产位置、机柜设备、告警状态、审计记录和后续报表建议。",
-    "如果问题涉及实时外部信息，例如天气、新闻、联网搜索，请明确当前没有启用外网工具，不能声称已查询实时结果。",
     "不要编造平台资产、IP、责任人、告警和配置。",
   ].join("\n");
 }
@@ -64,6 +70,7 @@ export async function answerWithAiAssistant(
   request: AiAssistantRequest,
 ): Promise<AiAssistantAnswer> {
   const config = getEnabledConfig(request.configs);
+  const capabilities = request.capabilities ?? getAiAgentCapabilitySettings();
   const dcimQuestion = isDcimQuestion(request.question, request.rooms, request.racks);
 
   if (!dcimQuestion) {
@@ -91,8 +98,12 @@ export async function answerWithAiAssistant(
           content: buildSkillPrompt(),
         },
         {
+          role: "system",
+          content: buildCapabilityPrompt(capabilities),
+        },
+        {
           role: "user",
-          content: buildGeneralPrompt(request.question),
+          content: buildGeneralPrompt(request.question, capabilities),
         },
       ]);
 
@@ -133,6 +144,10 @@ export async function answerWithAiAssistant(
       {
         role: "system",
         content: buildSkillPrompt(),
+      },
+      {
+        role: "system",
+        content: buildCapabilityPrompt(capabilities),
       },
       {
         role: "user",

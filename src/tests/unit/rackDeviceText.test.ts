@@ -77,5 +77,29 @@ describe("rack device text layout", () => {
     });
 
     expect(getRackDeviceText(device, true)).toBe("理线架-01");
+
+    const layout = getRackDeviceTextLayout({
+      device,
+      compact: true,
+      zoom: 1.25,
+      blockHeight: 14,
+    });
+
+    expect(layout.fontSize).toBeLessThanOrEqual(9);
+    expect(layout.lineHeight).toBe(1);
+    expect(layout.padding).toBe(0);
+  });
+
+  it("shows device name and business IP for non-server assets when present", () => {
+    const device = makeDevice({
+      categoryId: "storage",
+      subtype: "存储设备",
+      computerName: "ocserver",
+      businessIp: "192.168.41.5",
+      heightU: 4,
+      endU: 23,
+    });
+
+    expect(getRackDeviceText(device, true)).toBe("ocserver\n192.168.41.5");
   });
 });

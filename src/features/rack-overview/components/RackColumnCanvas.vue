@@ -62,6 +62,17 @@ function deviceBlockHeight(device: Device): number {
   return getDeviceBlockHeight(device.heightU, rowHeight.value);
 }
 
+function deviceRectY(device: Device): number {
+  return deviceBlockY(device) + (device.heightU <= 1 ? 2 : 3);
+}
+
+function deviceRectHeight(device: Device): number {
+  return Math.max(
+    device.heightU <= 1 ? rowHeight.value - 4 : 10,
+    deviceBlockHeight(device) - (device.heightU <= 1 ? 4 : 6),
+  );
+}
+
 function deviceTextLayout(device: Device) {
   return getRackDeviceTextLayout({
     device,
@@ -115,9 +126,9 @@ function selectDevice(device: Device) {
             @tap="selectDevice(device)"
             :config="{
               x: labelWidth + 6,
-              y: deviceBlockY(device) + 3,
+              y: deviceRectY(device),
               width: rackBodyWidth - 12,
-              height: deviceBlockHeight(device) - 6,
+              height: deviceRectHeight(device),
               fill: deviceColor(device),
               opacity: 0.86,
               cornerRadius: 4,
@@ -144,15 +155,15 @@ function selectDevice(device: Device) {
             @tap="selectDevice(device)"
             :config="{
               x: labelWidth + 14,
-              y: deviceBlockY(device) + 3 + deviceTextLayout(device).yOffset,
+              y: deviceRectY(device) + deviceTextLayout(device).yOffset,
               width: rackBodyWidth - 28,
-              height: Math.max(14, deviceBlockHeight(device) - 6),
+              height: deviceRectHeight(device),
               text: deviceTextLayout(device).text,
               fontSize: deviceTextLayout(device).fontSize,
               lineHeight: deviceTextLayout(device).lineHeight,
               align: deviceTextLayout(device).align,
               verticalAlign: deviceTextLayout(device).verticalAlign,
-              padding: props.compact ? 2 : 4,
+              padding: deviceTextLayout(device).padding,
               fill: '#F8FAFC',
               ellipsis: true,
               cursor: 'pointer',

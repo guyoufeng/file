@@ -85,8 +85,23 @@ function clearReserved() {
         <p class="eyebrow">Data Management</p>
         <h3>数据管理</h3>
       </div>
-      <span>本地优先项目数据可导出为开放 JSON，后续方便迁移、备份和外部 AI/API 对接。</span>
+      <span>本地优先项目数据可导出为开放 JSON，后续方便迁移、备份和外部 AI/API 对接。导出文件会自动排除模型 API Key。</span>
     </header>
+
+    <div class="notice-grid">
+      <div>
+        <strong>项目备份</strong>
+        <span>包含机房、机柜、资产、告警和 AI 模型基础配置。</span>
+      </div>
+      <div>
+        <strong>安全规则</strong>
+        <span>登录凭据、API Key、Token 不进入导出文件。</span>
+      </div>
+      <div>
+        <strong>导入策略</strong>
+        <span>导入前会校验版本和集合结构，确认后覆盖当前项目数据。</span>
+      </div>
+    </div>
 
     <div class="action-grid">
       <button type="button" @click="exportJson()">导出项目 JSON</button>
@@ -135,6 +150,26 @@ header span,
   color: var(--color-text-muted);
 }
 
+.notice-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.notice-grid div {
+  display: grid;
+  gap: 4px;
+  padding: 12px;
+  border: 1px solid rgba(38, 50, 71, 0.88);
+  border-radius: 8px;
+  background: rgba(8, 17, 31, 0.62);
+}
+
+.notice-grid span {
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
 .action-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
@@ -166,5 +201,11 @@ input[type='file'] {
 
 .message {
   margin: 0;
+}
+
+@media (max-width: 900px) {
+  .notice-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

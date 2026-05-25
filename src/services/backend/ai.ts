@@ -1,6 +1,24 @@
 import type { AuditLog } from '../../types/domain'
 
+const LOCAL_AUDIT_LOGS_STORAGE_KEY = 'qf-ai-dcim.auditLogs'
 const localAuditLogs: AuditLog[] = []
+
+function readStoredAuditLogs(): AuditLog[] {
+  if (typeof localStorage === 'undefined') return []
+  const raw = localStorage.getItem(LOCAL_AUDIT_LOGS_STORAGE_KEY)
+  if (!raw) return []
+
+  try {
+    return JSON.parse(raw) as AuditLog[]
+  } catch {
+    return []
+  }
+}
+
+function writeStoredAuditLogs(logs: AuditLog[]) {
+  if (typeof localStorage === 'undefined') return
+  localStorage.setItem(LOCAL_AUDIT_LOGS_STORAGE_KEY, JSON.stringify(logs))
+}
 
 export function writeAiAuditLog(input: {
   question: string
@@ -22,9 +40,31 @@ export function writeAiAuditLog(input: {
     metadata: input,
   }
   localAuditLogs.unshift(log)
+  writeStoredAuditLogs([log, ...readStoredAuditLogs().filter((item) => item.id !== log.id)])
   return log
 }
 
 export function getLocalAiAuditLogs(): AuditLog[] {
-  return localAuditLogs
+  const stored = readStoredAuditLogs()
+  const byId = new Map([...stored, ...localAuditLogs].map((log) => [log.id, log]))
+  return [...byId.values()].sort((first, second) => second.createdAt.localeCompare(first.createdAt))
+}
+
+export function searchAuditLogs(logs: AuditLog[], keyword: string): AuditLog[] {
+  const text = keyword.trim().toLowerCase()
+  if (!text) return logs
+
+  return logs.filter((log) =>
+    [
+      log.actor,
+      log.action,
+      log.targetType,
+      log.targetId,
+      log.summary,
+      JSON.stringify(log.metadata ?? {}),
+    ]
+      .join(' ')
+      .toLowerCase()
+      .includes(text),
+  )
 }

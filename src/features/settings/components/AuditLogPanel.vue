@@ -1,27 +1,55 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from "vue";
 import type { AuditLog } from "../../../types/domain";
-import { getLocalAiAuditLogs } from "../../../services/backend/ai";
+import { getLocalAiAuditLogs, searchAuditLogs } from "../../../services/backend/ai";
 import { getAuditLogs } from "../../../services/backend/settings";
 
 const keyword = ref("");
+const actionFilter = ref("all");
+const statusFilter = ref("all");
 const systemLogs = ref<AuditLog[]>([]);
-const logs = computed(() => {
-  const text = keyword.value.trim().toLowerCase();
-  const all = [...getLocalAiAuditLogs(), ...systemLogs.value].sort(
+
+const allLogs = computed(() =>
+  [...getLocalAiAuditLogs(), ...systemLogs.value].sort(
     (first, second) => second.createdAt.localeCompare(first.createdAt),
-  );
-  if (!text) return all;
-  return all.filter((log) =>
-    `${log.summary} ${JSON.stringify(log.metadata)}`
-      .toLowerCase()
-      .includes(text),
-  );
+  ),
+);
+
+const actionOptions = computed(() => {
+  const actions = new Set(allLogs.value.map((log) => log.action));
+  return [...actions].sort();
+});
+
+const logs = computed(() => {
+  const searched = searchAuditLogs(allLogs.value, keyword.value);
+  return searched.filter((log) => {
+    const status = getMetadataText(log, "status");
+    const matchAction = actionFilter.value === "all" || log.action === actionFilter.value;
+    const matchStatus = statusFilter.value === "all" || status === statusFilter.value;
+    return matchAction && matchStatus;
+  });
 });
 
 onMounted(async () => {
   systemLogs.value = await getAuditLogs(200);
 });
+
+function getMetadataText(log: AuditLog, key: string): string {
+  const value = log.metadata?.[key];
+  if (Array.isArray(value)) return value.join("、");
+  return typeof value === "string" ? value : "";
+}
+
+function formatTime(value: string): string {
+  return new Intl.DateTimeFormat("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    second: "2-digit",
+    hour12: false,
+  }).format(new Date(value));
+}
 </script>
 
 <template>
@@ -31,17 +59,50 @@ onMounted(async () => {
         <p class="eyebrow">审计日志</p>
         <h3>AI 查询与系统变更</h3>
       </div>
-      <input
-        v-model="keyword"
-        type="search"
-        placeholder="搜索问题、设备、机柜、操作记录"
-      />
+      <div class="filters">
+        <input
+          v-model="keyword"
+          type="search"
+          placeholder="搜索问题、设备、机柜、操作记录"
+        />
+        <select v-model="actionFilter">
+          <option value="all">全部操作</option>
+          <option v-for="action in actionOptions" :key="action" :value="action">
+            {{ action }}
+          </option>
+        </select>
+        <select v-model="statusFilter">
+          <option value="all">全部状态</option>
+          <option value="success">成功</option>
+          <option value="failed">失败</option>
+        </select>
+      </div>
     </header>
     <div v-if="logs.length === 0" class="empty">暂无审计记录。</div>
-    <article v-for="log in logs" :key="log.id">
-      <strong>{{ log.summary }}</strong>
-      <span>{{ log.createdAt }} / {{ log.action }}</span>
-    </article>
+    <div v-else class="audit-table">
+      <div class="table-head">
+        <span>时间</span>
+        <span>操作</span>
+        <span>问题 / 结果</span>
+        <span>工具与对象</span>
+        <span>状态</span>
+      </div>
+      <article v-for="log in logs" :key="log.id" class="table-row">
+        <span class="time">{{ formatTime(log.createdAt) }}</span>
+        <span class="pill">{{ log.action }}</span>
+        <div class="summary">
+          <strong>{{ getMetadataText(log, "question") || log.summary }}</strong>
+          <small>{{ log.summary }}</small>
+        </div>
+        <div class="target">
+          <span>{{ getMetadataText(log, "tools") || log.targetType }}</span>
+          <small>{{ getMetadataText(log, "relatedObject") || log.targetId || "无关联对象" }}</small>
+        </div>
+        <span :class="['status', getMetadataText(log, 'status') || 'success']">
+          {{ getMetadataText(log, "status") === "failed" ? "失败" : "成功" }}
+        </span>
+      </article>
+    </div>
   </section>
 </template>
 
@@ -61,6 +122,7 @@ header {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
+  flex-wrap: wrap;
 }
 
 .eyebrow,
@@ -73,26 +135,114 @@ h3 {
   font-size: 12px;
 }
 
-input {
+.filters {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+input,
+select {
   height: 34px;
-  width: min(360px, 100%);
   border: 1px solid var(--color-border);
   border-radius: 8px;
   color: var(--color-text);
   background: rgba(8, 17, 31, 0.9);
 }
 
-article {
-  display: grid;
-  gap: 4px;
-  padding: 10px;
+input {
+  width: min(340px, 100%);
+  padding: 0 10px;
+}
+
+select {
+  padding: 0 8px;
+}
+
+.audit-table {
   border: 1px solid var(--color-border);
   border-radius: 8px;
+  overflow: hidden;
   background: rgba(8, 17, 31, 0.72);
 }
 
-span,
+.table-head,
+.table-row {
+  display: grid;
+  grid-template-columns: 96px 128px minmax(220px, 1.3fr) minmax(180px, 0.9fr) 70px;
+  gap: 12px;
+  align-items: center;
+  padding: 10px 12px;
+}
+
+.table-head {
+  color: #8fb6d8;
+  font-size: 12px;
+  background: rgba(14, 165, 233, 0.08);
+}
+
+.table-row + .table-row {
+  border-top: 1px solid rgba(38, 50, 71, 0.72);
+}
+
+.summary,
+.target {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.summary strong,
+.target span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.time,
+small,
 .empty {
   color: var(--color-text-muted);
+}
+
+.pill,
+.status {
+  width: fit-content;
+  min-width: 52px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  text-align: center;
+  font-size: 12px;
+}
+
+.pill {
+  border: 1px solid rgba(14, 165, 233, 0.45);
+  color: #bae6fd;
+  background: rgba(14, 165, 233, 0.12);
+}
+
+.status {
+  border: 1px solid rgba(16, 185, 129, 0.44);
+  color: #bbf7d0;
+  background: rgba(16, 185, 129, 0.12);
+}
+
+.status.failed {
+  border-color: rgba(239, 68, 68, 0.52);
+  color: #fecaca;
+  background: rgba(239, 68, 68, 0.12);
+}
+
+@media (max-width: 960px) {
+  .table-head {
+    display: none;
+  }
+
+  .table-row {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
 }
 </style>

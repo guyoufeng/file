@@ -1,5 +1,5 @@
 import { defaultDeviceCategories } from "../../constants/categories";
-import type { Alert, DataCenter, Device, Rack, Room } from "../../types/domain";
+import type { AiModelConfig, Alert, DataCenter, Device, Rack, Room } from "../../types/domain";
 import { invokeCommand } from "./invoke";
 
 export interface SampleProject {
@@ -9,6 +9,7 @@ export interface SampleProject {
   racks: Rack[];
   devices: Device[];
   alerts: Alert[];
+  aiModelConfigs?: AiModelConfig[];
 }
 
 export interface ProjectJson {
@@ -289,6 +290,55 @@ export function getProjectSummary(project: ProjectJson): ProjectSummary {
   };
 }
 
+function readLocalJson<T>(key: string, fallback: T): T {
+  if (typeof localStorage === "undefined") return fallback;
+  const raw = localStorage.getItem(key);
+  if (!raw) return fallback;
+
+  try {
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeLocalJson(key: string, value: unknown) {
+  if (typeof localStorage === "undefined") return;
+  localStorage.setItem(key, JSON.stringify(value));
+}
+
+export function sanitizeProjectJson(project: ProjectJson): ProjectJson {
+  const configs = project.data.aiModelConfigs?.map((config) => {
+    const { apiKeyRef: _apiKeyRef, ...safeConfig } = config;
+    return safeConfig;
+  });
+
+  return {
+    ...project,
+    data: {
+      ...project.data,
+      ...(configs ? { aiModelConfigs: configs as AiModelConfig[] } : {}),
+    },
+  };
+}
+
+export function buildProjectJson(data: SampleProject): ProjectJson {
+  const project: ProjectJson = {
+    schemaVersion: "0.1.0",
+    exportedAt: new Date().toISOString(),
+    data: {
+      ...data,
+      devices: readLocalJson<Device[]>("qf-ai-dcim.devices", data.devices),
+      aiModelConfigs: readLocalJson<AiModelConfig[]>(
+        "qf-ai-dcim.aiModelConfigs",
+        data.aiModelConfigs ?? [],
+      ),
+    },
+  };
+
+  return sanitizeProjectJson(project);
+}
+
 export function validateProjectJson(value: unknown): ProjectValidationResult {
   if (!value || typeof value !== "object") {
     return { valid: false, message: "项目 JSON 格式不正确" };
@@ -321,13 +371,9 @@ export function validateProjectJson(value: unknown): ProjectValidationResult {
 
 export async function exportProjectJson(): Promise<ProjectJson> {
   try {
-    return await invokeCommand<ProjectJson>("export_project_json");
+    return sanitizeProjectJson(await invokeCommand<ProjectJson>("export_project_json"));
   } catch {
-    return {
-      schemaVersion: "0.1.0",
-      exportedAt: new Date().toISOString(),
-      data: sampleProject,
-    };
+    return buildProjectJson(sampleProject);
   }
 }
 
@@ -337,9 +383,19 @@ export async function importProjectJson(project: ProjectJson): Promise<void> {
     throw new Error(validation.message);
   }
 
-  await invokeCommand<void>("import_project_json", { project });
+  try {
+    await invokeCommand<void>("import_project_json", { project });
+  } catch {
+    writeLocalJson("qf-ai-dcim.devices", project.data.devices ?? []);
+    writeLocalJson("qf-ai-dcim.aiModelConfigs", project.data.aiModelConfigs ?? []);
+  }
 }
 
 export async function restoreSampleProject(): Promise<void> {
-  await invokeCommand<void>("restore_sample_data", { confirmed: true });
+  try {
+    await invokeCommand<void>("restore_sample_data", { confirmed: true });
+  } catch {
+    writeLocalJson("qf-ai-dcim.devices", sampleProject.devices);
+    writeLocalJson("qf-ai-dcim.aiModelConfigs", []);
+  }
 }

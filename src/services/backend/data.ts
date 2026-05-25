@@ -328,7 +328,14 @@ export function buildProjectJson(data: SampleProject): ProjectJson {
     exportedAt: new Date().toISOString(),
     data: {
       ...data,
+      dataCenters: readLocalJson<DataCenter[]>(
+        "qf-ai-dcim.dataCenters",
+        data.dataCenters,
+      ),
+      rooms: readLocalJson<Room[]>("qf-ai-dcim.rooms", data.rooms),
+      racks: readLocalJson<Rack[]>("qf-ai-dcim.racks", data.racks),
       devices: readLocalJson<Device[]>("qf-ai-dcim.devices", data.devices),
+      alerts: readLocalJson<Alert[]>("qf-ai-dcim.alerts", data.alerts),
       aiModelConfigs: readLocalJson<AiModelConfig[]>(
         "qf-ai-dcim.aiModelConfigs",
         data.aiModelConfigs ?? [],
@@ -386,7 +393,11 @@ export async function importProjectJson(project: ProjectJson): Promise<void> {
   try {
     await invokeCommand<void>("import_project_json", { project });
   } catch {
+    writeLocalJson("qf-ai-dcim.dataCenters", project.data.dataCenters ?? []);
+    writeLocalJson("qf-ai-dcim.rooms", project.data.rooms ?? []);
+    writeLocalJson("qf-ai-dcim.racks", project.data.racks ?? []);
     writeLocalJson("qf-ai-dcim.devices", project.data.devices ?? []);
+    writeLocalJson("qf-ai-dcim.alerts", project.data.alerts ?? []);
     writeLocalJson("qf-ai-dcim.aiModelConfigs", project.data.aiModelConfigs ?? []);
   }
 }
@@ -395,7 +406,11 @@ export async function restoreSampleProject(): Promise<void> {
   try {
     await invokeCommand<void>("restore_sample_data", { confirmed: true });
   } catch {
+    writeLocalJson("qf-ai-dcim.dataCenters", sampleProject.dataCenters);
+    writeLocalJson("qf-ai-dcim.rooms", sampleProject.rooms);
+    writeLocalJson("qf-ai-dcim.racks", sampleProject.racks);
     writeLocalJson("qf-ai-dcim.devices", sampleProject.devices);
+    writeLocalJson("qf-ai-dcim.alerts", sampleProject.alerts);
     writeLocalJson("qf-ai-dcim.aiModelConfigs", []);
   }
 }

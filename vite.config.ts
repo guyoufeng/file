@@ -1,4 +1,6 @@
 import type { IncomingMessage } from "node:http";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 
@@ -16,6 +18,19 @@ function aiProxyPlugin() {
   return {
     name: "ai-proxy",
     configureServer(server: import("vite").ViteDevServer) {
+      server.middlewares.use("/__demo_seed", async (_req, res) => {
+        try {
+          const seedPath = path.resolve(".local/demo-seed.json");
+          const content = await readFile(seedPath, "utf8");
+          res.setHeader("Content-Type", "application/json");
+          res.end(content);
+        } catch {
+          res.statusCode = 404;
+          res.setHeader("Content-Type", "application/json");
+          res.end(JSON.stringify({ message: "未配置本地演示种子" }));
+        }
+      });
+
       server.middlewares.use("/__ai_proxy/models", async (req, res) => {
         if (req.method !== "POST") {
           res.statusCode = 405;

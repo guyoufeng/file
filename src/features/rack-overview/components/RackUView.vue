@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
-import type { Alert, Device, Rack } from "../../../types/domain";
+import { computed, nextTick, ref, watch } from "vue";
+import type { Alert, Device, DeviceSide, Rack } from "../../../types/domain";
 import RackColumnCanvas from "./RackColumnCanvas.vue";
 import ZoomToolbar from "./ZoomToolbar.vue";
 
@@ -30,8 +30,12 @@ const rackTypeLabels: Record<string, string> = {
 };
 
 const zoom = ref(1.25);
+const side = ref<DeviceSide>("front");
 const visibleRacks = computed(() =>
   props.racks?.length ? props.racks : props.rack ? [props.rack] : [],
+);
+const highlightedDevice = computed(() =>
+  props.devices.find((device) => device.id === props.highlightDeviceId),
 );
 const rackRows = computed(() => {
   const rows = new Map<string, Rack[]>();
@@ -51,6 +55,26 @@ const rackRows = computed(() => {
       ),
     }));
 });
+
+watch(
+  () => [props.rack?.id, props.highlightDeviceId, side.value],
+  async () => {
+    await nextTick();
+    if (!props.rack?.id) return;
+    document
+      .querySelector(`[data-rack-id="${props.rack.id}"]`)
+      ?.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
+  },
+  { flush: "post" },
+);
+
+watch(
+  highlightedDevice,
+  (device) => {
+    if (device) side.value = device.side;
+  },
+  { immediate: true },
+);
 </script>
 
 <template>
@@ -70,7 +94,25 @@ const rackRows = computed(() => {
           排；点击机柜标题查看详情，点击设备块可直接编辑。</span
         >
       </div>
-      <ZoomToolbar v-model="zoom" />
+      <div class="u-view-actions">
+        <div class="side-switch" aria-label="安装面">
+          <button
+            type="button"
+            :class="{ active: side === 'front' }"
+            @click="side = 'front'"
+          >
+            正面
+          </button>
+          <button
+            type="button"
+            :class="{ active: side === 'rear' }"
+            @click="side = 'rear'"
+          >
+            背面
+          </button>
+        </div>
+        <ZoomToolbar v-model="zoom" />
+      </div>
     </header>
 
     <div
@@ -94,6 +136,7 @@ const rackRows = computed(() => {
             :key="item.id"
             class="rack-u-column"
             :class="{ active: item.id === rack?.id }"
+            :data-rack-id="item.id"
           >
             <button
               type="button"
@@ -114,6 +157,7 @@ const rackRows = computed(() => {
               :highlight-device-id="
                 item.id === rack?.id ? highlightDeviceId : null
               "
+              :side="side"
               compact
               @select-device="emit('selectDevice', $event)"
             />
@@ -141,6 +185,36 @@ header {
   align-items: center;
   justify-content: space-between;
   gap: 16px;
+}
+
+.u-view-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.side-switch {
+  display: flex;
+  gap: 6px;
+}
+
+.side-switch button {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  color: var(--color-text-muted);
+  background: rgba(8, 17, 31, 0.88);
+  cursor: pointer;
+}
+
+.side-switch button.active,
+.side-switch button:hover {
+  border-color: rgba(14, 165, 233, 0.7);
+  color: var(--color-text);
+  background: rgba(14, 165, 233, 0.16);
 }
 
 .eyebrow {

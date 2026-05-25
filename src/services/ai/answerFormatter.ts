@@ -21,6 +21,7 @@ export function formatDeviceLocationAnswer(
   return [
     `设备：${device.computerName || device.name}`,
     `业务IP：${device.businessIp || "-"}`,
+    `带外IP：${device.managementIp || "-"}`,
     `用途：${device.purpose || "-"}`,
     `责任人：${device.owner || "-"}`,
     `位置：${room?.name || "-"} / ${rack?.name || "-"} / ${device.side === "front" ? "正面" : "背面"} ${device.startU}U-${device.endU}U`,
@@ -51,6 +52,7 @@ export function formatRackDeviceListAnswer(
     return [
       `${index + 1}. ${device.computerName || device.name}`,
       `业务IP：${device.businessIp || "-"}`,
+      `带外IP：${device.managementIp || "-"}`,
       `用途：${device.purpose || "-"}`,
       `责任人：${device.owner || "-"}`,
       `U位：${device.side === "front" ? "正面" : "背面"} ${device.startU}U-${device.endU}U`,
@@ -184,6 +186,7 @@ export function formatDeviceAlertsAnswer(
   return [
     `设备：${device.computerName || device.name}`,
     `业务IP：${device.businessIp || "-"}`,
+    `带外IP：${device.managementIp || "-"}`,
     `位置：${findDeviceLocation(device, racks, rooms)}`,
     `责任人：${device.owner || "-"}`,
     `告警详情：${activeAlerts.length} 条`,

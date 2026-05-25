@@ -65,6 +65,11 @@ function handleOutsidePointerDown(event: PointerEvent) {
   }
 }
 
+function editDevice(device: Device) {
+  emit('editDevice', device)
+  emit('close')
+}
+
 function startPointerTracking() {
   window.addEventListener('pointermove', handlePointerMove)
   window.addEventListener('pointerup', stopPointerTracking, { once: true })
@@ -131,7 +136,7 @@ function clampWindow() {
         <strong>设备概览</strong>
         <article v-for="device in rackDevices.slice(0, 5)" :key="device.id" class="device-summary">
           <p>{{ device.computerName }} / {{ device.businessIp }} / {{ device.purpose }}</p>
-          <button type="button" :aria-label="`编辑 ${device.computerName || device.name}`" @click="emit('editDevice', device)">
+          <button type="button" :aria-label="`编辑 ${device.computerName || device.name}`" @click="editDevice(device)">
             编辑
           </button>
         </article>

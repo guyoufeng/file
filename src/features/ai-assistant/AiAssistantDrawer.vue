@@ -160,6 +160,7 @@ async function locateTarget(target: AiNavigationTarget) {
       ...(target.roomId ? { roomId: target.roomId } : {}),
       ...(target.rackId ? { rackId: target.rackId } : {}),
       ...(target.deviceId ? { deviceId: target.deviceId } : {}),
+      focus: Date.now().toString(),
     },
   });
 }
@@ -217,9 +218,9 @@ async function locateTarget(target: AiNavigationTarget) {
 .drawer-panel {
   position: fixed;
   z-index: 60;
-  overflow: auto;
-  display: grid;
-  align-content: start;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
   gap: 12px;
   padding: 18px;
   border: 1px solid rgba(56, 189, 248, 0.24);
@@ -238,6 +239,7 @@ async function locateTarget(target: AiNavigationTarget) {
 }
 
 header {
+  flex: 0 0 auto;
   display: flex;
   align-items: start;
   justify-content: space-between;

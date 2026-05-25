@@ -114,7 +114,7 @@ async function applyRouteSelection() {
   if (typeof route.query.deviceId === "string")
     selectedDeviceId.value = route.query.deviceId;
   if (selectedRack.value || selectedDeviceId.value) {
-    detailOpen.value = true;
+    detailOpen.value = !selectedDeviceId.value;
     if (selectedDeviceId.value) viewMode.value = "u-view";
   }
 }

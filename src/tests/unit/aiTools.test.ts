@@ -15,6 +15,8 @@ describe("ai tools", () => {
 
     expect(result.toolName).toBe("locate_device");
     expect(result.answer).toContain(device.businessIp!);
+    expect(result.answer).toContain(device.managementIp!);
+    expect(result.answer).toContain("带外IP");
     expect(result.answer).toContain(device.computerName!);
     expect(result.answer).toContain("数据来源");
   });

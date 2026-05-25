@@ -67,4 +67,15 @@ describe("rack device text layout", () => {
     expect(layout.verticalAlign).toBe("middle");
     expect(layout.yOffset).toBe(0);
   });
+
+  it("uses one compact line for 1U devices", () => {
+    const device = makeDevice({
+      heightU: 1,
+      endU: 20,
+      computerName: "理线架-01",
+      businessIp: "10.10.0.21",
+    });
+
+    expect(getRackDeviceText(device, true)).toBe("理线架-01");
+  });
 });

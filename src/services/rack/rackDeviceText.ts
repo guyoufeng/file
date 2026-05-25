@@ -29,6 +29,10 @@ export function getRackDeviceText(device: Device, compact: boolean): string {
     return device.subtype || device.purpose || device.name;
   }
 
+  if (compact && device.heightU <= 1) {
+    return device.computerName || device.name;
+  }
+
   const lines = [device.computerName || device.name, device.businessIp].filter(
     Boolean,
   );

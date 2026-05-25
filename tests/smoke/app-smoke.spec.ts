@@ -66,11 +66,10 @@ test("starts the app and navigates through v0.1 core pages", async ({
   await expect(page.getByRole("heading", { name: "编辑设备" })).toBeVisible();
   await page.getByLabel("用途").fill("核心生产业务");
   await page.getByRole("button", { name: "保存" }).click();
-  await expect(
-    page
-      .getByTestId("rack-detail-floating-window")
-      .getByText("QF-SRV-001 / 10.10.0.21 / 核心生产业务"),
-  ).toBeVisible();
+  await expect(page.getByTestId("rack-detail-floating-window")).toHaveCount(0);
+  await expect(page.getByTestId("location-focus-banner")).toContainText(
+    "QF-SRV-001",
+  );
 
   await page.getByRole("button", { name: "3D轻量视图" }).click();
   await expect(

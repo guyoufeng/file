@@ -37,7 +37,11 @@ test("opens AI assistant and answers a read-only asset location question", async
   await expect(page.getByTestId("location-focus-banner")).toContainText(
     "529-A1",
   );
-  await expect(page.getByTestId("selected-rack-detail-title")).toContainText(
+  await expect(page.getByRole("button", { name: "U位大图" })).toHaveClass(
+    /active/,
+  );
+  await expect(page.getByTestId("location-focus-banner")).toContainText(
     "529-A1",
   );
+  await expect(page.getByTestId("rack-detail-floating-window")).toHaveCount(0);
 });

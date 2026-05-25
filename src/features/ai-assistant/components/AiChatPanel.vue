@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, onMounted, ref } from "vue";
+import { computed, nextTick, onMounted, ref, watch } from "vue";
 import type { Alert, Device, Rack, Room } from "../../../types/domain";
 import type { AiNavigationTarget } from "../../../types/aiNavigation";
 import { answerWithAiAssistant } from "../../../services/ai/aiAssistant";
@@ -20,22 +20,47 @@ const emit = defineEmits<{
 
 interface ChatAnswer {
   id: string;
+  question: string;
   content: string;
   target?: AiNavigationTarget;
 }
 
+interface ChatSession {
+  id: string;
+  title: string;
+  answers: ChatAnswer[];
+  updatedAt: string;
+}
+
+const storageKey = "qf-ai-assistant-sessions";
+
 const aiStore = useAiStore();
 const question = ref("");
-const answers = ref<ChatAnswer[]>([]);
+const sessions = ref<ChatSession[]>([]);
+const activeSessionId = ref("");
 const asking = ref(false);
 const messageListRef = ref<HTMLElement | null>(null);
+const activeSession = computed(() =>
+  sessions.value.find((session) => session.id === activeSessionId.value),
+);
+const answers = computed(() => activeSession.value?.answers ?? []);
 
 onMounted(() => {
   void aiStore.loadConfigs();
+  loadSessions();
 });
+
+watch(
+  sessions,
+  () => {
+    localStorage.setItem(storageKey, JSON.stringify(sessions.value));
+  },
+  { deep: true },
+);
 
 async function ask() {
   if (!question.value.trim() || asking.value) return;
+  if (!activeSession.value) createSession();
 
   asking.value = true;
   const currentQuestion = question.value;
@@ -50,9 +75,17 @@ async function ask() {
     });
     answers.value.push({
       id: `${Date.now()}-${answers.value.length}`,
+      question: currentQuestion,
       content: result.answer,
       target: buildNavigationTarget(result),
     });
+    if (activeSession.value) {
+      activeSession.value.title =
+        activeSession.value.title === "新的会话"
+          ? currentQuestion.slice(0, 18)
+          : activeSession.value.title;
+      activeSession.value.updatedAt = new Date().toISOString();
+    }
     question.value = "";
     await scrollToLatestMessage();
     writeAiAuditLog({
@@ -67,6 +100,34 @@ async function ask() {
   } finally {
     asking.value = false;
   }
+}
+
+function loadSessions() {
+  const stored = localStorage.getItem(storageKey);
+  if (stored) {
+    try {
+      const parsed = JSON.parse(stored) as ChatSession[];
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        sessions.value = parsed;
+        activeSessionId.value = parsed[0].id;
+        return;
+      }
+    } catch {
+      localStorage.removeItem(storageKey);
+    }
+  }
+  createSession();
+}
+
+function createSession() {
+  const session: ChatSession = {
+    id: `session-${Date.now()}`,
+    title: "新的会话",
+    answers: [],
+    updatedAt: new Date().toISOString(),
+  };
+  sessions.value.unshift(session);
+  activeSessionId.value = session.id;
 }
 
 async function scrollToLatestMessage() {
@@ -99,6 +160,18 @@ function buildNavigationTarget(result: {
 
 <template>
   <div class="chat-panel">
+    <div class="session-bar">
+      <select v-model="activeSessionId" aria-label="AI会话">
+        <option
+          v-for="session in sessions"
+          :key="session.id"
+          :value="session.id"
+        >
+          {{ session.title }}
+        </option>
+      </select>
+      <button type="button" @click="createSession">新会话</button>
+    </div>
     <div
       ref="messageListRef"
       class="message-list"
@@ -109,6 +182,7 @@ function buildNavigationTarget(result: {
         <span>例如：IP 为 10.10.0.21 的服务器在哪里？</span>
       </div>
       <div v-for="answer in answers" :key="answer.id" class="answer-item">
+        <div class="question-bubble">{{ answer.question }}</div>
         <AiAnswerCard :answer="answer.content" />
         <button
           v-if="answer.target"
@@ -144,10 +218,36 @@ function buildNavigationTarget(result: {
 
 <style scoped>
 .chat-panel {
-  min-height: 420px;
+  min-height: 0;
+  flex: 1;
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.session-bar {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px;
+}
+
+.session-bar select,
+.session-bar button {
+  min-height: 32px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  color: var(--color-text);
+  background: rgba(15, 23, 42, 0.84);
+}
+
+.session-bar select {
+  min-width: 0;
+  padding: 0 9px;
+}
+
+.session-bar button {
+  padding: 0 10px;
+  cursor: pointer;
 }
 
 .message-list {
@@ -176,6 +276,7 @@ function buildNavigationTarget(result: {
 }
 
 .composer {
+  flex: 0 0 auto;
   display: grid;
   gap: 8px;
   padding: 10px;
@@ -232,6 +333,17 @@ button:disabled {
 .answer-item {
   display: grid;
   gap: 8px;
+}
+
+.question-bubble {
+  justify-self: end;
+  max-width: 88%;
+  padding: 9px 11px;
+  border: 1px solid rgba(14, 165, 233, 0.32);
+  border-radius: 8px;
+  color: #e0f2fe;
+  background: rgba(14, 165, 233, 0.12);
+  line-height: 1.55;
 }
 
 .locate-button {

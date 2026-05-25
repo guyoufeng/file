@@ -1,12 +1,13 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import type { Alert, Device, Rack } from "../../../types/domain";
+import type { Alert, Device, DeviceSide, Rack } from "../../../types/domain";
 import { categoryColors } from "../../../constants/colors";
 import {
   getDeviceBlockHeight,
   getDeviceBlockY,
 } from "../../../services/rack/uPosition";
 import { getRackDeviceTextLayout } from "../../../services/rack/rackDeviceText";
+import { filterRackSideDevices } from "../../../services/rack/rackSideView";
 
 const props = defineProps<{
   rack: Rack;
@@ -15,6 +16,7 @@ const props = defineProps<{
   zoom: number;
   highlightDeviceId?: string | null;
   compact?: boolean;
+  side?: DeviceSide;
 }>();
 
 const emit = defineEmits<{
@@ -32,11 +34,7 @@ const rackBodyWidth = computed(
   () => rackWidth.value - labelWidth.value - rackPadding,
 );
 const rackDevices = computed(() =>
-  props.devices
-    .filter(
-      (device) => device.rackId === props.rack.id && device.side === "front",
-    )
-    .sort((a, b) => b.startU - a.startU),
+  filterRackSideDevices(props.devices, props.rack.id, props.side ?? "front"),
 );
 
 function deviceColor(device: Device): string {

@@ -58,16 +58,12 @@ export function getRackDeviceTextLayout(input: {
       : 10;
   const fontSize = Math.max(8, Math.min(baseFontSize, availableHeight / lineCount));
   const lineHeight = input.compact ? 1.12 : 1.25;
-  const estimatedTextHeight = fontSize * lineHeight * lineCount;
-
   return {
     text: getRackDeviceText(input.device, input.compact),
     fontSize,
     lineHeight,
     align: centered ? "center" : "left",
     verticalAlign: centered ? "middle" : "top",
-    yOffset: centered
-      ? Math.max(0, (input.blockHeight - estimatedTextHeight) / 2)
-      : 4,
+    yOffset: 0,
   };
 }

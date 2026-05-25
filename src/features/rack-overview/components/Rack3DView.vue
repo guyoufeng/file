@@ -21,6 +21,7 @@ const emit = defineEmits<{
 
 const containerRef = ref<HTMLDivElement | null>(null)
 const canvasRef = ref<HTMLCanvasElement | null>(null)
+const sceneError = ref("")
 const rackMeshes = new Map<string, THREE.Mesh>()
 const raycaster = new THREE.Raycaster()
 const pointer = new THREE.Vector2()
@@ -70,7 +71,12 @@ function setupScene() {
   scene = new THREE.Scene()
   scene.background = new THREE.Color('#050a16')
   camera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000)
-  renderer = new THREE.WebGLRenderer({ canvas: canvasRef.value, antialias: true, alpha: false })
+  try {
+    renderer = new THREE.WebGLRenderer({ canvas: canvasRef.value, antialias: true, alpha: false })
+  } catch {
+    sceneError.value = '当前浏览器没有成功启用 WebGL，无法加载 3D 视图。请检查浏览器硬件加速、显卡驱动或换 Edge/Chrome 再试。'
+    return
+  }
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2))
   renderer.shadowMap.enabled = true
 
@@ -255,6 +261,9 @@ function startAnimation() {
 <template>
   <div ref="containerRef" class="rack-3d-view" :class="{ leadership: leadershipMode }" data-testid="rack-3d-view">
     <canvas ref="canvasRef" aria-label="3D轻量机柜视图" @pointerdown="handlePointerDown" />
+    <div v-if="sceneError" class="scene-error" role="alert">
+      {{ sceneError }}
+    </div>
     <div class="scene-hud">
       <div>
         <strong>{{ room?.name ?? '未选择机房' }}</strong>
@@ -302,6 +311,19 @@ canvas:active {
   justify-content: space-between;
   gap: 12px;
   pointer-events: none;
+}
+
+.scene-error {
+  position: absolute;
+  inset: 16px;
+  display: grid;
+  place-items: center;
+  padding: 18px;
+  border: 1px solid rgba(239, 68, 68, 0.42);
+  border-radius: 8px;
+  color: #fecaca;
+  text-align: center;
+  background: rgba(127, 29, 29, 0.18);
 }
 
 .scene-hud > div {

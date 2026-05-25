@@ -42,7 +42,7 @@ describe("rack device text layout", () => {
     expect(layout.fontSize).toBeGreaterThanOrEqual(9);
     expect(layout.align).toBe("center");
     expect(layout.verticalAlign).toBe("middle");
-    expect(layout.yOffset).toBeGreaterThan(0);
+    expect(layout.yOffset).toBe(0);
   });
 
   it("centers facility rack labels vertically", () => {
@@ -65,6 +65,6 @@ describe("rack device text layout", () => {
 
     expect(layout.align).toBe("center");
     expect(layout.verticalAlign).toBe("middle");
-    expect(layout.yOffset).toBeGreaterThan(250);
+    expect(layout.yOffset).toBe(0);
   });
 });

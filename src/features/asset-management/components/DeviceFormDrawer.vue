@@ -41,6 +41,9 @@ const form = reactive({
 
 const errors = reactive<string[]>([])
 const roomRacks = computed(() => props.racks.filter((rack) => rack.roomId === form.roomId))
+const isServer = computed(() => form.categoryId === 'server')
+const needsNetworkFields = computed(() => ['server', 'network', 'security', 'storage'].includes(form.categoryId))
+const identityLabel = computed(() => isServer.value ? '计算机名' : '设备名称')
 
 watch(
   () => props.device,
@@ -121,7 +124,7 @@ function submit() {
       <form @submit.prevent="submit">
         <fieldset>
           <legend>基本信息</legend>
-          <label>计算机名<input v-model="form.computerName" /></label>
+          <label>{{ identityLabel }}<input v-model="form.computerName" /></label>
           <label>用途<input v-model="form.purpose" /></label>
           <label>责任人<input v-model="form.owner" /></label>
         </fieldset>
@@ -133,21 +136,21 @@ function submit() {
           <label>起始U位<input v-model.number="form.startU" type="number" min="1" max="48" /></label>
           <label>高度U<input v-model.number="form.heightU" type="number" min="1" max="48" /></label>
         </fieldset>
-        <fieldset>
+        <fieldset v-if="needsNetworkFields">
           <legend>网络信息</legend>
           <label>业务IP<input v-model="form.businessIp" /></label>
           <label>带外IP<input v-model="form.managementIp" /></label>
         </fieldset>
         <fieldset>
-          <legend>硬件信息</legend>
+          <legend>{{ isServer ? '服务器硬件信息' : '资产设备信息' }}</legend>
           <label>设备大类<input v-model="form.categoryId" /></label>
           <label>设备子类型<input v-model="form.subtype" /></label>
           <label>厂商<input v-model="form.vendor" /></label>
           <label>型号<input v-model="form.model" /></label>
           <label>SN号<input v-model="form.serialNumber" /></label>
           <label>固定资产编号<input v-model="form.assetNo" /></label>
-          <label>硬件配置<input v-model="form.hardwareSpec" /></label>
-          <label>操作系统<input v-model="form.operatingSystem" /></label>
+          <label v-if="isServer">硬件配置<input v-model="form.hardwareSpec" /></label>
+          <label v-if="isServer">操作系统<input v-model="form.operatingSystem" /></label>
           <label>维保到期<input v-model="form.warrantyExpireAt" /></label>
         </fieldset>
         <button type="submit" class="primary">保存</button>

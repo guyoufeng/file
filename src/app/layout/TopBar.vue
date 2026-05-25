@@ -30,8 +30,8 @@ function formatTime(date: Date): string {
 <template>
   <header class="top-bar">
     <div>
-      <p class="eyebrow">v0.1 Foundation</p>
       <h1>数据中心运维控制台</h1>
+      <p class="eyebrow">v0.1 Foundation</p>
     </div>
     <div class="status-group">
       <span data-testid="app-clock" class="clock">{{ currentTime }}</span>

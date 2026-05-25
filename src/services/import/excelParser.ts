@@ -75,7 +75,11 @@ function parseDeviceRow(row: SheetRow, index: number): DeviceImportRow {
   const purpose = firstText(row, ["用途", "类型"]);
   const model = firstText(row, ["型号", "资产说明"]);
   const position = parseUPosition(firstText(row, ["机柜位置"]));
-  const category = inferCategory(purpose, model);
+  const category = normalizeCategory(
+    firstText(row, ["设备大类", "资产大类", "分组"]),
+    purpose,
+    model,
+  );
   const subtype =
     firstText(row, ["设备子类型"]) || inferSubtype(category, purpose);
   const computerName =
@@ -93,7 +97,7 @@ function parseDeviceRow(row: SheetRow, index: number): DeviceImportRow {
         : "front",
     startU: numberValue(row["起始U位"]) ?? position.startU,
     heightU: numberValue(row["高度U"]) ?? position.heightU,
-    categoryId: firstText(row, ["设备大类"]) || category,
+    categoryId: category,
     subtype,
     businessIp: firstText(row, ["业务IP", "IP"]),
     managementIp: firstText(row, ["带外IP", "外接管理口"]),
@@ -129,9 +133,21 @@ function parseUPosition(value: string): { startU: number; heightU: number } {
   return { startU: 0, heightU: 0 };
 }
 
-function inferCategory(purpose: string, model: string): string {
+function normalizeCategory(value: string, purpose: string, model: string): string {
+  const explicit = value.trim().toLowerCase();
+  if (explicit) {
+    if (/server|服务器|物理机|数据库|虚拟化|超融合/.test(explicit)) return "server";
+    if (/storage|存储|san|nas/.test(explicit)) return "storage";
+    if (/network|交换机|网络|路由/.test(explicit)) return "network";
+    if (/security|安全|防火墙|waf/.test(explicit)) return "security";
+    if (/facility|精密空调|列头柜|ups|pdu|基础设施/.test(explicit)) return "facility";
+    if (/patch|配线|理线|odf|mdf/.test(explicit)) return "patching";
+    return "other";
+  }
+
   const text = `${purpose} ${model}`.toLowerCase();
   if (/精密空调|列头柜|ups|pdu|供电/.test(text)) return "facility";
+  if (/防火墙|waf|安全/.test(text)) return "security";
   if (/配线|odf|mdf|patch/.test(text)) return "patching";
   if (/交换机|路由|防火墙|网络/.test(text)) return "network";
   if (/存储|dd6300|nas|san|备份/.test(text)) return "storage";

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
 import * as XLSX from "xlsx";
 import type { Device } from "../../types/domain";
 import type { ImportValidationResult } from "../../types/import";
@@ -16,6 +16,8 @@ import { buildImportedDevices } from "../../services/import/deviceImport";
 import type { DeviceImportSummary } from "../../stores/assetStore";
 import { useAssetStore } from "../../stores/assetStore";
 import { useRoomStore } from "../../stores/roomStore";
+import { paginate } from "../../services/pagination";
+import PaginationControls from "../../components/PaginationControls.vue";
 import AssetTable from "./components/AssetTable.vue";
 import AssetToolbar from "./components/AssetToolbar.vue";
 import DeviceFormDrawer from "./components/DeviceFormDrawer.vue";
@@ -31,6 +33,8 @@ const importSaving = ref(false);
 const importSummary = ref<DeviceImportSummary | null>(null);
 const editingDevice = ref<Device | null>(null);
 const operationNotice = ref<AssetOperationNotice | null>(null);
+const page = ref(1);
+const pageSize = ref(20);
 
 const filteredDevices = computed(() => {
   return filterDevicesForAssetView(
@@ -45,6 +49,13 @@ const categoryTabs = computed(() => {
     ...item,
     count: filterDevicesForAssetView(assetStore.devices, item.id, "").length,
   }));
+});
+const pagedDevices = computed(() =>
+  paginate(filteredDevices.value, { page: page.value, pageSize: pageSize.value }),
+);
+
+watch([search, selectedCategory, pageSize], () => {
+  page.value = 1;
 });
 
 onMounted(async () => {
@@ -175,10 +186,16 @@ function exportDevices() {
       </button>
     </div>
     <AssetTable
-      :devices="filteredDevices"
+      :devices="pagedDevices.items"
       :racks="roomStore.racks"
       @edit="openEditDrawer"
       @delete="deleteDevice"
+    />
+    <PaginationControls
+      v-model:page="page"
+      v-model:page-size="pageSize"
+      :total="pagedDevices.total"
+      :page-count="pagedDevices.pageCount"
     />
     <DeviceFormDrawer
       :open="drawerOpen"

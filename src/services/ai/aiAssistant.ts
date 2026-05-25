@@ -38,9 +38,77 @@ function buildUserPrompt(question: string, toolResult: AiToolResult) {
   ].join("\n");
 }
 
+function isDcimQuestion(question: string, rooms: Room[], racks: Rack[]) {
+  const normalized = question.toLowerCase();
+  if (/\b\d{1,3}(?:\.\d{1,3}){3}\b/.test(question)) return true;
+  if (/机房|机柜|服务器|设备|资产|告警|报警|异常|故障|责任人|用途|业务ip|带外ip|u位|位置|在哪/.test(question)) {
+    return true;
+  }
+  if (rooms.some((room) => normalized.includes(room.name.toLowerCase()))) return true;
+  if (racks.some((rack) => normalized.includes(rack.name.toLowerCase()))) return true;
+  return false;
+}
+
+function buildGeneralPrompt(question: string) {
+  return [
+    `用户问题：${question}`,
+    "",
+    "请以泉峰AI数据中心管理平台助手的身份回答。",
+    "如果问题涉及平台能力，可以说明你能查询资产位置、机柜设备、告警状态、审计记录和后续报表建议。",
+    "如果问题涉及实时外部信息，例如天气、新闻、联网搜索，请明确当前没有启用外网工具，不能声称已查询实时结果。",
+    "不要编造平台资产、IP、责任人、告警和配置。",
+  ].join("\n");
+}
+
 export async function answerWithAiAssistant(
   request: AiAssistantRequest,
 ): Promise<AiAssistantAnswer> {
+  const config = getEnabledConfig(request.configs);
+  const dcimQuestion = isDcimQuestion(request.question, request.rooms, request.racks);
+
+  if (!dcimQuestion) {
+    const generalResult: AiToolResult = {
+      toolName: "general_chat",
+      answer:
+        "当前可以回答平台使用、运维思路和通用问题。实时天气、新闻、联网搜索需要后续启用外网辅助 Skill。",
+    };
+
+    if (!config) {
+      return {
+        ...generalResult,
+        fallbackReason: "未配置启用模型",
+      };
+    }
+
+    try {
+      const answer = await getProviderAdapter(config).chat(config, [
+        {
+          role: "system",
+          content: qfDcimAgentRole,
+        },
+        {
+          role: "system",
+          content: buildSkillPrompt(),
+        },
+        {
+          role: "user",
+          content: buildGeneralPrompt(request.question),
+        },
+      ]);
+
+      return {
+        ...generalResult,
+        answer: answer.trim() || generalResult.answer,
+        usedModel: config.model,
+      };
+    } catch (error) {
+      return {
+        ...generalResult,
+        fallbackReason: error instanceof Error ? error.message : "模型调用失败",
+      };
+    }
+  }
+
   const toolResult = runDeterministicAiQuery(
     request.question,
     request.rooms,
@@ -48,7 +116,6 @@ export async function answerWithAiAssistant(
     request.devices,
     request.alerts,
   );
-  const config = getEnabledConfig(request.configs);
 
   if (!config) {
     return {

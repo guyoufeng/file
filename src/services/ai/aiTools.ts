@@ -10,6 +10,7 @@ import {
 } from "./answerFormatter";
 
 export type AiToolName =
+  | "general_chat"
   | "search_devices"
   | "get_device_detail"
   | "locate_device"

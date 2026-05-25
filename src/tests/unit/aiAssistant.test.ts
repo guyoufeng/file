@@ -22,6 +22,33 @@ const config: AiModelConfig = {
 };
 
 describe("ai assistant", () => {
+  it("routes non-DCIM questions to general model chat without fake asset facts", async () => {
+    const { answerWithAiAssistant } =
+      await import("../../services/ai/aiAssistant");
+    chat.mockResolvedValueOnce("我是平台助手，可以回答通用问题，也可以查询资产。");
+
+    const result = await answerWithAiAssistant({
+      question: "你能帮忙做哪些事情？",
+      configs: [config],
+      rooms: sampleProject.rooms,
+      racks: sampleProject.racks,
+      devices: sampleProject.devices,
+      alerts: sampleProject.alerts,
+    });
+
+    expect(result.toolName).toBe("general_chat");
+    expect(result.answer).toContain("平台助手");
+    expect(chat).toHaveBeenCalledWith(
+      config,
+      expect.arrayContaining([
+        expect.objectContaining({
+          role: "user",
+          content: expect.not.stringContaining("工具查询结果"),
+        }),
+      ]),
+    );
+  });
+
   it("uses enabled model with agent role, skill context, and tool result", async () => {
     const { answerWithAiAssistant } =
       await import("../../services/ai/aiAssistant");

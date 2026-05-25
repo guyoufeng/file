@@ -178,8 +178,8 @@ function buildNavigationTarget(result: {
       data-testid="ai-message-list"
     >
       <div v-if="answers.length === 0" class="welcome-message">
-        <strong>我可以查询资产、机柜位置和当前告警。</strong>
-        <span>例如：IP 为 10.10.0.21 的服务器在哪里？</span>
+        <strong>我可以查询资产、机柜位置、当前告警，也可以回答通用运维问题。</strong>
+        <span>实时天气、新闻和联网搜索需要后续启用外网辅助 Skill。</span>
       </div>
       <div v-for="answer in answers" :key="answer.id" class="answer-item">
         <div class="question-bubble">{{ answer.question }}</div>

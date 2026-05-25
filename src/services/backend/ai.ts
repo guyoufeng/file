@@ -20,6 +20,11 @@ function writeStoredAuditLogs(logs: AuditLog[]) {
   localStorage.setItem(LOCAL_AUDIT_LOGS_STORAGE_KEY, JSON.stringify(logs))
 }
 
+function persistAuditLog(log: AuditLog) {
+  localAuditLogs.unshift(log)
+  writeStoredAuditLogs([log, ...readStoredAuditLogs().filter((item) => item.id !== log.id)])
+}
+
 export function writeAiAuditLog(input: {
   question: string
   tools: string[]
@@ -39,8 +44,31 @@ export function writeAiAuditLog(input: {
     createdAt: new Date().toLocaleString('zh-CN', { hour12: false }),
     metadata: input,
   }
-  localAuditLogs.unshift(log)
-  writeStoredAuditLogs([log, ...readStoredAuditLogs().filter((item) => item.id !== log.id)])
+  persistAuditLog(log)
+  return log
+}
+
+export function writeAiToolAuditLog(input: {
+  toolName: string
+  inputSummary: string
+  source: string
+  durationMs?: number
+  status: 'success' | 'failed'
+  resultSummary: string
+  requestId?: string
+  errorMessage?: string
+}): AuditLog {
+  const log: AuditLog = {
+    id: `audit-ai-tool-${Date.now()}-${localAuditLogs.length + 1}`,
+    actor: 'AI助手',
+    action: 'ai_tool_call',
+    targetType: 'ai_tool',
+    targetId: input.toolName,
+    summary: input.resultSummary,
+    createdAt: new Date().toLocaleString('zh-CN', { hour12: false }),
+    metadata: input,
+  }
+  persistAuditLog(log)
   return log
 }
 

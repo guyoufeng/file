@@ -50,6 +50,31 @@ function formatTime(value: string): string {
     hour12: false,
   }).format(new Date(value));
 }
+
+function actionLabel(action: string): string {
+  const labels: Record<string, string> = {
+    ai_readonly_query: "AI查询",
+    ai_tool_call: "工具调用",
+  };
+  return labels[action] ?? action;
+}
+
+function getToolContext(log: AuditLog): string {
+  const tool = getMetadataText(log, "toolName") || getMetadataText(log, "tools") || log.targetType;
+  const source = getMetadataText(log, "source");
+  const duration = log.metadata?.durationMs;
+  const durationText = typeof duration === "number" ? `${duration}ms` : "";
+  return [tool, source, durationText].filter(Boolean).join(" / ");
+}
+
+function getRelatedObject(log: AuditLog): string {
+  return (
+    getMetadataText(log, "relatedObject") ||
+    getMetadataText(log, "inputSummary") ||
+    log.targetId ||
+    "无关联对象"
+  );
+}
 </script>
 
 <template>
@@ -89,14 +114,14 @@ function formatTime(value: string): string {
       </div>
       <article v-for="log in logs" :key="log.id" class="table-row">
         <span class="time">{{ formatTime(log.createdAt) }}</span>
-        <span class="pill">{{ log.action }}</span>
+        <span class="pill">{{ actionLabel(log.action) }}</span>
         <div class="summary">
           <strong>{{ getMetadataText(log, "question") || log.summary }}</strong>
           <small>{{ log.summary }}</small>
         </div>
         <div class="target">
-          <span>{{ getMetadataText(log, "tools") || log.targetType }}</span>
-          <small>{{ getMetadataText(log, "relatedObject") || log.targetId || "无关联对象" }}</small>
+          <span>{{ getToolContext(log) }}</span>
+          <small>{{ getRelatedObject(log) }}</small>
         </div>
         <span :class="['status', getMetadataText(log, 'status') || 'success']">
           {{ getMetadataText(log, "status") === "failed" ? "失败" : "成功" }}

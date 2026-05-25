@@ -3,6 +3,7 @@ import {
   getLocalAiAuditLogs,
   searchAuditLogs,
   writeAiAuditLog,
+  writeAiToolAuditLog,
 } from "../../services/backend/ai";
 
 function installLocalStorage() {
@@ -59,5 +60,31 @@ describe("ai audit log", () => {
     expect(searchAuditLogs([log], "529-A1")).toHaveLength(1);
     expect(searchAuditLogs([log], "locate_device")).toHaveLength(1);
     expect(searchAuditLogs([log], "no-match")).toHaveLength(0);
+  });
+
+  it("records external AI tool calls with input source duration and result summary", () => {
+    const log = writeAiToolAuditLog({
+      toolName: "weather.lookup",
+      inputSummary: "南京天气",
+      source: "external_weather_api",
+      durationMs: 328,
+      status: "success",
+      resultSummary: "晴，22 到 29 摄氏度",
+      requestId: "tool-call-001",
+    });
+
+    expect(log).toMatchObject({
+      action: "ai_tool_call",
+      targetType: "ai_tool",
+      targetId: "weather.lookup",
+      summary: "晴，22 到 29 摄氏度",
+    });
+    expect(log.metadata).toMatchObject({
+      inputSummary: "南京天气",
+      source: "external_weather_api",
+      durationMs: 328,
+      requestId: "tool-call-001",
+    });
+    expect(searchAuditLogs([log], "external_weather_api")).toHaveLength(1);
   });
 });

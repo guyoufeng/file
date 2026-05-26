@@ -1,5 +1,5 @@
 import { defaultDeviceCategories } from "../../constants/categories";
-import type { AiModelConfig, Alert, DataCenter, Device, Rack, Room } from "../../types/domain";
+import type { AiModelConfig, Alert, DataCenter, Device, MicroModule, Rack, Room } from "../../types/domain";
 import { writeSystemAuditLog } from "./ai";
 import { invokeCommand } from "./invoke";
 
@@ -7,6 +7,7 @@ export interface SampleProject {
   schemaVersion: "0.1.0";
   dataCenters: DataCenter[];
   rooms: Room[];
+  microModules?: MicroModule[];
   racks: Rack[];
   devices: Device[];
   alerts: Alert[];
@@ -308,6 +309,47 @@ function writeLocalJson(key: string, value: unknown) {
   localStorage.setItem(key, JSON.stringify(value));
 }
 
+function collectMicroModules(rooms: Room[], racks: Rack[]): MicroModule[] {
+  return rooms.flatMap((room) =>
+    (room.microModules ?? []).map((module) => ({
+      ...module,
+      rackIds:
+        (module.rackIds ?? []).length > 0
+          ? module.rackIds
+          : racks
+              .filter((rack) => rack.microModuleId === module.id)
+              .map((rack) => rack.id),
+    })),
+  );
+}
+
+function attachMicroModulesToRooms(
+  rooms: Room[],
+  racks: Rack[],
+  microModules: MicroModule[] | undefined,
+): Room[] {
+  const modules =
+    microModules && microModules.length > 0
+      ? microModules
+      : collectMicroModules(rooms, racks);
+
+  return rooms.map((room) => {
+    const roomModules = modules
+      .filter((module) => module.roomId === room.id)
+      .map((module) => ({
+        ...module,
+        rackIds:
+          (module.rackIds ?? []).length > 0
+            ? module.rackIds
+            : racks
+                .filter((rack) => rack.microModuleId === module.id)
+                .map((rack) => rack.id),
+      }));
+
+    return roomModules.length > 0 ? { ...room, microModules: roomModules } : room;
+  });
+}
+
 export function sanitizeProjectJson(project: ProjectJson): ProjectJson {
   const configs = project.data.aiModelConfigs?.map((config) => {
     const { apiKeyRef: _apiKeyRef, ...safeConfig } = config;
@@ -343,6 +385,9 @@ export function buildProjectJson(data: SampleProject): ProjectJson {
       ),
     },
   };
+  const rooms = project.data.rooms ?? [];
+  const racks = project.data.racks ?? [];
+  project.data.microModules = collectMicroModules(rooms, racks);
 
   return sanitizeProjectJson(project);
 }
@@ -395,8 +440,14 @@ export async function importProjectJson(project: ProjectJson): Promise<void> {
     await invokeCommand<void>("import_project_json", { project });
   } catch {
     writeLocalJson("qf-ai-dcim.dataCenters", project.data.dataCenters ?? []);
-    writeLocalJson("qf-ai-dcim.rooms", project.data.rooms ?? []);
-    writeLocalJson("qf-ai-dcim.racks", project.data.racks ?? []);
+    const racks = project.data.racks ?? [];
+    const rooms = attachMicroModulesToRooms(
+      project.data.rooms ?? [],
+      racks,
+      project.data.microModules,
+    );
+    writeLocalJson("qf-ai-dcim.rooms", rooms);
+    writeLocalJson("qf-ai-dcim.racks", racks);
     writeLocalJson("qf-ai-dcim.devices", project.data.devices ?? []);
     writeLocalJson("qf-ai-dcim.alerts", project.data.alerts ?? []);
     writeLocalJson("qf-ai-dcim.aiModelConfigs", project.data.aiModelConfigs ?? []);

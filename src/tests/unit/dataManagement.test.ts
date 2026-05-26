@@ -74,6 +74,7 @@ describe('system data management', () => {
 
     expect(project.data.devices).toEqual([realDevice]);
     expect(getProjectSummary(project).deviceCount).toBe(1);
+    expect(project.data.microModules?.length).toBeGreaterThan(0);
   });
 
   it("removes sensitive AI fields from exported project json", () => {
@@ -121,6 +122,50 @@ describe('system data management', () => {
     expect(JSON.parse(localStorage.getItem("qf-ai-dcim.devices") ?? "[]")).toEqual([
       importedDevice,
     ]);
+  });
+
+  it("preserves top-level micro modules as room layout data on browser import", async () => {
+    const room = {
+      ...sampleProject.rooms[0],
+      microModules: undefined,
+    };
+    const microModules = [
+      {
+        id: "mm-imported",
+        roomId: room.id,
+        name: "导入华为模块",
+        rows: 2,
+        columns: 10,
+        rackIds: [],
+      },
+    ];
+    const racks = [
+      {
+        ...sampleProject.racks[0],
+        roomId: room.id,
+        microModuleId: "mm-imported",
+      },
+    ];
+
+    await importProjectJson({
+      schemaVersion: "0.1.0",
+      exportedAt: "2026-05-25T08:00:00.000Z",
+      data: {
+        rooms: [room],
+        microModules,
+        racks,
+        devices: [],
+        alerts: [],
+      },
+    });
+
+    const rooms = JSON.parse(localStorage.getItem("qf-ai-dcim.rooms") ?? "[]");
+
+    expect(rooms[0].microModules[0]).toMatchObject({
+      id: "mm-imported",
+      name: "导入华为模块",
+      rackIds: [racks[0].id],
+    });
   });
 
   it("writes local audit logs for project import and sample restore", async () => {

@@ -113,6 +113,7 @@ async function applyRouteSelection() {
       roomStore.racks.find((rack) => rack.id === route.query.rackId) ?? null;
   if (typeof route.query.deviceId === "string")
     selectedDeviceId.value = route.query.deviceId;
+  if (route.query.view === "u-view") viewMode.value = "u-view";
   if (selectedRack.value || selectedDeviceId.value) {
     detailOpen.value = !selectedDeviceId.value;
     if (selectedDeviceId.value) viewMode.value = "u-view";

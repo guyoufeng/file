@@ -61,9 +61,22 @@ watch(
   async () => {
     await nextTick();
     if (!props.rack?.id) return;
-    document
-      .querySelector(`[data-rack-id="${props.rack.id}"]`)
-      ?.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
+    const rackElement = document.querySelector(`[data-rack-id="${props.rack.id}"]`);
+    rackElement?.scrollIntoView({ block: "center", inline: "center", behavior: "smooth" });
+
+    const device = props.devices.find((item) => item.id === props.highlightDeviceId);
+    if (!device || !rackElement) return;
+    const scrollContainer = rackElement.closest(".rack-u-scroll");
+    if (!(scrollContainer instanceof HTMLElement)) return;
+
+    const unitHeight = Math.max(10, 14 * zoom.value);
+    const rackHeight = props.rack.heightU * unitHeight;
+    const deviceMiddleFromTop =
+      (props.rack.heightU - device.endU + device.heightU / 2) * unitHeight;
+    scrollContainer.scrollTop =
+      scrollContainer.scrollTop +
+      deviceMiddleFromTop -
+      rackHeight / 2;
   },
   { flush: "post" },
 );

@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import type { Alert, AlertStatus } from '../../types/domain'
 import { filterAlertsWithContext, getAlertDeviceContext, type AlertFilters as AlertFilterState } from '../../services/alerts/alertFilters'
+import { buildAlertLocateQuery } from '../../services/alerts/alertNavigation'
 import { alertStatusOptions, batchUpdateAlertStatus } from '../../services/alerts/alertWorkflow'
 import { useAlertStore } from '../../stores/alertStore'
 import { useAssetStore } from '../../stores/assetStore'
@@ -76,14 +77,9 @@ function applyBatchStatus() {
 }
 
 function locateAlert(alert: Alert) {
-  const context = getAlertDeviceContext(alert, assetStore.devices, roomStore.racks, roomStore.rooms)
   void router.push({
     path: '/rack-overview',
-    query: {
-      roomId: context.room?.id,
-      rackId: context.rack?.id,
-      deviceId: context.device?.id,
-    },
+    query: buildAlertLocateQuery(alert, assetStore.devices, roomStore.racks, roomStore.rooms),
   })
 }
 </script>

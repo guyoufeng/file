@@ -98,6 +98,21 @@ test("asset import replace mode is opt-in", async ({ page }) => {
   await expect(replaceCheckbox).not.toBeChecked();
 });
 
+test("alert locate opens rack u view and highlights the related device", async ({
+  page,
+}) => {
+  await page.goto("/#/alerts");
+  await page.getByRole("heading", { name: "告警中心" }).waitFor();
+  await page.locator("tbody button", { hasText: "定位" }).first().click();
+
+  await expect(page).toHaveURL(/rack-overview/);
+  await expect(
+    page.getByRole("button", { name: "U位大图", exact: true }),
+  ).toHaveClass(/active/);
+  await expect(page.getByTestId("location-focus-banner")).toContainText("已定位");
+  await expect(page.getByTestId("rack-u-overview")).toBeVisible();
+});
+
 test("project restore refreshes current browser data without manual reload", async ({
   page,
 }) => {

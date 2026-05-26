@@ -3,11 +3,13 @@ import {
   formatActiveAlertDevicesAnswer,
   formatDeviceAlertsAnswer,
   formatDeviceLocationAnswer,
+  formatDeviceSearchAnswer,
   formatRackDeviceListAnswer,
   formatRackAlertRankingAnswer,
   formatRoomDeviceSummaryAnswer,
   sourceFooter,
 } from "./answerFormatter";
+import { searchDevices } from "../search/deviceSearch";
 
 export type AiToolName =
   | "general_chat"
@@ -40,6 +42,10 @@ export function runDeterministicAiQuery(
   const asksAlert = /告警|报警|异常|故障/.test(question);
   const asksAlertRanking =
     asksAlert && /最多|排行|排名|哪个机柜/.test(question);
+  const asksDeviceSearch =
+    /查询|查下|查一下|搜索|负责|用途|资产|编号|sn|SN|详细|详情|哪些服务器|哪些设备/.test(
+      question,
+    );
 
   if (ip) {
     const device = devices.find(
@@ -81,6 +87,27 @@ export function runDeterministicAiQuery(
         formatRackAlertRankingAnswer(rooms, racks, devices, alerts) +
         sourceFooter({ label: "本地资产库、机柜库、告警库", queriedAt }),
     };
+  }
+
+  if (asksDeviceSearch) {
+    const cleanedQuery = question
+      .replace(/查询|查下|查一下|搜索|这台设备|设备|服务器|的详细信息|详情|负责哪些|负责|有哪些|哪些|用途|资产|编号|SN|sn|吗|？|\?/g, " ")
+      .trim();
+    const candidates = [cleanedQuery, question]
+      .map((query) => searchDevices(query, devices, racks, rooms))
+      .find((results) => results.length > 0);
+
+    if (candidates && candidates.length > 0) {
+      return {
+        toolName: "search_devices",
+        relatedDeviceId: candidates.length === 1 ? candidates[0].device.id : undefined,
+        relatedRackId: candidates.length === 1 ? candidates[0].rack?.id : undefined,
+        relatedRoomId: candidates.length === 1 ? candidates[0].room?.id : undefined,
+        answer:
+          formatDeviceSearchAnswer(candidates, alerts) +
+          sourceFooter({ label: "本地资产库、机柜库、告警库", queriedAt }),
+      };
+    }
   }
 
   const rack = racks.find((item) =>

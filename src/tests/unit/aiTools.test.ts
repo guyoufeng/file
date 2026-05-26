@@ -142,4 +142,39 @@ describe("ai tools", () => {
     expect(result.answer).toContain("严重");
     expect(result.answer).toContain("建议");
   });
+
+  it("searches internal devices by hostname serial asset owner or purpose", () => {
+    const device = sampleProject.devices[7];
+    const result = runDeterministicAiQuery(
+      `查询 ${device.serialNumber} 这台设备的详细信息`,
+      sampleProject.rooms,
+      sampleProject.racks,
+      sampleProject.devices,
+      sampleProject.alerts,
+    );
+
+    expect(result.toolName).toBe("search_devices");
+    expect(result.relatedDeviceId).toBe(device.id);
+    expect(result.answer).toContain(device.computerName!);
+    expect(result.answer).toContain(device.serialNumber!);
+    expect(result.answer).toContain(device.assetNo!);
+    expect(result.answer).toContain(device.hardwareSpec!);
+  });
+
+  it("lists multiple internal device matches with concise operational fields", () => {
+    const owner = sampleProject.devices[0].owner!;
+    const result = runDeterministicAiQuery(
+      `${owner} 负责哪些服务器？`,
+      sampleProject.rooms,
+      sampleProject.racks,
+      sampleProject.devices,
+      sampleProject.alerts,
+    );
+
+    expect(result.toolName).toBe("search_devices");
+    expect(result.answer).toContain("匹配设备");
+    expect(result.answer).toContain(owner);
+    expect(result.answer).toContain("业务IP");
+    expect(result.answer).toContain("位置");
+  });
 });

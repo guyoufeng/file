@@ -24,10 +24,61 @@ export function formatDeviceLocationAnswer(
     `带外IP：${device.managementIp || "-"}`,
     `用途：${device.purpose || "-"}`,
     `责任人：${device.owner || "-"}`,
+    `固定资产编号：${device.assetNo || "-"}`,
+    `SN号：${device.serialNumber || "-"}`,
+    `型号：${device.model || "-"}`,
+    `操作系统：${device.operatingSystem || "-"}`,
+    `硬件配置：${device.hardwareSpec || "-"}`,
+    `维保时间：${device.warrantyExpireAt || "-"}`,
     `位置：${room?.name || "-"} / ${rack?.name || "-"} / ${device.side === "front" ? "正面" : "背面"} ${device.startU}U-${device.endU}U`,
     `状态：${device.status}`,
     `活动告警：${activeAlerts.length} 条`,
   ].join("\n");
+}
+
+export function formatDeviceSearchAnswer(
+  matches: Array<{ device: Device; rack: Rack | undefined; room: Room | undefined; matchedText: string }>,
+  alerts: Alert[],
+): string {
+  if (matches.length === 0) {
+    return "未在平台资产库中找到匹配设备。可以尝试输入计算机名、业务IP、带外IP、固定资产编号、SN号、用途或责任人。";
+  }
+
+  if (matches.length === 1) {
+    const match = matches[0];
+    return [
+      "匹配设备：1 台",
+      `匹配字段：${match.matchedText}`,
+      "",
+      formatDeviceLocationAnswer(match.device, match.rack, match.room, alerts),
+    ].join("\n");
+  }
+
+  const activeAlerts = alerts.filter((alert) => alert.status !== "recovered");
+  const lines = matches.slice(0, 20).map(({ device, rack, room, matchedText }, index) => {
+    const alertCount = activeAlerts.filter((alert) => alert.deviceId === device.id).length;
+    return [
+      `${index + 1}. ${device.computerName || device.name}`,
+      `业务IP：${device.businessIp || "-"}`,
+      `带外IP：${device.managementIp || "-"}`,
+      `用途：${device.purpose || "-"}`,
+      `责任人：${device.owner || "-"}`,
+      `位置：${room?.name || "-"} / ${rack?.name || "-"} / ${device.side === "front" ? "正面" : "背面"} ${device.startU}U-${device.endU}U`,
+      `匹配：${matchedText}`,
+      `告警：${alertCount}条`,
+    ].join(" / ");
+  });
+
+  return [
+    `匹配设备：${matches.length} 台`,
+    "",
+    ...lines,
+    matches.length > 20
+      ? `仅展示前 20 台，剩余 ${matches.length - 20} 台可继续缩小条件查询。`
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
 }
 
 export function formatRackDeviceListAnswer(

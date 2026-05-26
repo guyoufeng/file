@@ -85,6 +85,34 @@ describe("ai assistant", () => {
     );
   });
 
+  it("treats serial number and asset owner questions as internal platform queries", async () => {
+    const { answerWithAiAssistant } =
+      await import("../../services/ai/aiAssistant");
+    const device = sampleProject.devices[3];
+    chat.mockResolvedValueOnce("模型整理后的资产详情");
+
+    const result = await answerWithAiAssistant({
+      question: `查询 ${device.serialNumber} 的详细信息`,
+      configs: [config],
+      rooms: sampleProject.rooms,
+      racks: sampleProject.racks,
+      devices: sampleProject.devices,
+      alerts: sampleProject.alerts,
+    });
+
+    expect(result.toolName).toBe("search_devices");
+    expect(result.relatedDeviceId).toBe(device.id);
+    expect(chat).toHaveBeenCalledWith(
+      config,
+      expect.arrayContaining([
+        expect.objectContaining({
+          role: "user",
+          content: expect.stringContaining("工具查询结果"),
+        }),
+      ]),
+    );
+  });
+
   it("falls back to deterministic tool answer when no model is enabled", async () => {
     const { answerWithAiAssistant } =
       await import("../../services/ai/aiAssistant");

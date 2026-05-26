@@ -24,6 +24,16 @@ describe("project import preview", () => {
             enabled: true,
           },
         ],
+        devices: sampleProject.devices.slice(0, 12).map((device, index) =>
+          index === 0
+            ? {
+                ...device,
+                metadata: {
+                  note: "Bearer abcdef",
+                },
+              }
+            : device,
+        ),
       },
     };
 
@@ -49,6 +59,8 @@ describe("project import preview", () => {
     expect(preview.summaryText).toContain("5 个机房");
     expect(preview.summaryText).toContain("52 个机柜");
     expect(preview.summaryText).toContain("12 台设备");
+    expect(preview.security.safe).toBe(false);
+    expect(preview.securitySummary).toContain("疑似敏感信息");
   });
 
   it("detects project files without micro module layout", () => {

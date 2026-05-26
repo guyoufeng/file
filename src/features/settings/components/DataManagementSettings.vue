@@ -17,6 +17,10 @@ import {
   buildProjectImportPreview,
   type ProjectImportPreview,
 } from '../../../services/project/projectImportPreview'
+import {
+  scanProjectBackupSecurity,
+  summarizeBackupSecurity,
+} from '../../../services/project/backupSecurity'
 
 const message = ref('当前数据管理支持 v0.1.0 项目 JSON 导出、导入校验和示例数据恢复。')
 const importing = ref(false)
@@ -38,13 +42,14 @@ async function reloadProjectData() {
 async function exportJson(fileNamePrefix = 'qf-ai-dcim-project') {
   const project = await exportProjectJson()
   const summary = getProjectSummary(project)
+  const securitySummary = summarizeBackupSecurity(scanProjectBackupSecurity(project))
   const blob = new Blob([JSON.stringify(project, null, 2)], { type: 'application/json' })
   const link = document.createElement('a')
   link.href = URL.createObjectURL(blob)
   link.download = `${fileNamePrefix}-${new Date().toISOString().slice(0, 10)}.json`
   link.click()
   URL.revokeObjectURL(link.href)
-  message.value = `已导出项目 JSON：${summary.roomCount} 个机房、${summary.rackCount} 个机柜、${summary.deviceCount} 台设备、${summary.alertCount} 条告警。`
+  message.value = `已导出项目 JSON：${summary.roomCount} 个机房、${summary.rackCount} 个机柜、${summary.deviceCount} 台设备、${summary.alertCount} 条告警。${securitySummary}`
 }
 
 async function handleImport(event: Event) {
@@ -161,6 +166,14 @@ function clearReserved() {
         <span>{{ importPreview.stats.aiModelConfigCount }} AI配置</span>
       </div>
       <p>{{ importPreview.currentSummaryText }}</p>
+      <p :class="['security-summary', { warning: !importPreview.security.safe }]">
+        {{ importPreview.securitySummary }}
+      </p>
+      <div v-if="!importPreview.security.safe" class="security-findings">
+        <span v-for="finding in importPreview.security.findings.slice(0, 6)" :key="finding.path">
+          {{ finding.path }}：{{ finding.reason }}
+        </span>
+      </div>
       <ul>
         <li v-for="item in importPreview.riskItems" :key="item">{{ item }}</li>
       </ul>
@@ -241,6 +254,24 @@ header span,
   border-radius: 999px;
   color: #bae6fd;
   background: rgba(8, 17, 31, 0.6);
+}
+
+.security-summary {
+  color: #bbf7d0;
+}
+
+.security-summary.warning {
+  color: #fde68a;
+}
+
+.security-findings {
+  display: grid;
+  gap: 4px;
+}
+
+.security-findings span {
+  color: #fed7aa;
+  word-break: break-all;
 }
 
 .notice-grid div {

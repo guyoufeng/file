@@ -1,16 +1,21 @@
 <script setup lang="ts">
 import type { Alert, Device, Rack, Room } from '../../../types/domain'
 import { getAlertDeviceContext } from '../../../services/alerts/alertFilters'
+import { getAlertStatusLabel } from '../../../services/alerts/alertWorkflow'
 
 defineProps<{
   alerts: Alert[]
   devices: Device[]
   racks: Rack[]
   rooms: Room[]
+  selectedIds: string[]
 }>()
 
 const emit = defineEmits<{
   locate: [alert: Alert]
+  edit: [alert: Alert]
+  toggle: [alertId: string]
+  toggleAll: []
 }>()
 </script>
 
@@ -19,6 +24,7 @@ const emit = defineEmits<{
     <table>
       <thead>
         <tr>
+          <th><input type="checkbox" :checked="alerts.length > 0 && selectedIds.length === alerts.length" @change="emit('toggleAll')" /></th>
           <th>级别</th>
           <th>标题</th>
           <th>设备</th>
@@ -31,14 +37,18 @@ const emit = defineEmits<{
       </thead>
       <tbody>
         <tr v-for="alert in alerts" :key="alert.id" :class="alert.level">
+          <td><input type="checkbox" :checked="selectedIds.includes(alert.id)" @change="emit('toggle', alert.id)" /></td>
           <td>{{ alert.level }}</td>
           <td>{{ alert.title }}</td>
           <td>{{ getAlertDeviceContext(alert, devices, racks, rooms).device?.computerName }}</td>
           <td>{{ getAlertDeviceContext(alert, devices, racks, rooms).location }}</td>
           <td>{{ alert.source }}</td>
-          <td>{{ alert.status }}</td>
+          <td>{{ getAlertStatusLabel(alert.status) }}</td>
           <td>{{ alert.startedAt }}</td>
-          <td><button type="button" @click="emit('locate', alert)">定位</button></td>
+          <td>
+            <button type="button" @click="emit('edit', alert)">编辑</button>
+            <button type="button" @click="emit('locate', alert)">定位</button>
+          </td>
         </tr>
       </tbody>
     </table>

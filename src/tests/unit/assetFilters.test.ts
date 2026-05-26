@@ -69,7 +69,7 @@ describe("asset filters", () => {
     ]);
   });
 
-  it("groups virtual servers separately for MCP or manual import workflows", () => {
+  it("keeps virtual servers out of rack asset filters", () => {
     const devices = [
       {
         ...baseDevice,
@@ -88,11 +88,11 @@ describe("asset filters", () => {
       },
     ] as Device[];
 
-    expect(assetCategoryFilters.some((item) => item.id === "virtual_server")).toBe(true);
-    expect(filterDevicesForAssetView(devices, "virtual_server", "")).toEqual([
-      devices[0],
-    ]);
+    expect(assetCategoryFilters.some((item) => item.id === "virtual_server")).toBe(false);
     expect(filterDevicesForAssetView(devices, "physical_server", "")).toEqual([
+      devices[1],
+    ]);
+    expect(filterDevicesForAssetView(devices, "all", "")).toEqual([
       devices[1],
     ]);
   });

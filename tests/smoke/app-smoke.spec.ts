@@ -79,6 +79,10 @@ test("starts the app and navigates through v0.1 core pages", async ({
   await page.getByRole("link", { name: "告警中心" }).click();
   await expect(page.getByRole("heading", { name: "告警中心" })).toBeVisible();
 
+  await page.getByRole("link", { name: "虚拟服务器" }).click();
+  await expect(page.getByRole("heading", { name: "虚拟服务器管理" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "MCP同步" })).toBeVisible();
+
   await page.getByRole("link", { name: "报表中心" }).click();
   await expect(page.getByRole("heading", { name: "报表中心" })).toBeVisible();
 

@@ -2,7 +2,6 @@ import type { Device } from "../../types/domain";
 
 export type AssetCategoryFilter =
   | "physical_server"
-  | "virtual_server"
   | "storage"
   | "network"
   | "security"
@@ -16,7 +15,6 @@ export const assetCategoryFilters: {
   label: string;
 }[] = [
   { id: "physical_server", label: "物理服务器" },
-  { id: "virtual_server", label: "虚拟服务器" },
   { id: "storage", label: "存储" },
   { id: "network", label: "交换机/网络" },
   { id: "security", label: "安全设备" },
@@ -55,6 +53,7 @@ export function filterDevicesForAssetView(
 }
 
 function matchesAssetCategory(device: Device, category: AssetCategoryFilter) {
+  if (device.categoryId === "virtual_server") return false;
   if (category === "all") return true;
   if (category === "physical_server") {
     return device.categoryId === "server";
@@ -62,16 +61,12 @@ function matchesAssetCategory(device: Device, category: AssetCategoryFilter) {
   if (category === "other") {
     return ![
       "server",
-      "virtual_server",
       "storage",
       "network",
       "security",
       "facility",
       "patching",
     ].includes(device.categoryId);
-  }
-  if (category === "virtual_server") {
-    return device.categoryId === "virtual_server";
   }
   return device.categoryId === category;
 }

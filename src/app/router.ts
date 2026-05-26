@@ -13,6 +13,11 @@ export const routes = [
     component: () => import('../features/asset-management/AssetManagementPage.vue'),
   },
   {
+    path: '/virtual-servers',
+    name: '虚拟服务器管理',
+    component: () => import('../features/virtual-server-management/VirtualServerManagementPage.vue'),
+  },
+  {
     path: '/connections',
     name: '连线管理',
     component: () => import('../features/connection-manager/ConnectionManagerPage.vue'),

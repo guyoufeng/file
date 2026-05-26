@@ -461,12 +461,6 @@ async fn ensure_default_categories(
             r#"["核心交换机","接入交换机","路由器","负载均衡"]"#,
         ),
         (
-            "virtual_server",
-            "虚拟服务器",
-            "virtual_server",
-            r#"["ZStack虚拟机","VMware虚拟机","云主机","容器节点"]"#,
-        ),
-        (
             "security",
             "安全设备",
             "security",

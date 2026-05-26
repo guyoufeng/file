@@ -193,7 +193,6 @@ function confirmSync(config: AssetSyncConfig) {
       @add="openAddDrawer"
       @import="openImportDialog"
       @cmdb-sync="openSyncDialog('cmdb')"
-      @mcp-sync="openSyncDialog('mcp')"
       @export="exportDevices"
     />
     <div v-if="operationNotice" class="operation-notice" role="alert">

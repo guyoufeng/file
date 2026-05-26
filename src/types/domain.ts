@@ -21,8 +21,8 @@ export type DeviceStatus =
   | 'retired'
 export type DeviceSide = 'front' | 'rear'
 export type AlertLevel = 'info' | 'warning' | 'critical'
-export type AlertStatus = 'unconfirmed' | 'acknowledged' | 'recovered' | 'closed'
-export type DeviceMajorCategory = 'server' | 'virtual_server' | 'network' | 'security' | 'storage' | 'facility' | 'patching' | 'other'
+export type AlertStatus = 'unconfirmed' | 'read' | 'acknowledged' | 'recovered' | 'closed'
+export type DeviceMajorCategory = 'server' | 'network' | 'security' | 'storage' | 'facility' | 'patching' | 'other'
 
 export interface DataCenter {
   id: string

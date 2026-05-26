@@ -2,6 +2,7 @@
 const navItems = [
   { path: '/rack-overview', label: '机柜总览' },
   { path: '/assets', label: '资产管理' },
+  { path: '/virtual-servers', label: '虚拟服务器' },
   { path: '/connections', label: '连线管理' },
   { path: '/alerts', label: '告警中心' },
   { path: '/reports', label: '报表中心' },

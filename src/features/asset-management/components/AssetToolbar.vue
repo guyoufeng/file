@@ -11,7 +11,6 @@ const emit = defineEmits<{
   add: [];
   import: [];
   cmdbSync: [];
-  mcpSync: [];
   export: [];
 }>();
 </script>
@@ -41,7 +40,6 @@ const emit = defineEmits<{
     <div class="actions">
       <button type="button" @click="emit('import')">导入Excel</button>
       <button type="button" @click="emit('cmdbSync')">CMDB同步</button>
-      <button type="button" @click="emit('mcpSync')">MCP同步</button>
       <button type="button" @click="emit('export')">导出设备</button>
       <button type="button" @click="emit('add')">新增设备</button>
     </div>

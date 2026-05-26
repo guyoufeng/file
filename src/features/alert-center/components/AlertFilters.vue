@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type { AlertLevel, AlertStatus, Device, Rack, Room } from '../../../types/domain'
 import type { AlertFilters } from '../../../services/alerts/alertFilters'
+import { alertStatusOptions } from '../../../services/alerts/alertWorkflow'
 
 defineProps<{
   filters: AlertFilters
@@ -40,9 +41,7 @@ function update(filters: AlertFilters, patch: AlertFilters) {
     </select>
     <select :value="filters.status ?? 'all'" @change="update(filters, { status: (($event.target as HTMLSelectElement).value as AlertStatus | 'all') })">
       <option value="all">全部状态</option>
-      <option value="unconfirmed">未确认</option>
-      <option value="acknowledged">已确认</option>
-      <option value="recovered">已恢复</option>
+      <option v-for="option in alertStatusOptions" :key="option.value" :value="option.value">{{ option.label }}</option>
       <option value="closed">已关闭</option>
     </select>
   </div>

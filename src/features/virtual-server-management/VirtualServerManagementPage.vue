@@ -4,7 +4,8 @@ import AssetSyncDialog from "../asset-management/components/AssetSyncDialog.vue"
 import {
   addVirtualServer,
   filterVirtualServers,
-  sampleVirtualServers,
+  loadVirtualServers,
+  saveVirtualServers,
   type VirtualServerInput,
   type VirtualServer,
 } from "./virtualServers";
@@ -13,7 +14,7 @@ import type { AssetSyncConfig } from "../../services/asset/assetSyncConfig";
 const search = ref("");
 const syncOpen = ref(false);
 const manualOpen = ref(false);
-const servers = ref<VirtualServer[]>(sampleVirtualServers);
+const servers = ref<VirtualServer[]>(loadVirtualServers());
 const message = ref("虚拟服务器独立管理，不占用机柜 U 位，通过宿主物理服务器关联到数据中心。");
 const form = ref<VirtualServerInput>({
   name: "",
@@ -54,6 +55,7 @@ function saveManualVirtualServer() {
   if (!result.ok) return;
 
   servers.value = result.servers;
+  saveVirtualServers(result.servers);
   manualOpen.value = false;
   resetForm();
 }

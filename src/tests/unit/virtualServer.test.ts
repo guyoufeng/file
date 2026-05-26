@@ -2,7 +2,9 @@ import { describe, expect, it } from "vitest";
 import {
   addVirtualServer,
   filterVirtualServers,
+  loadVirtualServers,
   sampleVirtualServers,
+  saveVirtualServers,
 } from "../../features/virtual-server-management/virtualServers";
 
 describe("virtual server management", () => {
@@ -50,5 +52,18 @@ describe("virtual server management", () => {
     expect(duplicateResult.ok).toBe(false);
     expect(duplicateResult.message).toContain("业务IP已存在");
     expect(duplicateResult.servers).toHaveLength(addResult.servers.length);
+  });
+
+  it("persists virtual servers to local storage compatible storage", () => {
+    const items = new Map<string, string>();
+    const storage = {
+      getItem: (key: string) => items.get(key) ?? null,
+      setItem: (key: string, value: string) => items.set(key, value),
+    };
+
+    saveVirtualServers(sampleVirtualServers, storage);
+    const loaded = loadVirtualServers(storage);
+
+    expect(loaded).toEqual(sampleVirtualServers);
   });
 });

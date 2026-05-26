@@ -19,6 +19,13 @@ export interface VirtualServerMutationResult {
   servers: VirtualServer[];
 }
 
+interface VirtualServerStorage {
+  getItem(key: string): string | null;
+  setItem(key: string, value: string): void;
+}
+
+const storageKey = "qf-ai-dcim.virtualServers";
+
 export const sampleVirtualServers: VirtualServer[] = [
   {
     id: "vm-mes-app-01",
@@ -115,4 +122,31 @@ export function addVirtualServer(
       },
     ],
   };
+}
+
+function getDefaultStorage(): VirtualServerStorage | undefined {
+  if (typeof localStorage === "undefined") return undefined;
+  return localStorage;
+}
+
+export function loadVirtualServers(
+  storage: VirtualServerStorage | undefined = getDefaultStorage(),
+): VirtualServer[] {
+  if (!storage) return sampleVirtualServers;
+  const raw = storage.getItem(storageKey);
+  if (!raw) return sampleVirtualServers;
+
+  try {
+    const parsed = JSON.parse(raw) as VirtualServer[];
+    return Array.isArray(parsed) ? parsed : sampleVirtualServers;
+  } catch {
+    return sampleVirtualServers;
+  }
+}
+
+export function saveVirtualServers(
+  servers: VirtualServer[],
+  storage: VirtualServerStorage | undefined = getDefaultStorage(),
+): void {
+  storage?.setItem(storageKey, JSON.stringify(servers));
 }

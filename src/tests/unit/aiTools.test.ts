@@ -177,4 +177,38 @@ describe("ai tools", () => {
     expect(result.answer).toContain("业务IP");
     expect(result.answer).toContain("位置");
   });
+
+  it("lists devices whose warranty is expiring within a requested window", () => {
+    const devices = sampleProject.devices.map((device, index) => ({
+      ...device,
+      warrantyExpireAt: index === 0 ? "2026-06-15" : "2028-12-31",
+    }));
+    const result = runDeterministicAiQuery(
+      "未来60天哪些服务器即将过保？",
+      sampleProject.rooms,
+      sampleProject.racks,
+      devices,
+      sampleProject.alerts,
+    );
+
+    expect(result.toolName).toBe("search_devices");
+    expect(result.answer).toContain("即将过保设备");
+    expect(result.answer).toContain(devices[0].computerName!);
+    expect(result.answer).toContain("2026-06-15");
+    expect(result.answer).not.toContain(devices[1].computerName!);
+  });
+
+  it("searches devices by hardware memory or operating system keywords", () => {
+    const result = runDeterministicAiQuery(
+      "查询硬件配置包含 256GB RAM 的服务器",
+      sampleProject.rooms,
+      sampleProject.racks,
+      sampleProject.devices,
+      sampleProject.alerts,
+    );
+
+    expect(result.toolName).toBe("search_devices");
+    expect(result.answer).toContain("256GB RAM");
+    expect(result.answer).toContain("硬件配置");
+  });
 });

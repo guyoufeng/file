@@ -31,6 +31,11 @@ export function searchDevices(query: string, devices: Device[], racks: Rack[], r
         device.serialNumber,
         device.purpose,
         device.owner,
+        device.vendor,
+        device.model,
+        device.operatingSystem,
+        device.hardwareSpec,
+        device.warrantyExpireAt,
         rack?.name,
       ].filter(Boolean) as string[]
       const matchedText = fields.find((field) => normalize(field).includes(keyword))

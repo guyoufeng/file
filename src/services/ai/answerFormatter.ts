@@ -63,6 +63,7 @@ export function formatDeviceSearchAnswer(
       `带外IP：${device.managementIp || "-"}`,
       `用途：${device.purpose || "-"}`,
       `责任人：${device.owner || "-"}`,
+      `硬件配置：${device.hardwareSpec || "-"}`,
       `位置：${room?.name || "-"} / ${rack?.name || "-"} / ${device.side === "front" ? "正面" : "背面"} ${device.startU}U-${device.endU}U`,
       `匹配：${matchedText}`,
       `告警：${alertCount}条`,
@@ -73,6 +74,36 @@ export function formatDeviceSearchAnswer(
     `匹配设备：${matches.length} 台`,
     "",
     ...lines,
+    matches.length > 20
+      ? `仅展示前 20 台，剩余 ${matches.length - 20} 台可继续缩小条件查询。`
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+export function formatWarrantyExpiringAnswer(
+  matches: Array<{ device: Device; rack: Rack | undefined; room: Room | undefined; daysLeft: number }>,
+  windowDays: number,
+): string {
+  if (matches.length === 0) {
+    return `未来 ${windowDays} 天内暂无维保即将到期设备。`;
+  }
+
+  return [
+    `即将过保设备：${matches.length} 台`,
+    `统计窗口：未来 ${windowDays} 天`,
+    "",
+    ...matches.slice(0, 20).map(({ device, rack, room, daysLeft }, index) =>
+      [
+        `${index + 1}. ${device.computerName || device.name}`,
+        `业务IP：${device.businessIp || "-"}`,
+        `责任人：${device.owner || "-"}`,
+        `维保时间：${device.warrantyExpireAt || "-"}`,
+        `剩余：${daysLeft}天`,
+        `位置：${room?.name || "-"} / ${rack?.name || "-"} / ${device.startU}U-${device.endU}U`,
+      ].join(" / "),
+    ),
     matches.length > 20
       ? `仅展示前 20 台，剩余 ${matches.length - 20} 台可继续缩小条件查询。`
       : "",

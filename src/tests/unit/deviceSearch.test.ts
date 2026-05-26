@@ -17,4 +17,12 @@ describe('device search', () => {
     expect(results[0]?.device.id).toBe(target.id)
     expect(results[0]?.location).toContain('529数据中心')
   })
+
+  it('finds devices by model operating system and hardware spec', () => {
+    const target = sampleProject.devices[0]
+
+    expect(searchDevices(target.model ?? '', sampleProject.devices, sampleProject.racks, sampleProject.rooms)[0]?.device.id).toBe(target.id)
+    expect(searchDevices(target.operatingSystem ?? '', sampleProject.devices, sampleProject.racks, sampleProject.rooms).length).toBeGreaterThan(0)
+    expect(searchDevices('256GB RAM', sampleProject.devices, sampleProject.racks, sampleProject.rooms).length).toBeGreaterThan(0)
+  })
 })

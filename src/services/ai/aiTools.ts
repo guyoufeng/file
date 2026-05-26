@@ -7,6 +7,7 @@ import {
   formatRackDeviceListAnswer,
   formatRackAlertRankingAnswer,
   formatRoomDeviceSummaryAnswer,
+  formatWarrantyExpiringAnswer,
   sourceFooter,
 } from "./answerFormatter";
 import { searchDevices } from "../search/deviceSearch";
@@ -42,8 +43,9 @@ export function runDeterministicAiQuery(
   const asksAlert = /告警|报警|异常|故障/.test(question);
   const asksAlertRanking =
     asksAlert && /最多|排行|排名|哪个机柜/.test(question);
+  const asksWarranty = /过保|维保.*到期|到期.*维保|保修.*到期|即将.*到期/.test(question);
   const asksDeviceSearch =
-    /查询|查下|查一下|搜索|负责|用途|资产|编号|sn|SN|详细|详情|哪些服务器|哪些设备/.test(
+    /查询|查下|查一下|搜索|负责|用途|资产|编号|sn|SN|详细|详情|哪些服务器|哪些设备|硬件配置|内存|cpu|CPU|操作系统|型号/.test(
       question,
     );
 
@@ -89,11 +91,41 @@ export function runDeterministicAiQuery(
     };
   }
 
+  if (asksWarranty) {
+    const requestedWindow = question.match(/未来\s*(\d+)\s*天/)?.[1];
+    const windowDays = requestedWindow ? Number(requestedWindow) : 90;
+    const now = new Date("2026-05-26T00:00:00+08:00");
+    const matches = devices
+      .map((device) => {
+        const expireAt = device.warrantyExpireAt ? new Date(device.warrantyExpireAt) : undefined;
+        if (!expireAt || Number.isNaN(expireAt.getTime())) return null;
+        const daysLeft = Math.ceil((expireAt.getTime() - now.getTime()) / 86_400_000);
+        if (daysLeft < 0 || daysLeft > windowDays) return null;
+        const rack = racks.find((item) => item.id === device.rackId);
+        const room = rooms.find((item) => item.id === rack?.roomId);
+        return { device, rack, room, daysLeft };
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null)
+      .sort((first, second) => first.daysLeft - second.daysLeft);
+
+    return {
+      toolName: "search_devices",
+      relatedDeviceId: matches.length === 1 ? matches[0].device.id : undefined,
+      relatedRackId: matches.length === 1 ? matches[0].rack?.id : undefined,
+      relatedRoomId: matches.length === 1 ? matches[0].room?.id : undefined,
+      answer:
+        formatWarrantyExpiringAnswer(matches, windowDays) +
+        sourceFooter({ label: "本地资产库、机柜库", queriedAt }),
+    };
+  }
+
   if (asksDeviceSearch) {
     const cleanedQuery = question
-      .replace(/查询|查下|查一下|搜索|这台设备|设备|服务器|的详细信息|详情|负责哪些|负责|有哪些|哪些|用途|资产|编号|SN|sn|吗|？|\?/g, " ")
+      .replace(/查询|查下|查一下|搜索|这台设备|设备|服务器|的详细信息|详情|负责哪些|负责|有哪些|哪些|用途|资产|编号|SN|sn|硬件配置|操作系统|型号|包含|的|吗|？|\?/g, " ")
       .trim();
-    const candidates = [cleanedQuery, question]
+    const containsQuery = question.match(/包含\s*([a-zA-Z0-9.\-_\s]+?)(?:的|服务器|设备|$)/)?.[1]?.trim();
+    const candidates = [containsQuery, cleanedQuery, question]
+      .filter((query): query is string => Boolean(query))
       .map((query) => searchDevices(query, devices, racks, rooms))
       .find((results) => results.length > 0);
 

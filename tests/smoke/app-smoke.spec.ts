@@ -108,3 +108,58 @@ test("project restore refreshes current browser data without manual reload", asy
 
   await expect(page.getByText("机房、机柜、资产、告警和 AI 配置已刷新")).toBeVisible();
 });
+
+test("project import shows a review preview before confirmation", async ({
+  page,
+}) => {
+  await page.goto("/#/settings");
+  await page.getByRole("button", { name: "数据管理" }).click();
+
+  const project = {
+    schemaVersion: "0.1.0",
+    exportedAt: "2026-05-25T08:00:00.000Z",
+    data: {
+      dataCenters: [
+        { id: "dc-preview", name: "预览数据中心", location: "南京", rooms: [] },
+      ],
+      rooms: [
+        {
+          id: "room-preview",
+          dataCenterId: "dc-preview",
+          name: "预览机房",
+          layoutType: "single_rack",
+          defaultRackHeightU: 42,
+          racks: [],
+        },
+      ],
+      racks: [
+        {
+          id: "rack-preview",
+          roomId: "room-preview",
+          name: "PREVIEW-A1",
+          type: "server",
+          heightU: 42,
+          status: "normal",
+        },
+      ],
+      devices: [],
+      alerts: [],
+      aiModelConfigs: [],
+    },
+  };
+
+  page.once("dialog", async (dialog) => {
+    expect(dialog.message()).toContain("将导入 1 个机房");
+    await dialog.dismiss();
+  });
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "preview-project.json",
+    mimeType: "application/json",
+    buffer: Buffer.from(JSON.stringify(project), "utf-8"),
+  });
+
+  await expect(page.getByLabel("项目导入预览")).toBeVisible();
+  await expect(page.getByText("1 机房")).toBeVisible();
+  await expect(page.getByText("1 机柜")).toBeVisible();
+  await expect(page.getByText("导入后会覆盖当前拓扑、资产和告警数据")).toBeVisible();
+});

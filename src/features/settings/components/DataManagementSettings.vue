@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref } from 'vue'
+import { nextTick, ref } from 'vue'
 import { useAiStore } from '../../../stores/aiStore'
 import { useAlertStore } from '../../../stores/alertStore'
 import { useAssetStore } from '../../../stores/assetStore'
@@ -13,9 +13,14 @@ import {
   validateProjectJson,
 } from '../../../services/backend/data'
 import { reloadProjectStores } from '../../../services/project/reloadProjectData'
+import {
+  buildProjectImportPreview,
+  type ProjectImportPreview,
+} from '../../../services/project/projectImportPreview'
 
 const message = ref('当前数据管理支持 v0.1.0 项目 JSON 导出、导入校验和示例数据恢复。')
 const importing = ref(false)
+const importPreview = ref<ProjectImportPreview | null>(null)
 const roomStore = useRoomStore()
 const assetStore = useAssetStore()
 const alertStore = useAlertStore()
@@ -57,6 +62,11 @@ async function handleImport(event: Event) {
     }
 
     const summary = getProjectSummary(project)
+    importPreview.value = buildProjectImportPreview(
+      project,
+      getProjectSummary(await exportProjectJson()),
+    )
+    await nextTick()
     const confirmText = window.prompt(
       `将导入 ${summary.roomCount} 个机房、${summary.rackCount} 个机柜、${summary.deviceCount} 台设备，并覆盖当前拓扑/资产/告警数据。请输入“导入项目”确认。`,
     )
@@ -67,6 +77,7 @@ async function handleImport(event: Event) {
 
     await importProjectJson(project)
     await reloadProjectData()
+    importPreview.value = null
     message.value = '项目 JSON 已导入，机房、机柜、资产、告警和 AI 配置已刷新。'
   } catch (error) {
     message.value = error instanceof Error ? error.message : '导入项目 JSON 失败'
@@ -134,6 +145,27 @@ function clearReserved() {
       <button type="button" class="danger" @click="clearReserved">清空当前数据</button>
     </div>
 
+    <section v-if="importPreview" class="import-preview" aria-label="项目导入预览">
+      <div>
+        <p class="eyebrow">Import Preview</p>
+        <h4>项目导入预览</h4>
+        <span>导出时间：{{ importPreview.exportedAtText }}</span>
+      </div>
+      <div class="preview-stats">
+        <span>{{ importPreview.stats.dataCenterCount }} 数据中心</span>
+        <span>{{ importPreview.stats.roomCount }} 机房</span>
+        <span>{{ importPreview.stats.microModuleCount }} 微模块</span>
+        <span>{{ importPreview.stats.rackCount }} 机柜</span>
+        <span>{{ importPreview.stats.deviceCount }} 设备</span>
+        <span>{{ importPreview.stats.alertCount }} 告警</span>
+        <span>{{ importPreview.stats.aiModelConfigCount }} AI配置</span>
+      </div>
+      <p>{{ importPreview.currentSummaryText }}</p>
+      <ul>
+        <li v-for="item in importPreview.riskItems" :key="item">{{ item }}</li>
+      </ul>
+    </section>
+
     <p class="message">{{ message }}</p>
   </section>
 </template>
@@ -174,6 +206,41 @@ header span,
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 10px;
+}
+
+.import-preview {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(14, 165, 233, 0.46);
+  border-radius: 8px;
+  background: rgba(14, 165, 233, 0.08);
+}
+
+.import-preview h4,
+.import-preview p,
+.import-preview ul {
+  margin: 0;
+}
+
+.import-preview span,
+.import-preview li {
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.preview-stats {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.preview-stats span {
+  padding: 5px 8px;
+  border: 1px solid rgba(56, 189, 248, 0.28);
+  border-radius: 999px;
+  color: #bae6fd;
+  background: rgba(8, 17, 31, 0.6);
 }
 
 .notice-grid div {

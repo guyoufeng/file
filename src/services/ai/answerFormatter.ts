@@ -112,6 +112,34 @@ export function formatWarrantyExpiringAnswer(
     .join("\n");
 }
 
+export function formatMissingFieldAnswer(
+  label: string,
+  matches: Array<{ device: Device; rack: Rack | undefined; room: Room | undefined }>,
+): string {
+  if (matches.length === 0) {
+    return `暂无${label}。`;
+  }
+
+  return [
+    `${label}：${matches.length} 台`,
+    "",
+    ...matches.slice(0, 20).map(({ device, rack, room }, index) =>
+      [
+        `${index + 1}. ${device.computerName || device.name}`,
+        `业务IP：${device.businessIp || "-"}`,
+        `带外IP：${device.managementIp || "-"}`,
+        `责任人：${device.owner || "-"}`,
+        `位置：${room?.name || "-"} / ${rack?.name || "-"} / ${device.startU}U-${device.endU}U`,
+      ].join(" / "),
+    ),
+    matches.length > 20
+      ? `仅展示前 20 台，剩余 ${matches.length - 20} 台可继续缩小条件查询。`
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 export function formatRackDeviceListAnswer(
   rack: Rack,
   room: Room | undefined,

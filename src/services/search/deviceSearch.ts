@@ -33,6 +33,10 @@ export function searchDevices(query: string, devices: Device[], racks: Rack[], r
   if (!keyword) {
     return []
   }
+  const keywords = keyword
+    .split(/\s+/)
+    .map((item) => item.trim())
+    .filter(Boolean)
 
   return devices
     .map((device) => {
@@ -55,9 +59,13 @@ export function searchDevices(query: string, devices: Device[], racks: Rack[], r
         device.warrantyExpireAt,
         rack?.name,
       ].filter(Boolean) as string[]
+      const normalizedFields = fields.map(normalize)
       const matchedText = fields.find((field) => normalize(field).includes(keyword))
+      const matchedByAllKeywords =
+        keywords.length > 1 &&
+        keywords.every((item) => normalizedFields.some((field) => field.includes(item)))
 
-      if (!matchedText) {
+      if (!matchedText && !matchedByAllKeywords) {
         return null
       }
 
@@ -66,7 +74,7 @@ export function searchDevices(query: string, devices: Device[], racks: Rack[], r
         rack,
         room,
         location: [room?.name, rack?.name, `${device.startU}U-${device.endU}U`].filter(Boolean).join(' / '),
-        matchedText,
+        matchedText: matchedText ?? keywords.join(' + '),
       }
     })
     .filter((result): result is DeviceSearchResult => result !== null)

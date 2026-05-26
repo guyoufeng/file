@@ -262,4 +262,85 @@ describe("ai tools", () => {
     expect(ownerResult.answer).toContain("cnsmffluxdb1");
     expect(ownerResult.answer).toContain("cnsmffluxdb2");
   });
+
+  it("supports multi-keyword rack owner purpose and subnet style internal queries", () => {
+    const importedDevices = [
+      {
+        ...sampleProject.devices[0],
+        id: "multi-keyword-hit",
+        rackId: "rack-529-a2",
+        computerName: "mes-db-01",
+        name: "mes-db-01",
+        businessIp: "192.168.129.210",
+        ips: ["192.168.129.210"],
+        owner: "张文军",
+        purpose: "MES数据库",
+      },
+      {
+        ...sampleProject.devices[1],
+        id: "same-owner-other-rack",
+        rackId: "rack-529-a1",
+        computerName: "mes-app-01",
+        name: "mes-app-01",
+        businessIp: "192.168.130.22",
+        ips: ["192.168.130.22"],
+        owner: "张文军",
+        purpose: "MES应用",
+      },
+    ];
+
+    const multiKeywordResult = runDeterministicAiQuery(
+      "张文军 529-A2 数据库",
+      sampleProject.rooms,
+      sampleProject.racks,
+      importedDevices,
+      sampleProject.alerts,
+    );
+    const subnetResult = runDeterministicAiQuery(
+      "192.168.129 网段服务器",
+      sampleProject.rooms,
+      sampleProject.racks,
+      importedDevices,
+      sampleProject.alerts,
+    );
+
+    expect(multiKeywordResult.toolName).toBe("search_devices");
+    expect(multiKeywordResult.answer).toContain("mes-db-01");
+    expect(multiKeywordResult.answer).not.toContain("mes-app-01");
+    expect(subnetResult.toolName).toBe("search_devices");
+    expect(subnetResult.answer).toContain("192.168.129.210");
+    expect(subnetResult.answer).not.toContain("192.168.130.22");
+  });
+
+  it("lists devices missing management ip or owner for data quality checks", () => {
+    const devices = [
+      {
+        ...sampleProject.devices[0],
+        id: "missing-oob",
+        computerName: "missing-oob",
+        managementIp: "",
+        ips: [sampleProject.devices[0].businessIp!],
+      },
+      {
+        ...sampleProject.devices[1],
+        id: "complete-device",
+        computerName: "complete-device",
+        managementIp: "172.16.1.1",
+        owner: "张文军",
+      },
+    ];
+
+    const result = runDeterministicAiQuery(
+      "没有带外IP的设备",
+      sampleProject.rooms,
+      sampleProject.racks,
+      devices,
+      sampleProject.alerts,
+    );
+
+    expect(result.toolName).toBe("search_devices");
+    expect(result.answer).toContain("缺失带外IP设备");
+    expect(result.answer).toContain("missing-oob");
+    expect(result.answer).not.toContain("complete-device");
+  });
 });

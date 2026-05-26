@@ -11,6 +11,14 @@ export interface VirtualServer {
   status: "running" | "stopped" | "warning" | "unknown";
 }
 
+export type VirtualServerInput = Omit<VirtualServer, "id"> & { id?: string };
+
+export interface VirtualServerMutationResult {
+  ok: boolean;
+  message: string;
+  servers: VirtualServer[];
+}
+
 export const sampleVirtualServers: VirtualServer[] = [
   {
     id: "vm-mes-app-01",
@@ -58,4 +66,53 @@ export function filterVirtualServers(
       .filter(Boolean)
       .some((field) => field!.toLowerCase().includes(normalized)),
   );
+}
+
+function normalizeId(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+export function addVirtualServer(
+  servers: VirtualServer[],
+  input: VirtualServerInput,
+): VirtualServerMutationResult {
+  const name = input.name.trim();
+  if (!name) {
+    return { ok: false, message: "虚拟机名不能为空", servers };
+  }
+
+  const businessIp = input.businessIp?.trim();
+  if (
+    businessIp &&
+    servers.some((server) => server.businessIp?.trim() === businessIp)
+  ) {
+    return { ok: false, message: `业务IP已存在：${businessIp}`, servers };
+  }
+
+  const id = input.id?.trim() || `vm-${normalizeId(name)}`;
+  if (servers.some((server) => server.id === id || server.name === name)) {
+    return { ok: false, message: `虚拟机已存在：${name}`, servers };
+  }
+
+  return {
+    ok: true,
+    message: `已录入虚拟服务器：${name}`,
+    servers: [
+      ...servers,
+      {
+        ...input,
+        id,
+        name,
+        businessIp,
+        purpose: input.purpose?.trim(),
+        owner: input.owner?.trim(),
+        hostDeviceName: input.hostDeviceName?.trim(),
+        os: input.os?.trim(),
+      },
+    ],
+  };
 }

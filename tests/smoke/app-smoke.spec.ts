@@ -82,6 +82,15 @@ test("starts the app and navigates through v0.1 core pages", async ({
   await page.getByRole("link", { name: "虚拟服务器" }).click();
   await expect(page.getByRole("heading", { name: "虚拟服务器管理" })).toBeVisible();
   await expect(page.getByRole("button", { name: "MCP同步" })).toBeVisible();
+  await page.getByRole("button", { name: "手动录入" }).click();
+  await expect(page.getByRole("heading", { name: "新增虚拟服务器" })).toBeVisible();
+  await page.getByLabel("虚拟机名").fill("MES-VM-DB-01");
+  await page.getByLabel("业务IP").fill("192.168.129.90");
+  await page.getByLabel("用途").fill("MES数据库虚拟机");
+  await page.getByLabel("宿主物理服务器").fill("QF-SRV-001");
+  await page.getByRole("button", { name: "保存虚拟服务器" }).click();
+  await expect(page.getByRole("cell", { name: "MES-VM-DB-01" })).toBeVisible();
+  await expect(page.getByText("已录入虚拟服务器：MES-VM-DB-01")).toBeVisible();
 
   await page.getByRole("link", { name: "报表中心" }).click();
   await expect(page.getByRole("heading", { name: "报表中心" })).toBeVisible();

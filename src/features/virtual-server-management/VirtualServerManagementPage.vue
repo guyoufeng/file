@@ -2,16 +2,29 @@
 import { computed, ref } from "vue";
 import AssetSyncDialog from "../asset-management/components/AssetSyncDialog.vue";
 import {
+  addVirtualServer,
   filterVirtualServers,
   sampleVirtualServers,
+  type VirtualServerInput,
   type VirtualServer,
 } from "./virtualServers";
 import type { AssetSyncConfig } from "../../services/asset/assetSyncConfig";
 
 const search = ref("");
 const syncOpen = ref(false);
+const manualOpen = ref(false);
 const servers = ref<VirtualServer[]>(sampleVirtualServers);
 const message = ref("虚拟服务器独立管理，不占用机柜 U 位，通过宿主物理服务器关联到数据中心。");
+const form = ref<VirtualServerInput>({
+  name: "",
+  platform: "ZStack",
+  businessIp: "",
+  os: "",
+  purpose: "",
+  owner: "",
+  hostDeviceName: "",
+  status: "running",
+});
 
 const filteredServers = computed(() =>
   filterVirtualServers(servers.value, search.value),
@@ -20,6 +33,29 @@ const filteredServers = computed(() =>
 function confirmMcpSync(config: AssetSyncConfig) {
   syncOpen.value = false;
   message.value = `已保存 ${config.name} 配置，后续可通过 ZStack MCP 同步虚拟服务器。`;
+}
+
+function resetForm() {
+  form.value = {
+    name: "",
+    platform: "ZStack",
+    businessIp: "",
+    os: "",
+    purpose: "",
+    owner: "",
+    hostDeviceName: "",
+    status: "running",
+  };
+}
+
+function saveManualVirtualServer() {
+  const result = addVirtualServer(servers.value, form.value);
+  message.value = result.message;
+  if (!result.ok) return;
+
+  servers.value = result.servers;
+  manualOpen.value = false;
+  resetForm();
 }
 </script>
 
@@ -36,7 +72,7 @@ function confirmMcpSync(config: AssetSyncConfig) {
 
     <div class="virtual-toolbar">
       <input v-model="search" type="search" placeholder="搜索虚拟机名、业务IP、用途、责任人、宿主服务器" />
-      <button type="button">手动录入</button>
+      <button type="button" @click="manualOpen = true">手动录入</button>
       <button type="button">Excel导入</button>
       <button type="button" @click="syncOpen = true">MCP同步</button>
     </div>
@@ -76,6 +112,67 @@ function confirmMcpSync(config: AssetSyncConfig) {
       @close="syncOpen = false"
       @confirm="confirmMcpSync"
     />
+
+    <div v-if="manualOpen" class="modal-mask" @click.self="manualOpen = false">
+      <form class="virtual-dialog" @submit.prevent="saveManualVirtualServer">
+        <div class="dialog-header">
+          <div>
+            <p class="eyebrow">手动录入</p>
+            <h3>新增虚拟服务器</h3>
+          </div>
+          <button type="button" class="icon-button" @click="manualOpen = false">×</button>
+        </div>
+
+        <div class="form-grid">
+          <label>
+            虚拟机名
+            <input v-model="form.name" placeholder="MES-VM-DB-01" />
+          </label>
+          <label>
+            业务IP
+            <input v-model="form.businessIp" placeholder="192.168.129.90" />
+          </label>
+          <label>
+            平台
+            <select v-model="form.platform">
+              <option value="ZStack">ZStack</option>
+              <option value="VMware">VMware</option>
+              <option value="Other">其他</option>
+            </select>
+          </label>
+          <label>
+            状态
+            <select v-model="form.status">
+              <option value="running">运行中</option>
+              <option value="stopped">已停止</option>
+              <option value="warning">异常</option>
+              <option value="unknown">未知</option>
+            </select>
+          </label>
+          <label>
+            操作系统
+            <input v-model="form.os" placeholder="Rocky Linux 9" />
+          </label>
+          <label>
+            责任人
+            <input v-model="form.owner" placeholder="张文军" />
+          </label>
+          <label>
+            用途
+            <input v-model="form.purpose" placeholder="MES数据库虚拟机" />
+          </label>
+          <label>
+            宿主物理服务器
+            <input v-model="form.hostDeviceName" placeholder="QF-SRV-001" />
+          </label>
+        </div>
+
+        <div class="dialog-actions">
+          <button type="button" class="ghost" @click="manualOpen = false">取消</button>
+          <button type="submit">保存虚拟服务器</button>
+        </div>
+      </form>
+    </div>
   </section>
 </template>
 
@@ -89,6 +186,15 @@ function confirmMcpSync(config: AssetSyncConfig) {
 
 input {
   width: min(520px, 100%);
+  min-height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  color: var(--color-text);
+  background: rgba(8, 17, 31, 0.92);
+}
+
+select {
   min-height: 36px;
   padding: 0 12px;
   border: 1px solid var(--color-border);
@@ -134,5 +240,80 @@ td {
 th {
   color: var(--color-text-muted);
   background: rgba(8, 17, 31, 0.72);
+}
+
+.modal-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+  background: rgba(3, 7, 18, 0.62);
+  backdrop-filter: blur(8px);
+}
+
+.virtual-dialog {
+  width: min(720px, 100%);
+  padding: 18px;
+  border: 1px solid rgba(56, 189, 248, 0.36);
+  border-radius: 8px;
+  background: rgba(10, 18, 32, 0.98);
+  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.42);
+}
+
+.dialog-header,
+.dialog-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dialog-header h3 {
+  margin: 4px 0 0;
+}
+
+.eyebrow {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.icon-button {
+  width: 32px;
+  min-height: 32px;
+  padding: 0;
+  border-color: var(--color-border);
+  background: rgba(15, 23, 42, 0.92);
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin: 16px 0;
+}
+
+label {
+  display: grid;
+  gap: 6px;
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+label input {
+  width: 100%;
+}
+
+.ghost {
+  border-color: var(--color-border);
+  background: rgba(15, 23, 42, 0.7);
+}
+
+@media (max-width: 720px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

@@ -93,3 +93,18 @@ test("asset import replace mode is opt-in", async ({ page }) => {
   const replaceCheckbox = page.getByLabel("清空当前设备后导入这份 Excel");
   await expect(replaceCheckbox).not.toBeChecked();
 });
+
+test("project restore refreshes current browser data without manual reload", async ({
+  page,
+}) => {
+  await page.goto("/#/settings");
+  await page.getByRole("button", { name: "数据管理" }).click();
+
+  page.once("dialog", async (dialog) => {
+    expect(dialog.message()).toContain("恢复示例数据");
+    await dialog.accept("恢复示例数据");
+  });
+  await page.getByRole("button", { name: "恢复示例数据" }).click();
+
+  await expect(page.getByText("机房、机柜、资产、告警和 AI 配置已刷新")).toBeVisible();
+});

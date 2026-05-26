@@ -1,5 +1,9 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { useAiStore } from '../../../stores/aiStore'
+import { useAlertStore } from '../../../stores/alertStore'
+import { useAssetStore } from '../../../stores/assetStore'
+import { useRoomStore } from '../../../stores/roomStore'
 import {
   exportProjectJson,
   getProjectSummary,
@@ -8,9 +12,23 @@ import {
   type ProjectJson,
   validateProjectJson,
 } from '../../../services/backend/data'
+import { reloadProjectStores } from '../../../services/project/reloadProjectData'
 
 const message = ref('当前数据管理支持 v0.1.0 项目 JSON 导出、导入校验和示例数据恢复。')
 const importing = ref(false)
+const roomStore = useRoomStore()
+const assetStore = useAssetStore()
+const alertStore = useAlertStore()
+const aiStore = useAiStore()
+
+async function reloadProjectData() {
+  await reloadProjectStores({
+    roomStore,
+    assetStore,
+    alertStore,
+    aiStore,
+  })
+}
 
 async function exportJson(fileNamePrefix = 'qf-ai-dcim-project') {
   const project = await exportProjectJson()
@@ -48,7 +66,8 @@ async function handleImport(event: Event) {
     }
 
     await importProjectJson(project)
-    message.value = '项目 JSON 已导入，请刷新或重新进入页面查看最新数据。'
+    await reloadProjectData()
+    message.value = '项目 JSON 已导入，机房、机柜、资产、告警和 AI 配置已刷新。'
   } catch (error) {
     message.value = error instanceof Error ? error.message : '导入项目 JSON 失败'
   } finally {
@@ -66,7 +85,8 @@ async function restoreSample() {
 
   try {
     await restoreSampleProject()
-    message.value = '已恢复 v0.1 示例数据，请刷新或重新进入页面查看。'
+    await reloadProjectData()
+    message.value = '已恢复 v0.1 示例数据，机房、机柜、资产、告警和 AI 配置已刷新。'
   } catch (error) {
     message.value = error instanceof Error ? error.message : '恢复示例数据失败'
   }

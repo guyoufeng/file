@@ -211,4 +211,55 @@ describe("ai tools", () => {
     expect(result.answer).toContain("256GB RAM");
     expect(result.answer).toContain("硬件配置");
   });
+
+  it("finds real imported assets by hostname and owner phrasing", () => {
+    const importedDevices = [
+      {
+        ...sampleProject.devices[0],
+        id: "real-cnsmffluxdb1",
+        computerName: "cnsmffluxdb1",
+        name: "cnsmffluxdb1",
+        businessIp: "192.168.129.200",
+        managementIp: "192.168.45.200",
+        ips: ["192.168.129.200", "192.168.45.200"],
+        owner: "张文军",
+        purpose: "MES数据库",
+        metadata: {
+          excelRemark: "从实际资产表导入",
+        },
+      },
+      {
+        ...sampleProject.devices[1],
+        id: "real-owner-second",
+        computerName: "cnsmffluxdb2",
+        name: "cnsmffluxdb2",
+        businessIp: "192.168.129.201",
+        ips: ["192.168.129.201"],
+        owner: "张文军",
+      },
+    ];
+
+    const hostnameResult = runDeterministicAiQuery(
+      "查看下cnsmffluxdb1",
+      sampleProject.rooms,
+      sampleProject.racks,
+      importedDevices,
+      sampleProject.alerts,
+    );
+    const ownerResult = runDeterministicAiQuery(
+      "查看下张文军责任人的服务器",
+      sampleProject.rooms,
+      sampleProject.racks,
+      importedDevices,
+      sampleProject.alerts,
+    );
+
+    expect(hostnameResult.toolName).toBe("search_devices");
+    expect(hostnameResult.relatedDeviceId).toBe("real-cnsmffluxdb1");
+    expect(hostnameResult.answer).toContain("192.168.129.200");
+    expect(ownerResult.toolName).toBe("search_devices");
+    expect(ownerResult.answer).toContain("张文军");
+    expect(ownerResult.answer).toContain("cnsmffluxdb1");
+    expect(ownerResult.answer).toContain("cnsmffluxdb2");
+  });
 });

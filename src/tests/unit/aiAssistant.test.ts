@@ -113,6 +113,34 @@ describe("ai assistant", () => {
     );
   });
 
+  it("treats imported hostname lookup phrasing as an internal platform query", async () => {
+    const { answerWithAiAssistant } =
+      await import("../../services/ai/aiAssistant");
+    const devices = [
+      {
+        ...sampleProject.devices[0],
+        id: "real-cnsmffluxdb1",
+        computerName: "cnsmffluxdb1",
+        name: "cnsmffluxdb1",
+        businessIp: "192.168.129.200",
+        owner: "张文军",
+      },
+    ];
+    chat.mockResolvedValueOnce("模型整理后的 cnsmffluxdb1 资产详情");
+
+    const result = await answerWithAiAssistant({
+      question: "查看下cnsmffluxdb1",
+      configs: [config],
+      rooms: sampleProject.rooms,
+      racks: sampleProject.racks,
+      devices,
+      alerts: sampleProject.alerts,
+    });
+
+    expect(result.toolName).toBe("search_devices");
+    expect(result.relatedDeviceId).toBe("real-cnsmffluxdb1");
+  });
+
   it("falls back to deterministic tool answer when no model is enabled", async () => {
     const { answerWithAiAssistant } =
       await import("../../services/ai/aiAssistant");

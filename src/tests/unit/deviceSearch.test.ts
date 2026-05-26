@@ -25,4 +25,20 @@ describe('device search', () => {
     expect(searchDevices(target.operatingSystem ?? '', sampleProject.devices, sampleProject.racks, sampleProject.rooms).length).toBeGreaterThan(0)
     expect(searchDevices('256GB RAM', sampleProject.devices, sampleProject.racks, sampleProject.rooms).length).toBeGreaterThan(0)
   })
+
+  it('searches every imported device string field including metadata', () => {
+    const target = {
+      ...sampleProject.devices[0],
+      computerName: 'cnsmffluxdb1',
+      businessIp: '192.168.129.200',
+      owner: '张文军',
+      metadata: {
+        importedRemark: '实际资产表中的特殊备注',
+      },
+    }
+
+    expect(searchDevices('cnsmffluxdb1', [target], sampleProject.racks, sampleProject.rooms)[0]?.device.id).toBe(target.id)
+    expect(searchDevices('张文军', [target], sampleProject.racks, sampleProject.rooms)[0]?.device.id).toBe(target.id)
+    expect(searchDevices('特殊备注', [target], sampleProject.racks, sampleProject.rooms)[0]?.device.id).toBe(target.id)
+  })
 })

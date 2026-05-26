@@ -12,6 +12,22 @@ function normalize(value: string): string {
   return value.trim().toLowerCase()
 }
 
+function collectSearchableText(value: unknown): string[] {
+  if (value === null || value === undefined) {
+    return []
+  }
+  if (typeof value === 'string' || typeof value === 'number') {
+    return [String(value)]
+  }
+  if (Array.isArray(value)) {
+    return value.flatMap(collectSearchableText)
+  }
+  if (typeof value === 'object') {
+    return Object.values(value).flatMap(collectSearchableText)
+  }
+  return []
+}
+
 export function searchDevices(query: string, devices: Device[], racks: Rack[], rooms: Room[]): DeviceSearchResult[] {
   const keyword = normalize(query)
   if (!keyword) {
@@ -23,6 +39,7 @@ export function searchDevices(query: string, devices: Device[], racks: Rack[], r
       const rack = racks.find((item) => item.id === device.rackId)
       const room = rooms.find((item) => item.id === rack?.roomId)
       const fields = [
+        ...collectSearchableText(device),
         device.computerName,
         device.businessIp,
         device.managementIp,

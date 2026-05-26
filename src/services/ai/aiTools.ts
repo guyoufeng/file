@@ -45,7 +45,7 @@ export function runDeterministicAiQuery(
     asksAlert && /最多|排行|排名|哪个机柜/.test(question);
   const asksWarranty = /过保|维保.*到期|到期.*维保|保修.*到期|即将.*到期/.test(question);
   const asksDeviceSearch =
-    /查询|查下|查一下|搜索|负责|用途|资产|编号|sn|SN|详细|详情|哪些服务器|哪些设备|硬件配置|内存|cpu|CPU|操作系统|型号/.test(
+    /查询|查下|查一下|查看|看下|看一下|搜索|负责|用途|资产|编号|sn|SN|详细|详情|哪些服务器|哪些设备|硬件配置|内存|cpu|CPU|操作系统|型号/.test(
       question,
     );
 
@@ -121,7 +121,7 @@ export function runDeterministicAiQuery(
 
   if (asksDeviceSearch) {
     const cleanedQuery = question
-      .replace(/查询|查下|查一下|搜索|这台设备|设备|服务器|的详细信息|详情|负责哪些|负责|有哪些|哪些|用途|资产|编号|SN|sn|硬件配置|操作系统|型号|包含|的|吗|？|\?/g, " ")
+      .replace(/查询|查下|查一下|查看下|查看|看下|看一下|搜索|这台设备|设备|服务器|的详细信息|详情|责任人|负责哪些|负责|有哪些|哪些|用途|资产|编号|SN|sn|硬件配置|操作系统|型号|包含|的|吗|？|\?/g, " ")
       .trim();
     const containsQuery = question.match(/包含\s*([a-zA-Z0-9.\-_\s]+?)(?:的|服务器|设备|$)/)?.[1]?.trim();
     const candidates = [containsQuery, cleanedQuery, question]

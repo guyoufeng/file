@@ -1,12 +1,19 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onMounted, ref, watch } from "vue";
+import PaginationControls from "../../../components/PaginationControls.vue";
+import {
+  buildAuditLogPage,
+  getAuditActionLabel,
+} from "../../../services/audit/auditLogView";
 import type { AuditLog } from "../../../types/domain";
-import { getLocalAiAuditLogs, searchAuditLogs } from "../../../services/backend/ai";
+import { getLocalAiAuditLogs } from "../../../services/backend/ai";
 import { getAuditLogs } from "../../../services/backend/settings";
 
 const keyword = ref("");
 const actionFilter = ref("all");
 const statusFilter = ref("all");
+const page = ref(1);
+const pageSize = ref(20);
 const systemLogs = ref<AuditLog[]>([]);
 
 const allLogs = computed(() =>
@@ -20,14 +27,18 @@ const actionOptions = computed(() => {
   return [...actions].sort();
 });
 
-const logs = computed(() => {
-  const searched = searchAuditLogs(allLogs.value, keyword.value);
-  return searched.filter((log) => {
-    const status = getMetadataText(log, "status");
-    const matchAction = actionFilter.value === "all" || log.action === actionFilter.value;
-    const matchStatus = statusFilter.value === "all" || status === statusFilter.value;
-    return matchAction && matchStatus;
-  });
+const pagedLogs = computed(() =>
+  buildAuditLogPage(allLogs.value, {
+    keyword: keyword.value,
+    action: actionFilter.value,
+    status: statusFilter.value,
+    page: page.value,
+    pageSize: pageSize.value,
+  }),
+);
+
+watch([keyword, actionFilter, statusFilter, pageSize], () => {
+  page.value = 1;
 });
 
 onMounted(async () => {
@@ -49,16 +60,6 @@ function formatTime(value: string): string {
     second: "2-digit",
     hour12: false,
   }).format(new Date(value));
-}
-
-function actionLabel(action: string): string {
-  const labels: Record<string, string> = {
-    ai_readonly_query: "AI查询",
-    ai_tool_call: "工具调用",
-    "project.import_json": "项目导入",
-    "project.restore_sample": "恢复示例",
-  };
-  return labels[action] ?? action;
 }
 
 function getToolContext(log: AuditLog): string {
@@ -105,7 +106,7 @@ function getRelatedObject(log: AuditLog): string {
         </select>
       </div>
     </header>
-    <div v-if="logs.length === 0" class="empty">暂无审计记录。</div>
+    <div v-if="pagedLogs.total === 0" class="empty">暂无审计记录。</div>
     <div v-else class="audit-table">
       <div class="table-head">
         <span>时间</span>
@@ -114,9 +115,9 @@ function getRelatedObject(log: AuditLog): string {
         <span>工具与对象</span>
         <span>状态</span>
       </div>
-      <article v-for="log in logs" :key="log.id" class="table-row">
+      <article v-for="log in pagedLogs.items" :key="log.id" class="table-row">
         <span class="time">{{ formatTime(log.createdAt) }}</span>
-        <span class="pill">{{ actionLabel(log.action) }}</span>
+        <span class="pill">{{ getAuditActionLabel(log.action) }}</span>
         <div class="summary">
           <strong>{{ getMetadataText(log, "question") || log.summary }}</strong>
           <small>{{ log.summary }}</small>
@@ -130,6 +131,13 @@ function getRelatedObject(log: AuditLog): string {
         </span>
       </article>
     </div>
+    <PaginationControls
+      v-if="pagedLogs.total > 0"
+      v-model:page="page"
+      v-model:page-size="pageSize"
+      :total="pagedLogs.total"
+      :page-count="pagedLogs.pageCount"
+    />
   </section>
 </template>
 

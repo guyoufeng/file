@@ -68,4 +68,32 @@ describe("asset filters", () => {
       devices[1],
     ]);
   });
+
+  it("groups virtual servers separately for MCP or manual import workflows", () => {
+    const devices = [
+      {
+        ...baseDevice,
+        id: "vm-1",
+        categoryId: "virtual_server",
+        subtype: "ZStack虚拟机",
+        name: "mes-vm-01",
+        computerName: "mes-vm-01",
+      },
+      {
+        ...baseDevice,
+        id: "server-1",
+        categoryId: "server",
+        subtype: "物理服务器",
+        name: "server-1",
+      },
+    ] as Device[];
+
+    expect(assetCategoryFilters.some((item) => item.id === "virtual_server")).toBe(true);
+    expect(filterDevicesForAssetView(devices, "virtual_server", "")).toEqual([
+      devices[0],
+    ]);
+    expect(filterDevicesForAssetView(devices, "physical_server", "")).toEqual([
+      devices[1],
+    ]);
+  });
 });

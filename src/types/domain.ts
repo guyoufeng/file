@@ -22,7 +22,7 @@ export type DeviceStatus =
 export type DeviceSide = 'front' | 'rear'
 export type AlertLevel = 'info' | 'warning' | 'critical'
 export type AlertStatus = 'unconfirmed' | 'acknowledged' | 'recovered' | 'closed'
-export type DeviceMajorCategory = 'server' | 'network' | 'security' | 'storage' | 'facility' | 'patching' | 'other'
+export type DeviceMajorCategory = 'server' | 'virtual_server' | 'network' | 'security' | 'storage' | 'facility' | 'patching' | 'other'
 
 export interface DataCenter {
   id: string

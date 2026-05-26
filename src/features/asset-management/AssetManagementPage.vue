@@ -3,6 +3,7 @@ import { computed, onMounted, ref, watch } from "vue";
 import * as XLSX from "xlsx";
 import type { Device } from "../../types/domain";
 import type { ImportValidationResult } from "../../types/import";
+import type { AssetSyncConfig, AssetSyncType } from "../../services/asset/assetSyncConfig";
 import {
   buildAssetOperationError,
   type AssetOperationNotice,
@@ -22,6 +23,7 @@ import AssetTable from "./components/AssetTable.vue";
 import AssetToolbar from "./components/AssetToolbar.vue";
 import DeviceFormDrawer from "./components/DeviceFormDrawer.vue";
 import ExcelImportDialog from "./components/ExcelImportDialog.vue";
+import AssetSyncDialog from "./components/AssetSyncDialog.vue";
 
 const assetStore = useAssetStore();
 const roomStore = useRoomStore();
@@ -30,6 +32,8 @@ const selectedCategory = ref<AssetCategoryFilter>("physical_server");
 const drawerOpen = ref(false);
 const importOpen = ref(false);
 const importSaving = ref(false);
+const syncOpen = ref(false);
+const syncType = ref<AssetSyncType>("cmdb");
 const importSummary = ref<DeviceImportSummary | null>(null);
 const editingDevice = ref<Device | null>(null);
 const operationNotice = ref<AssetOperationNotice | null>(null);
@@ -77,6 +81,11 @@ function openEditDrawer(device: Device) {
 function openImportDialog() {
   importSummary.value = null;
   importOpen.value = true;
+}
+
+function openSyncDialog(type: AssetSyncType) {
+  syncType.value = type;
+  syncOpen.value = true;
 }
 
 async function saveDevice(device: Device) {
@@ -153,6 +162,17 @@ function exportDevices() {
     `泉峰AI数据中心设备清单-${new Date().toISOString().slice(0, 10)}.xlsx`,
   );
 }
+
+function confirmSync(config: AssetSyncConfig) {
+  syncOpen.value = false;
+  operationNotice.value = {
+    title: config.type === "cmdb" ? "CMDB同步配置已保存" : "MCP同步配置已保存",
+    message:
+      config.type === "cmdb"
+        ? "已预留公司 CMDB 物理资产同步配置，后续接入适配器后可执行同步。"
+        : "已预留 ZStack MCP 虚拟服务器同步配置，后续接入适配器后可执行同步。",
+  };
+}
 </script>
 
 <template>
@@ -172,6 +192,8 @@ function exportDevices() {
       :categories="categoryTabs"
       @add="openAddDrawer"
       @import="openImportDialog"
+      @cmdb-sync="openSyncDialog('cmdb')"
+      @mcp-sync="openSyncDialog('mcp')"
       @export="exportDevices"
     />
     <div v-if="operationNotice" class="operation-notice" role="alert">
@@ -214,6 +236,12 @@ function exportDevices() {
       :import-summary="importSummary"
       @close="importOpen = false"
       @confirm="confirmImport"
+    />
+    <AssetSyncDialog
+      :open="syncOpen"
+      :type="syncType"
+      @close="syncOpen = false"
+      @confirm="confirmSync"
     />
   </section>
 </template>

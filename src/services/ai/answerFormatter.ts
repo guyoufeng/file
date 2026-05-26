@@ -1,4 +1,5 @@
 import type { Alert, Device, Rack, Room } from "../../types/domain";
+import { getAlertStatusLabel } from "../alerts/alertWorkflow";
 
 export interface AnswerSource {
   label: string;
@@ -234,6 +235,31 @@ function alertLevelLabel(level: Alert["level"]): string {
   return "提示";
 }
 
+function extractAlertDescription(description: string | undefined): {
+  detail: string;
+  solution: string;
+  attachments: string;
+  remark: string;
+} {
+  const lines = (description || "")
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+  const takeValue = (label: string) =>
+    lines
+      .find((line) => line.startsWith(`${label}：`) || line.startsWith(`${label}:`))
+      ?.replace(new RegExp(`^${label}[：:]\\s*`), "")
+      .trim() || "";
+  const structuredLabels = /^(处理方法|附件\/照片|附件|照片|备注)[：:]/;
+  return {
+    detail: lines.filter((line) => !structuredLabels.test(line)).join("；"),
+    solution: takeValue("处理方法"),
+    attachments:
+      takeValue("附件/照片") || takeValue("附件") || takeValue("照片"),
+    remark: takeValue("备注"),
+  };
+}
+
 function findDeviceLocation(
   device: Device,
   racks: Rack[],
@@ -290,10 +316,20 @@ export function formatDeviceAlertsAnswer(
   );
   const lines =
     activeAlerts.length > 0
-      ? activeAlerts.map(
-          (alert, index) =>
-            `${index + 1}. ${alertLevelLabel(alert.level)}(${alert.level}) / ${alert.title} / ${alert.description || "-"} / 状态：${alert.status} / 开始：${alert.startedAt}`,
-        )
+      ? activeAlerts.map((alert, index) => {
+          const description = extractAlertDescription(alert.description);
+          return [
+            `${index + 1}. ${alertLevelLabel(alert.level)}(${alert.level}) / ${alert.title}`,
+            `状态：${getAlertStatusLabel(alert.status)}`,
+            `开始：${alert.startedAt}`,
+            description.detail ? `描述：${description.detail}` : "",
+            description.solution ? `处理方法：${description.solution}` : "",
+            description.attachments ? `附件/照片：${description.attachments}` : "",
+            description.remark ? `备注：${description.remark}` : "",
+          ]
+            .filter(Boolean)
+            .join(" / ");
+        })
       : ["无活动告警"];
 
   return [

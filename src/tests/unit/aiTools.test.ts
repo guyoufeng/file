@@ -127,6 +127,49 @@ describe("ai tools", () => {
     expect(result.answer).toContain(alert.level);
   });
 
+  it("answers alert handling status solution and attachments for a device", () => {
+    const device = {
+      ...sampleProject.devices[0],
+      id: "dev-alert-history",
+      computerName: "cnsmffluxdb1",
+      name: "cnsmffluxdb1",
+      businessIp: "192.168.129.200",
+      managementIp: "192.168.45.200",
+      ips: ["192.168.129.200", "192.168.45.200"],
+      owner: "张文军",
+      purpose: "MES数据库",
+    };
+    const alerts = [
+      {
+        ...sampleProject.alerts[0],
+        id: "alert-history-1",
+        deviceId: device.id,
+        level: "critical" as const,
+        status: "acknowledged" as const,
+        title: "数据库服务器磁盘故障",
+        description:
+          "硬盘阵列告警\n处理方法：已更换故障硬盘并开始阵列重建\n附件/照片：raid-before.jpg、raid-after.jpg",
+        startedAt: "2026-05-20T09:00:00+08:00",
+      },
+    ];
+
+    const result = runDeterministicAiQuery(
+      "cnsmffluxdb1 最近告警处理到什么状态，处理方法是什么，有没有附件？",
+      sampleProject.rooms,
+      sampleProject.racks,
+      [device],
+      alerts,
+    );
+
+    expect(result.toolName).toBe("list_alert_devices");
+    expect(result.relatedDeviceId).toBe(device.id);
+    expect(result.answer).toContain("数据库服务器磁盘故障");
+    expect(result.answer).toContain("状态：进行中");
+    expect(result.answer).toContain("处理方法：已更换故障硬盘并开始阵列重建");
+    expect(result.answer).toContain("附件/照片：raid-before.jpg、raid-after.jpg");
+    expect(result.answer).toContain("数据来源");
+  });
+
   it("ranks racks by active alert count", () => {
     const result = runDeterministicAiQuery(
       "哪个机柜告警最多？",

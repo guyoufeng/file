@@ -43,6 +43,8 @@ export function runDeterministicAiQuery(
   const ip = question.match(/\b\d{1,3}(?:\.\d{1,3}){3}\b/)?.[0];
   const ipPrefix = question.match(/\b\d{1,3}(?:\.\d{1,3}){2}\b/)?.[0];
   const asksAlert = /告警|报警|异常|故障/.test(question);
+  const asksAlertDetail =
+    asksAlert || /处理方法|处理状态|处理到|解决方法|解决方案|附件|照片/.test(question);
   const asksAlertRanking =
     asksAlert && /最多|排行|排名|哪个机柜/.test(question);
   const asksWarranty = /过保|维保.*到期|到期.*维保|保修.*到期|即将.*到期/.test(question);
@@ -80,7 +82,7 @@ export function runDeterministicAiQuery(
     },
   ];
   const asksDeviceSearch =
-    /查询|查下|查一下|查看|看下|看一下|搜索|负责|用途|资产|编号|sn|SN|详细|详情|哪些服务器|哪些设备|硬件配置|内存|cpu|CPU|操作系统|型号/.test(
+    /查询|查下|查一下|查看|看下|看一下|搜索|负责|用途|资产|编号|sn|SN|详细|详情|哪些服务器|哪些设备|硬件配置|内存|cpu|CPU|操作系统|型号|处理方法|处理状态|处理到|解决方法|解决方案|附件|照片/.test(
       question,
     );
 
@@ -94,7 +96,7 @@ export function runDeterministicAiQuery(
     if (device) {
       const rack = racks.find((item) => item.id === device.rackId);
       const room = rooms.find((item) => item.id === rack?.roomId);
-      if (asksAlert) {
+      if (asksAlertDetail) {
         return {
           toolName: "list_alert_devices",
           relatedDeviceId: device.id,
@@ -192,15 +194,27 @@ export function runDeterministicAiQuery(
 
   if (asksDeviceSearch) {
     const cleanedQuery = question
-      .replace(/查询|查下|查一下|查看下|查看|看下|看一下|搜索|这台设备|设备|服务器|的详细信息|详情|责任人|负责哪些|负责|有哪些|哪些|用途|资产|编号|SN|sn|硬件配置|操作系统|型号|包含|的|吗|？|\?/g, " ")
+      .replace(/查询|查下|查一下|查看下|查看|看下|看一下|搜索|这台设备|设备|服务器|的详细信息|详情|责任人|负责哪些|负责|有哪些|哪些|用途|资产|编号|SN|sn|硬件配置|操作系统|型号|告警|报警|异常|故障|处理方法|处理状态|处理到什么状态|处理到|解决方法|解决方案|附件|照片|有没有|是什么|最近|包含|的|吗|？|\?/g, " ")
       .trim();
     const containsQuery = question.match(/包含\s*([a-zA-Z0-9.\-_\s]+?)(?:的|服务器|设备|$)/)?.[1]?.trim();
-    const candidates = [containsQuery, cleanedQuery, question]
+    const directAssetToken = question.match(/[a-zA-Z][a-zA-Z0-9._-]{2,}/)?.[0];
+    const candidates = [containsQuery, directAssetToken, cleanedQuery, question]
       .filter((query): query is string => Boolean(query))
       .map((query) => searchDevices(query, devices, racks, rooms))
       .find((results) => results.length > 0);
 
     if (candidates && candidates.length > 0) {
+      if (asksAlertDetail && candidates.length === 1) {
+        return {
+          toolName: "list_alert_devices",
+          relatedDeviceId: candidates[0].device.id,
+          relatedRackId: candidates[0].rack?.id,
+          relatedRoomId: candidates[0].room?.id,
+          answer:
+            formatDeviceAlertsAnswer(candidates[0].device, rooms, racks, alerts) +
+            sourceFooter({ label: "本地资产库、机柜库、告警库", queriedAt }),
+        };
+      }
       return {
         toolName: "search_devices",
         relatedDeviceId: candidates.length === 1 ? candidates[0].device.id : undefined,

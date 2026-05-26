@@ -343,4 +343,84 @@ describe("ai tools", () => {
     expect(result.answer).toContain("missing-oob");
     expect(result.answer).not.toContain("complete-device");
   });
+
+  it("lists devices missing serial asset warranty or business ip for data cleanup", () => {
+    const devices = [
+      {
+        ...sampleProject.devices[0],
+        id: "missing-serial",
+        computerName: "missing-serial",
+        serialNumber: "",
+        assetNo: "FA-001",
+        warrantyExpireAt: "2027-12-31",
+        businessIp: "192.168.88.10",
+      },
+      {
+        ...sampleProject.devices[1],
+        id: "missing-asset",
+        computerName: "missing-asset",
+        serialNumber: "SN-001",
+        assetNo: "",
+        warrantyExpireAt: "2027-12-31",
+        businessIp: "192.168.88.11",
+      },
+      {
+        ...sampleProject.devices[2],
+        id: "missing-warranty",
+        computerName: "missing-warranty",
+        serialNumber: "SN-002",
+        assetNo: "FA-002",
+        warrantyExpireAt: "",
+        businessIp: "192.168.88.12",
+      },
+      {
+        ...sampleProject.devices[3],
+        id: "missing-business-ip",
+        computerName: "missing-business-ip",
+        serialNumber: "SN-003",
+        assetNo: "FA-003",
+        warrantyExpireAt: "2027-12-31",
+        businessIp: "",
+        ips: [],
+      },
+    ];
+
+    const serialResult = runDeterministicAiQuery(
+      "没有SN号的设备",
+      sampleProject.rooms,
+      sampleProject.racks,
+      devices,
+      sampleProject.alerts,
+    );
+    const assetResult = runDeterministicAiQuery(
+      "缺少固定资产编号的服务器",
+      sampleProject.rooms,
+      sampleProject.racks,
+      devices,
+      sampleProject.alerts,
+    );
+    const warrantyResult = runDeterministicAiQuery(
+      "未填维保时间的设备",
+      sampleProject.rooms,
+      sampleProject.racks,
+      devices,
+      sampleProject.alerts,
+    );
+    const businessIpResult = runDeterministicAiQuery(
+      "没有业务IP的设备",
+      sampleProject.rooms,
+      sampleProject.racks,
+      devices,
+      sampleProject.alerts,
+    );
+
+    expect(serialResult.answer).toContain("缺失SN号设备");
+    expect(serialResult.answer).toContain("missing-serial");
+    expect(assetResult.answer).toContain("缺失固定资产编号设备");
+    expect(assetResult.answer).toContain("missing-asset");
+    expect(warrantyResult.answer).toContain("缺失维保时间设备");
+    expect(warrantyResult.answer).toContain("missing-warranty");
+    expect(businessIpResult.answer).toContain("缺失业务IP设备");
+    expect(businessIpResult.answer).toContain("missing-business-ip");
+  });
 });

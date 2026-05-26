@@ -46,8 +46,39 @@ export function runDeterministicAiQuery(
   const asksAlertRanking =
     asksAlert && /最多|排行|排名|哪个机柜/.test(question);
   const asksWarranty = /过保|维保.*到期|到期.*维保|保修.*到期|即将.*到期/.test(question);
-  const asksMissingManagementIp = /没有|缺少|为空|未填/.test(question) && /带外IP|带外ip|管理IP|管理ip|OOB|oob/.test(question);
-  const asksMissingOwner = /没有|缺少|为空|未填/.test(question) && /责任人|负责人/.test(question);
+  const asksMissingField = /没有|缺少|为空|未填/.test(question);
+  const missingFieldRules = [
+    {
+      matched: asksMissingField && /带外IP|带外ip|管理IP|管理ip|OOB|oob/.test(question),
+      label: "缺失带外IP设备",
+      isMissing: (device: Device) => !device.managementIp?.trim(),
+    },
+    {
+      matched: asksMissingField && /业务IP|业务ip/.test(question),
+      label: "缺失业务IP设备",
+      isMissing: (device: Device) => !device.businessIp?.trim(),
+    },
+    {
+      matched: asksMissingField && /责任人|负责人/.test(question),
+      label: "缺失责任人设备",
+      isMissing: (device: Device) => !device.owner?.trim(),
+    },
+    {
+      matched: asksMissingField && /固定资产|资产编号|资产号/.test(question),
+      label: "缺失固定资产编号设备",
+      isMissing: (device: Device) => !device.assetNo?.trim(),
+    },
+    {
+      matched: asksMissingField && /SN|sn|序列号/.test(question),
+      label: "缺失SN号设备",
+      isMissing: (device: Device) => !device.serialNumber?.trim(),
+    },
+    {
+      matched: asksMissingField && /维保|保修/.test(question),
+      label: "缺失维保时间设备",
+      isMissing: (device: Device) => !device.warrantyExpireAt?.trim(),
+    },
+  ];
   const asksDeviceSearch =
     /查询|查下|查一下|查看|看下|看一下|搜索|负责|用途|资产|编号|sn|SN|详细|详情|哪些服务器|哪些设备|硬件配置|内存|cpu|CPU|操作系统|型号/.test(
       question,
@@ -138,19 +169,15 @@ export function runDeterministicAiQuery(
     };
   }
 
-  if (asksMissingManagementIp || asksMissingOwner) {
+  const missingFieldRule = missingFieldRules.find((rule) => rule.matched);
+  if (missingFieldRule) {
     const matches = devices
-      .filter((device) =>
-        asksMissingManagementIp
-          ? !device.managementIp?.trim()
-          : !device.owner?.trim(),
-      )
+      .filter((device) => missingFieldRule.isMissing(device))
       .map((device) => {
         const rack = racks.find((item) => item.id === device.rackId);
         const room = rooms.find((item) => item.id === rack?.roomId);
         return { device, rack, room };
       });
-    const label = asksMissingManagementIp ? "缺失带外IP设备" : "缺失责任人设备";
 
     return {
       toolName: "search_devices",
@@ -158,7 +185,7 @@ export function runDeterministicAiQuery(
       relatedRackId: matches.length === 1 ? matches[0].rack?.id : undefined,
       relatedRoomId: matches.length === 1 ? matches[0].room?.id : undefined,
       answer:
-        formatMissingFieldAnswer(label, matches) +
+        formatMissingFieldAnswer(missingFieldRule.label, matches) +
         sourceFooter({ label: "本地资产库、机柜库", queriedAt }),
     };
   }

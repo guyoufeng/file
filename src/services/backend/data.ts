@@ -1,5 +1,6 @@
 import { defaultDeviceCategories } from "../../constants/categories";
 import type { AiModelConfig, Alert, DataCenter, Device, Rack, Room } from "../../types/domain";
+import { writeSystemAuditLog } from "./ai";
 import { invokeCommand } from "./invoke";
 
 export interface SampleProject {
@@ -400,6 +401,15 @@ export async function importProjectJson(project: ProjectJson): Promise<void> {
     writeLocalJson("qf-ai-dcim.alerts", project.data.alerts ?? []);
     writeLocalJson("qf-ai-dcim.aiModelConfigs", project.data.aiModelConfigs ?? []);
   }
+
+  const summary = getProjectSummary(project);
+  writeSystemAuditLog({
+    action: "project.import_json",
+    targetType: "project",
+    summary: `导入项目 JSON：${summary.roomCount} 个机房、${summary.rackCount} 个机柜、${summary.deviceCount} 台设备、${summary.alertCount} 条告警`,
+    status: "success",
+    metadata: summary,
+  });
 }
 
 export async function restoreSampleProject(): Promise<void> {
@@ -413,4 +423,17 @@ export async function restoreSampleProject(): Promise<void> {
     writeLocalJson("qf-ai-dcim.alerts", sampleProject.alerts);
     writeLocalJson("qf-ai-dcim.aiModelConfigs", []);
   }
+
+  writeSystemAuditLog({
+    action: "project.restore_sample",
+    targetType: "project",
+    summary: "恢复 v0.1 示例数据",
+    status: "success",
+    metadata: {
+      roomCount: sampleProject.rooms.length,
+      rackCount: sampleProject.racks.length,
+      deviceCount: sampleProject.devices.length,
+      alertCount: sampleProject.alerts.length,
+    },
+  });
 }

@@ -4,9 +4,11 @@ import {
   buildProjectJson,
   getProjectSummary,
   importProjectJson,
+  restoreSampleProject,
   sanitizeProjectJson,
   validateProjectJson,
 } from "../../services/backend/data";
+import { getLocalAiAuditLogs } from "../../services/backend/ai";
 
 function installLocalStorage() {
   const storage = new Map<string, string>();
@@ -119,5 +121,25 @@ describe('system data management', () => {
     expect(JSON.parse(localStorage.getItem("qf-ai-dcim.devices") ?? "[]")).toEqual([
       importedDevice,
     ]);
+  });
+
+  it("writes local audit logs for project import and sample restore", async () => {
+    await importProjectJson({
+      schemaVersion: "0.1.0",
+      exportedAt: "2026-05-25T08:00:00.000Z",
+      data: {
+        rooms: sampleProject.rooms,
+        racks: sampleProject.racks,
+        devices: [sampleProject.devices[0]],
+        alerts: [],
+      },
+    });
+    await restoreSampleProject();
+
+    const logs = getLocalAiAuditLogs();
+
+    expect(logs.some((log) => log.action === "project.import_json")).toBe(true);
+    expect(logs.some((log) => log.action === "project.restore_sample")).toBe(true);
+    expect(logs[0].metadata).toMatchObject({ status: "success" });
   });
 });

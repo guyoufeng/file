@@ -72,6 +72,31 @@ export function writeAiToolAuditLog(input: {
   return log
 }
 
+export function writeSystemAuditLog(input: {
+  action: string
+  targetType: string
+  targetId?: string
+  summary: string
+  status: 'success' | 'failed'
+  metadata?: Record<string, unknown>
+}): AuditLog {
+  const log: AuditLog = {
+    id: `audit-system-${Date.now()}-${localAuditLogs.length + 1}`,
+    actor: 'admin',
+    action: input.action,
+    targetType: input.targetType,
+    targetId: input.targetId,
+    summary: input.summary,
+    createdAt: new Date().toLocaleString('zh-CN', { hour12: false }),
+    metadata: {
+      ...(input.metadata ?? {}),
+      status: input.status,
+    },
+  }
+  persistAuditLog(log)
+  return log
+}
+
 export function getLocalAiAuditLogs(): AuditLog[] {
   const stored = readStoredAuditLogs()
   const byId = new Map([...stored, ...localAuditLogs].map((log) => [log.id, log]))

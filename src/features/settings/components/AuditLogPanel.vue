@@ -55,6 +55,8 @@ function actionLabel(action: string): string {
   const labels: Record<string, string> = {
     ai_readonly_query: "AI查询",
     ai_tool_call: "工具调用",
+    "project.import_json": "项目导入",
+    "project.restore_sample": "恢复示例",
   };
   return labels[action] ?? action;
 }

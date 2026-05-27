@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { nextTick, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { useAiStore } from '../../../stores/aiStore'
 import { useAlertStore } from '../../../stores/alertStore'
 import { useAssetStore } from '../../../stores/assetStore'
@@ -21,6 +21,7 @@ import {
   scanProjectBackupSecurity,
   summarizeBackupSecurity,
 } from '../../../services/project/backupSecurity'
+import { writeSystemAuditLog } from '../../../services/backend/ai'
 
 const message = ref('当前数据管理支持 v0.1.0 项目 JSON 导出、导入校验和示例数据恢复。')
 const importing = ref(false)
@@ -29,6 +30,7 @@ const roomStore = useRoomStore()
 const assetStore = useAssetStore()
 const alertStore = useAlertStore()
 const aiStore = useAiStore()
+const recoverableTopology = computed(() => roomStore.deletedTopology)
 
 async function reloadProjectData() {
   await reloadProjectStores({
@@ -37,6 +39,65 @@ async function reloadProjectData() {
     alertStore,
     aiStore,
   })
+}
+
+onMounted(async () => {
+  if (roomStore.rooms.length === 0 && !roomStore.loading) {
+    await reloadProjectData()
+  }
+})
+
+function getRecoverableTitle(item: (typeof roomStore.deletedTopology)[number]) {
+  return item.type === 'room' ? item.room.name : item.rack.name
+}
+
+function getRecoverableDescription(item: (typeof roomStore.deletedTopology)[number]) {
+  const expireDate = new Date(item.expiresAt).toLocaleDateString('zh-CN')
+  if (item.type === 'room') {
+    return `${item.racks.length} 个机柜 / ${item.devices?.length ?? 0} 台设备 / 保留至 ${expireDate}`
+  }
+  return `${item.rack.type} / ${item.devices?.length ?? 0} 台设备 / 保留至 ${expireDate}`
+}
+
+async function restoreTopologyItem(itemId: string) {
+  const item = roomStore.restoreDeletedItem(itemId)
+  if (!item) return
+
+  for (const device of item.devices ?? []) {
+    await assetStore.upsertDevice(device)
+  }
+
+  if (item.type === 'room') {
+    writeSystemAuditLog({
+      action: 'room.restore',
+      targetType: 'room',
+      targetId: item.room.id,
+      summary: `恢复机房：${item.room.name}`,
+      status: 'success',
+      metadata: {
+        roomName: item.room.name,
+        restoredRackCount: item.racks.length,
+        restoredDeviceCount: item.devices?.length ?? 0,
+        source: 'data_management_recycle_center',
+      },
+    })
+    message.value = `已恢复机房：${item.room.name}`
+  } else {
+    writeSystemAuditLog({
+      action: 'rack.restore',
+      targetType: 'rack',
+      targetId: item.rack.id,
+      summary: `恢复机柜：${item.rack.name}`,
+      status: 'success',
+      metadata: {
+        rackName: item.rack.name,
+        roomId: item.rack.roomId,
+        restoredDeviceCount: item.devices?.length ?? 0,
+        source: 'data_management_recycle_center',
+      },
+    })
+    message.value = `已恢复机柜：${item.rack.name}`
+  }
 }
 
 async function exportJson(fileNamePrefix = 'qf-ai-dcim-project') {
@@ -82,6 +143,18 @@ async function handleImport(event: Event) {
 
     await importProjectJson(project)
     await reloadProjectData()
+    writeSystemAuditLog({
+      action: 'project.import_json',
+      targetType: 'project',
+      summary: `导入项目 JSON：${summary.roomCount} 个机房、${summary.rackCount} 个机柜`,
+      status: 'success',
+      metadata: {
+        roomCount: summary.roomCount,
+        rackCount: summary.rackCount,
+        deviceCount: summary.deviceCount,
+        alertCount: summary.alertCount,
+      },
+    })
     importPreview.value = null
     message.value = '项目 JSON 已导入，机房、机柜、资产、告警和 AI 配置已刷新。'
   } catch (error) {
@@ -102,6 +175,13 @@ async function restoreSample() {
   try {
     await restoreSampleProject()
     await reloadProjectData()
+    writeSystemAuditLog({
+      action: 'project.restore_sample',
+      targetType: 'project',
+      summary: '恢复 v0.1 示例数据',
+      status: 'success',
+      metadata: { source: 'settings_data_management' },
+    })
     message.value = '已恢复 v0.1 示例数据，机房、机柜、资产、告警和 AI 配置已刷新。'
   } catch (error) {
     message.value = error instanceof Error ? error.message : '恢复示例数据失败'
@@ -149,6 +229,31 @@ function clearReserved() {
       <button type="button" @click="restoreSample">恢复示例数据</button>
       <button type="button" class="danger" @click="clearReserved">清空当前数据</button>
     </div>
+
+    <section class="recycle-center">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Recycle Center</p>
+          <h3>回收站 / 恢复中心</h3>
+        </div>
+        <span>删除的机房和机柜默认保留 7 天，恢复时会带回关联设备。</span>
+      </div>
+      <div v-if="recoverableTopology.length === 0" class="empty-recycle">
+        暂无 7 天内可恢复的机房或机柜。
+      </div>
+      <div v-else class="recycle-list" aria-label="可恢复拓扑">
+        <article v-for="item in recoverableTopology" :key="item.id" class="recycle-item">
+          <div>
+            <strong>{{ getRecoverableTitle(item) }}</strong>
+            <small>{{ item.type === 'room' ? '已删除机房' : '已删除机柜' }}</small>
+          </div>
+          <span>{{ getRecoverableDescription(item) }}</span>
+          <button type="button" @click="restoreTopologyItem(item.id)">
+            恢复 {{ getRecoverableTitle(item) }}
+          </button>
+        </article>
+      </div>
+    </section>
 
     <section v-if="importPreview" class="import-preview" aria-label="项目导入预览">
       <div>
@@ -294,6 +399,55 @@ header span,
   gap: 10px;
 }
 
+.recycle-center {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(56, 189, 248, 0.26);
+  border-radius: 8px;
+  background: rgba(8, 17, 31, 0.62);
+}
+
+.section-heading {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.section-heading span,
+.empty-recycle {
+  color: var(--color-text-muted);
+  font-size: 13px;
+}
+
+.recycle-list {
+  display: grid;
+  gap: 8px;
+}
+
+.recycle-item {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.8fr) minmax(220px, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid rgba(38, 50, 71, 0.88);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.72);
+}
+
+.recycle-item div {
+  display: grid;
+  gap: 3px;
+}
+
+.recycle-item small,
+.recycle-item span {
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
 button,
 .import-button {
   min-height: 38px;
@@ -323,6 +477,10 @@ input[type='file'] {
 
 @media (max-width: 900px) {
   .notice-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .recycle-item {
     grid-template-columns: 1fr;
   }
 }

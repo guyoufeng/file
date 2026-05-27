@@ -63,4 +63,15 @@ describe("audit log view", () => {
     expect(getAuditActionLabel("project.import_json")).toBe("项目导入");
     expect(getAuditActionLabel("project.restore_sample")).toBe("恢复示例");
   });
+
+  it("uses readable labels for topology operations", () => {
+    expect(getAuditActionLabel("room.create")).toBe("新增机房");
+    expect(getAuditActionLabel("room.rename")).toBe("修改机房");
+    expect(getAuditActionLabel("room.delete")).toBe("删除机房");
+    expect(getAuditActionLabel("room.restore")).toBe("恢复机房");
+    expect(getAuditActionLabel("rack.create")).toBe("新增机柜");
+    expect(getAuditActionLabel("rack.rename")).toBe("修改机柜");
+    expect(getAuditActionLabel("rack.delete")).toBe("删除机柜");
+    expect(getAuditActionLabel("rack.restore")).toBe("恢复机柜");
+  });
 });

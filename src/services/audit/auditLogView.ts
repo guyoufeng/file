@@ -53,6 +53,14 @@ export function getAuditActionLabel(action: string): string {
     ai_tool_call: "工具调用",
     "project.import_json": "项目导入",
     "project.restore_sample": "恢复示例",
+    "room.create": "新增机房",
+    "room.rename": "修改机房",
+    "room.delete": "删除机房",
+    "room.restore": "恢复机房",
+    "rack.create": "新增机柜",
+    "rack.rename": "修改机柜",
+    "rack.delete": "删除机柜",
+    "rack.restore": "恢复机柜",
   };
   return labels[action] ?? action;
 }

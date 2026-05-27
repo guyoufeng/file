@@ -187,6 +187,12 @@ test("room and rack context menus manage a temporary room without touching exist
   await page.getByRole("button", { name: "确认删除" }).click();
   await expect(page.getByRole("button", { name: /TEMP-A1-改名/ })).toHaveCount(0);
 
+  await page.getByRole("link", { name: "系统设置" }).click();
+  await page.getByRole("button", { name: "数据管理" }).click();
+  await expect(page.getByRole("heading", { name: "回收站 / 恢复中心" })).toBeVisible();
+  await expect(page.getByLabel("可恢复拓扑")).toContainText("TEMP-A1-改名");
+  await page.getByRole("link", { name: "机柜总览" }).click();
+
   await page.locator(".overview-metrics div", { hasText: "当前机柜" }).click({
     button: "right",
   });
@@ -202,12 +208,13 @@ test("room and rack context menus manage a temporary room without touching exist
   await page.getByRole("button", { name: "确认删除" }).click();
   await expect(page.getByRole("button", { name: "临时测试机房-改名" })).toHaveCount(0);
 
-  await page.locator(".overview-metrics div", { hasText: "总机房" }).click({
-    button: "right",
-  });
-  await page.getByRole("menuitem", { name: /恢复已删除机房/ }).click();
-  await page.getByRole("button", { name: /临时测试机房-改名/ }).click();
+  await page.getByRole("link", { name: "系统设置" }).click();
+  await page.getByRole("button", { name: "数据管理" }).click();
+  await page.getByRole("button", { name: /恢复 临时测试机房-改名/ }).click();
+  await expect(page.getByText("已恢复机房：临时测试机房-改名")).toBeVisible();
+  await page.getByRole("link", { name: "机柜总览" }).click();
   await expect(page.getByRole("button", { name: "临时测试机房-改名" })).toBeVisible();
+  await page.getByRole("button", { name: "临时测试机房-改名" }).click();
   await expect(page.getByRole("button", { name: /TEMP-A1-改名/ })).toBeVisible();
 
   await page.locator(".overview-metrics div", { hasText: "总机房" }).click({
@@ -217,6 +224,13 @@ test("room and rack context menus manage a temporary room without touching exist
   await page.getByLabel("选择机房").selectOption("room-new-room");
   await page.getByRole("button", { name: "确认删除" }).click();
   await expect(page.getByRole("button", { name: "临时测试机房-改名" })).toHaveCount(0);
+
+  await page.getByRole("link", { name: "系统设置" }).click();
+  await page.getByRole("button", { name: "审计日志" }).click();
+  await expect(page.locator(".pill", { hasText: "新增机房" }).first()).toBeVisible();
+  await expect(page.locator(".pill", { hasText: "修改机房" }).first()).toBeVisible();
+  await expect(page.locator(".pill", { hasText: "恢复机房" }).first()).toBeVisible();
+  await page.getByRole("link", { name: "机柜总览" }).click();
 
   for (const roomName of [
     "529数据中心",

@@ -23,6 +23,7 @@ import ViewModeTabs, { type ViewMode } from "./components/ViewModeTabs.vue";
 import DeviceFormDrawer from "../asset-management/components/DeviceFormDrawer.vue";
 import { getRoomOptions, getRoomRacks } from "./layout";
 import { getRackOverviewMetrics } from "./metrics";
+import { writeSystemAuditLog } from "../../services/backend/ai";
 
 const Rack3DView = defineAsyncComponent(
   () => import("./components/Rack3DView.vue"),
@@ -235,13 +236,32 @@ function updateRoomTarget(roomId: string) {
 function submitAddRoom() {
   if (!roomFormName.value.trim()) return;
   const room = roomStore.addSimpleRoom(roomFormName.value);
+  writeSystemAuditLog({
+    action: "room.create",
+    targetType: "room",
+    targetId: room.id,
+    summary: `新增机房：${room.name}`,
+    status: "success",
+    metadata: { roomName: room.name },
+  });
   selectedRoomId.value = room.id;
   closeRoomMenu();
 }
 
 function submitRenameRoom() {
   if (!roomFormTargetId.value || !roomFormName.value.trim()) return;
+  const oldName =
+    roomOptions.value.find((room) => room.id === roomFormTargetId.value)?.name ??
+    "";
   roomStore.renameRoom(roomFormTargetId.value, roomFormName.value);
+  writeSystemAuditLog({
+    action: "room.rename",
+    targetType: "room",
+    targetId: roomFormTargetId.value,
+    summary: `修改机房：${oldName} -> ${roomFormName.value.trim()}`,
+    status: "success",
+    metadata: { oldName, newName: roomFormName.value.trim() },
+  });
   selectedRoomId.value = roomFormTargetId.value;
   closeRoomMenu();
 }
@@ -264,6 +284,19 @@ async function submitDeleteRoom() {
     await assetStore.deleteDevice(deviceId);
   }
   roomStore.deleteRoom(room.id, deletedDevices);
+  writeSystemAuditLog({
+    action: "room.delete",
+    targetType: "room",
+    targetId: room.id,
+    summary: `删除机房：${room.name}`,
+    status: "success",
+    metadata: {
+      roomName: room.name,
+      deletedRackCount: rackIds.length,
+      deletedDeviceCount: deletedDevices.length,
+      retentionDays: 7,
+    },
+  });
   selectedRoomId.value = roomOptions.value.find((item) => item.id !== room.id)?.id ?? null;
   selectedRack.value = null;
   selectedDeviceId.value = null;
@@ -280,6 +313,18 @@ async function restoreRoomItem(itemId: string) {
     selectedRack.value = null;
     selectedDeviceId.value = null;
     detailOpen.value = false;
+    writeSystemAuditLog({
+      action: "room.restore",
+      targetType: "room",
+      targetId: item.room.id,
+      summary: `恢复机房：${item.room.name}`,
+      status: "success",
+      metadata: {
+        roomName: item.room.name,
+        restoredRackCount: item.racks.length,
+        restoredDeviceCount: item.devices?.length ?? 0,
+      },
+    });
   }
   closeRoomMenu();
 }
@@ -329,6 +374,14 @@ function updateRackTarget(rackId: string) {
 function submitAddRack() {
   if (!selectedRoom.value || !rackFormName.value.trim()) return;
   const rack = roomStore.addRack(selectedRoom.value, rackFormName.value, rackFormType.value);
+  writeSystemAuditLog({
+    action: "rack.create",
+    targetType: "rack",
+    targetId: rack.id,
+    summary: `新增机柜：${rack.name}`,
+    status: "success",
+    metadata: { rackName: rack.name, roomId: rack.roomId, rackType: rack.type },
+  });
   selectedRack.value = rack;
   detailOpen.value = true;
   closeRackMenu();
@@ -336,7 +389,18 @@ function submitAddRack() {
 
 function submitRenameRack() {
   if (!rackFormTargetId.value || !rackFormName.value.trim()) return;
+  const oldName =
+    roomStore.racks.find((rack) => rack.id === rackFormTargetId.value)?.name ??
+    "";
   roomStore.renameRack(rackFormTargetId.value, rackFormName.value);
+  writeSystemAuditLog({
+    action: "rack.rename",
+    targetType: "rack",
+    targetId: rackFormTargetId.value,
+    summary: `修改机柜：${oldName} -> ${rackFormName.value.trim()}`,
+    status: "success",
+    metadata: { oldName, newName: rackFormName.value.trim() },
+  });
   selectedRack.value =
     roomStore.racks.find((rack) => rack.id === rackFormTargetId.value) ?? null;
   detailOpen.value = Boolean(selectedRack.value);
@@ -357,6 +421,19 @@ async function submitDeleteRack() {
     await assetStore.deleteDevice(deviceId);
   }
   roomStore.deleteRack(rack.id, deletedDevices);
+  writeSystemAuditLog({
+    action: "rack.delete",
+    targetType: "rack",
+    targetId: rack.id,
+    summary: `删除机柜：${rack.name}`,
+    status: "success",
+    metadata: {
+      rackName: rack.name,
+      roomId: rack.roomId,
+      deletedDeviceCount: deletedDevices.length,
+      retentionDays: 7,
+    },
+  });
   selectedRack.value = null;
   selectedDeviceId.value = null;
   detailOpen.value = false;
@@ -373,6 +450,18 @@ async function restoreRackItem(itemId: string) {
     selectedRack.value = item.rack;
     selectedDeviceId.value = null;
     detailOpen.value = true;
+    writeSystemAuditLog({
+      action: "rack.restore",
+      targetType: "rack",
+      targetId: item.rack.id,
+      summary: `恢复机柜：${item.rack.name}`,
+      status: "success",
+      metadata: {
+        rackName: item.rack.name,
+        roomId: item.rack.roomId,
+        restoredDeviceCount: item.devices?.length ?? 0,
+      },
+    });
   }
   closeRackMenu();
 }

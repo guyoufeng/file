@@ -4,6 +4,7 @@ import { getRacks, getRooms } from '../services/backend/rooms'
 import {
   addRackToRoom,
   addSimpleRoom,
+  deleteRoomWithRacks,
   renameRack as renameRackRecords,
   renameRoom as renameRoomRecords,
 } from '../services/rack/rackManagement'
@@ -42,6 +43,14 @@ export const useRoomStore = defineStore('rooms', {
       this.rooms = addSimpleRoom(this.rooms, name)
       writeLocalJson('qf-ai-dcim.rooms', this.rooms)
       return this.rooms[this.rooms.length - 1]
+    },
+    deleteRoom(roomId: string) {
+      const result = deleteRoomWithRacks(this.rooms, this.racks, roomId)
+      this.rooms = result.rooms
+      this.racks = result.racks
+      writeLocalJson('qf-ai-dcim.rooms', this.rooms)
+      writeLocalJson('qf-ai-dcim.racks', this.racks)
+      return result.deletedRackIds
     },
     renameRack(rackId: string, name: string) {
       this.racks = renameRackRecords(this.racks, rackId, name)

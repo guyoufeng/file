@@ -74,3 +74,19 @@ export function addRackToRoom(
     },
   ];
 }
+
+export function deleteRoomWithRacks(
+  rooms: Room[],
+  racks: Rack[],
+  roomId: string,
+): { rooms: Room[]; racks: Rack[]; deletedRackIds: string[] } {
+  const deletedRackIds = racks
+    .filter((rack) => rack.roomId === roomId)
+    .map((rack) => rack.id);
+
+  return {
+    rooms: rooms.filter((room) => room.id !== roomId),
+    racks: racks.filter((rack) => rack.roomId !== roomId),
+    deletedRackIds,
+  };
+}

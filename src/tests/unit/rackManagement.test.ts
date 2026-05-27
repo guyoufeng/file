@@ -3,6 +3,7 @@ import type { Rack, Room } from "../../types/domain";
 import {
   addSimpleRoom,
   addRackToRoom,
+  deleteRoomWithRacks,
   renameRoom,
   renameRack,
 } from "../../services/rack/rackManagement";
@@ -58,5 +59,36 @@ describe("rack management", () => {
       type: "server",
       heightU: 42,
     });
+  });
+
+  it("deletes a room and the racks inside it", () => {
+    const nextRooms = [
+      ...rooms,
+      {
+        id: "room-empty",
+        dataCenterId: "dc-nanjing",
+        name: "临时机房",
+        layoutType: "simple_rows" as const,
+        defaultRackHeightU: 42,
+        racks: [],
+      },
+    ];
+    const nextRacks = [
+      ...racks,
+      {
+        id: "rack-temp-a1",
+        roomId: "room-empty",
+        name: "TEMP-A1",
+        type: "server" as const,
+        heightU: 42,
+        status: "normal" as const,
+      },
+    ];
+
+    const result = deleteRoomWithRacks(nextRooms, nextRacks, "room-empty");
+
+    expect(result.rooms.map((room) => room.id)).not.toContain("room-empty");
+    expect(result.racks.map((rack) => rack.id)).not.toContain("rack-temp-a1");
+    expect(result.deletedRackIds).toEqual(["rack-temp-a1"]);
   });
 });

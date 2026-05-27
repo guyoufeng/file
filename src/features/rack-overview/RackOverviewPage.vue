@@ -41,6 +41,14 @@ const leadershipMode = ref(false);
 const detailOpen = ref(false);
 const deviceEditorOpen = ref(false);
 const editingDevice = ref<Device | null>(null);
+const roomMenu = ref({
+  open: false,
+  x: 0,
+  y: 0,
+  mode: "actions" as "actions" | "add" | "rename" | "delete",
+});
+const roomFormName = ref("");
+const roomFormTargetId = ref("");
 
 const roomOptions = computed(() => getRoomOptions(roomStore.rooms));
 const selectedRoom = computed(
@@ -159,24 +167,83 @@ async function saveDevice(device: Device) {
   deviceEditorOpen.value = false;
 }
 
-function openRoomManagementMenu() {
+function clampMenuPosition(event: MouseEvent) {
+  const menuWidth = 260;
+  const menuHeight = 280;
+  return {
+    x: Math.min(event.clientX, window.innerWidth - menuWidth - 12),
+    y: Math.min(event.clientY, window.innerHeight - menuHeight - 12),
+  };
+}
+
+function openRoomManagementMenu(event: MouseEvent) {
   if (!selectedRoom.value) return;
-  const action = window.prompt(
-    "机房管理：输入 1 修改当前机房名称，输入 2 新增普通 42U 机房。",
-    "1",
-  );
-  if (action === "1") {
-    const name = window.prompt("请输入新的机房名称", selectedRoom.value.name);
-    if (!name?.trim()) return;
-    roomStore.renameRoom(selectedRoom.value.id, name);
+  const position = clampMenuPosition(event);
+  roomMenu.value = {
+    open: true,
+    x: position.x,
+    y: position.y,
+    mode: "actions",
+  };
+  roomFormTargetId.value = selectedRoom.value.id;
+  roomFormName.value = selectedRoom.value.name;
+}
+
+function closeRoomMenu() {
+  roomMenu.value.open = false;
+}
+
+function setRoomMenuMode(mode: "add" | "rename" | "delete") {
+  roomMenu.value.mode = mode;
+  if (mode === "add") {
+    roomFormName.value = "";
+    roomFormTargetId.value = selectedRoom.value?.id ?? "";
     return;
   }
-  if (action === "2") {
-    const name = window.prompt("请输入新机房名称", "新数据中心");
-    if (!name?.trim()) return;
-    const room = roomStore.addSimpleRoom(name);
-    selectedRoomId.value = room.id;
+
+  const target = roomOptions.value.find((room) => room.id === roomFormTargetId.value) ?? selectedRoom.value;
+  roomFormTargetId.value = target?.id ?? "";
+  roomFormName.value = target?.name ?? "";
+}
+
+function updateRoomTarget(roomId: string) {
+  roomFormTargetId.value = roomId;
+  roomFormName.value = roomOptions.value.find((room) => room.id === roomId)?.name ?? "";
+}
+
+function submitAddRoom() {
+  if (!roomFormName.value.trim()) return;
+  const room = roomStore.addSimpleRoom(roomFormName.value);
+  selectedRoomId.value = room.id;
+  closeRoomMenu();
+}
+
+function submitRenameRoom() {
+  if (!roomFormTargetId.value || !roomFormName.value.trim()) return;
+  roomStore.renameRoom(roomFormTargetId.value, roomFormName.value);
+  selectedRoomId.value = roomFormTargetId.value;
+  closeRoomMenu();
+}
+
+async function submitDeleteRoom() {
+  const room = roomOptions.value.find((item) => item.id === roomFormTargetId.value);
+  if (!room || roomOptions.value.length <= 1) return;
+
+  const rackIds = roomStore.racks
+    .filter((rack) => rack.roomId === room.id)
+    .map((rack) => rack.id);
+  const deviceIds = assetStore.devices
+    .filter((device) => rackIds.includes(device.rackId))
+    .map((device) => device.id);
+
+  for (const deviceId of deviceIds) {
+    await assetStore.deleteDevice(deviceId);
   }
+  roomStore.deleteRoom(room.id);
+  selectedRoomId.value = roomOptions.value.find((item) => item.id !== room.id)?.id ?? null;
+  selectedRack.value = null;
+  selectedDeviceId.value = null;
+  closeRoomMenu();
 }
 
 function openRackManagementMenu() {
@@ -354,6 +421,98 @@ function openRackManagementMenu() {
         @save="saveDevice"
       />
     </div>
+
+    <div
+      v-if="roomMenu.open"
+      class="context-backdrop"
+      @click="closeRoomMenu"
+      @contextmenu.prevent="closeRoomMenu"
+    />
+    <div
+      v-if="roomMenu.open"
+      class="room-context-menu"
+      :style="{ left: `${roomMenu.x}px`, top: `${roomMenu.y}px` }"
+      role="menu"
+      @click.stop
+    >
+      <template v-if="roomMenu.mode === 'actions'">
+        <button type="button" role="menuitem" @click="setRoomMenuMode('add')">
+          <span class="menu-icon">＋</span>
+          <span>新增机房</span>
+        </button>
+        <button type="button" role="menuitem" @click="setRoomMenuMode('rename')">
+          <span class="menu-icon">✎</span>
+          <span>修改现有机房</span>
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          class="danger"
+          @click="setRoomMenuMode('delete')"
+        >
+          <span class="menu-icon">×</span>
+          <span>删除现有机房</span>
+        </button>
+      </template>
+
+      <template v-else>
+        <div class="menu-panel-title">
+          {{
+            roomMenu.mode === "add"
+              ? "新增机房"
+              : roomMenu.mode === "rename"
+                ? "修改机房名称"
+                : "删除机房"
+          }}
+        </div>
+        <label v-if="roomMenu.mode !== 'add'">
+          选择机房
+          <select
+            :value="roomFormTargetId"
+            @change="updateRoomTarget(($event.target as HTMLSelectElement).value)"
+          >
+            <option v-for="room in roomOptions" :key="room.id" :value="room.id">
+              {{ room.name }}
+            </option>
+          </select>
+        </label>
+        <label v-if="roomMenu.mode !== 'delete'">
+          机房名称
+          <input v-model="roomFormName" placeholder="例如：新数据中心" />
+        </label>
+        <p v-else class="delete-hint">
+          删除会移除该机房、机柜和机柜内设备。至少保留一个机房。
+        </p>
+        <div class="menu-actions">
+          <button type="button" class="ghost" @click="roomMenu.mode = 'actions'">
+            返回
+          </button>
+          <button
+            v-if="roomMenu.mode === 'add'"
+            type="button"
+            @click="submitAddRoom"
+          >
+            确认新增
+          </button>
+          <button
+            v-else-if="roomMenu.mode === 'rename'"
+            type="button"
+            @click="submitRenameRoom"
+          >
+            保存
+          </button>
+          <button
+            v-else
+            type="button"
+            class="danger-button"
+            :disabled="roomOptions.length <= 1"
+            @click="submitDeleteRoom"
+          >
+            确认删除
+          </button>
+        </div>
+      </template>
+    </div>
   </section>
 </template>
 
@@ -461,5 +620,114 @@ function openRackManagementMenu() {
 
 .mode-placeholder {
   min-height: 420px;
+}
+
+.context-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 80;
+}
+
+.room-context-menu {
+  position: fixed;
+  z-index: 81;
+  width: 248px;
+  padding: 6px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 8px;
+  color: var(--color-text);
+  background:
+    linear-gradient(180deg, rgba(17, 24, 39, 0.98), rgba(8, 13, 24, 0.98));
+  box-shadow:
+    0 18px 48px rgba(0, 0, 0, 0.42),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+
+.room-context-menu button {
+  width: 100%;
+  min-height: 34px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 9px;
+  border: 0;
+  border-radius: 6px;
+  color: var(--color-text);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+}
+
+.room-context-menu button:hover {
+  background: rgba(14, 165, 233, 0.14);
+}
+
+.room-context-menu button.danger {
+  color: #fecaca;
+}
+
+.menu-icon {
+  width: 22px;
+  display: inline-grid;
+  place-items: center;
+  color: #7dd3fc;
+  font-weight: 700;
+}
+
+.menu-panel-title {
+  padding: 6px 8px 9px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.16);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.room-context-menu label {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.room-context-menu input,
+.room-context-menu select {
+  width: 100%;
+  min-height: 30px;
+  padding: 0 8px;
+  border: 1px solid rgba(148, 163, 184, 0.24);
+  border-radius: 6px;
+  color: var(--color-text);
+  background: rgba(2, 6, 23, 0.82);
+}
+
+.delete-hint {
+  margin: 8px;
+  color: #fca5a5;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.menu-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  padding: 8px;
+}
+
+.room-context-menu .ghost {
+  justify-content: center;
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  background: rgba(15, 23, 42, 0.74);
+}
+
+.room-context-menu .danger-button {
+  justify-content: center;
+  color: #fee2e2;
+  background: rgba(220, 38, 38, 0.18);
+}
+
+.room-context-menu .danger-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
 }
 </style>

@@ -139,6 +139,73 @@ test("rack context menu supports renaming an existing rack", async ({ page }) =>
   await expect(page.getByRole("button", { name: /529-A1测试/ })).toBeVisible();
 });
 
+test("room and rack context menus manage a temporary room without touching existing rooms", async ({
+  page,
+}) => {
+  await page.goto("/#/rack-overview");
+
+  await page.locator(".overview-metrics div", { hasText: "总机房" }).click({
+    button: "right",
+  });
+  await page.getByRole("menuitem", { name: /新增机房/ }).click();
+  await page.getByLabel("机房名称").fill("临时测试机房");
+  await page.getByRole("button", { name: "确认新增" }).click();
+  await expect(page.getByRole("button", { name: "临时测试机房" })).toBeVisible();
+
+  await page.locator(".overview-metrics div", { hasText: "当前机柜" }).click({
+    button: "right",
+  });
+  await page.getByRole("menuitem", { name: /新增机柜/ }).click();
+  await page.getByLabel("机柜名称").fill("TEMP-A1");
+  await page.getByLabel("机柜类型").selectOption("server");
+  await page.getByRole("button", { name: "确认新增" }).click();
+  await expect(page.getByRole("button", { name: /TEMP-A1/ })).toBeVisible();
+
+  await page.locator(".overview-metrics div", { hasText: "当前机柜" }).click({
+    button: "right",
+  });
+  await page.getByRole("menuitem", { name: /修改现有机柜/ }).click();
+  await page.getByLabel("选择机柜").selectOption("rack-temp-a1");
+  await page.getByLabel("机柜名称").fill("TEMP-A1-改名");
+  await page.getByRole("button", { name: "保存" }).click();
+  await expect(page.getByRole("button", { name: /TEMP-A1-改名/ })).toBeVisible();
+
+  await page.locator(".overview-metrics div", { hasText: "总机房" }).click({
+    button: "right",
+  });
+  await page.getByRole("menuitem", { name: /修改现有机房/ }).click();
+  await page.getByLabel("选择机房").selectOption("room-new-room");
+  await page.getByLabel("机房名称").fill("临时测试机房-改名");
+  await page.getByRole("button", { name: "保存" }).click();
+  await expect(page.getByRole("button", { name: "临时测试机房-改名" })).toBeVisible();
+
+  await page.locator(".overview-metrics div", { hasText: "当前机柜" }).click({
+    button: "right",
+  });
+  await page.getByRole("menuitem", { name: /删除现有机柜/ }).click();
+  await page.getByLabel("选择机柜").selectOption("rack-temp-a1");
+  await page.getByRole("button", { name: "确认删除" }).click();
+  await expect(page.getByRole("button", { name: /TEMP-A1-改名/ })).toHaveCount(0);
+
+  await page.locator(".overview-metrics div", { hasText: "总机房" }).click({
+    button: "right",
+  });
+  await page.getByRole("menuitem", { name: /删除现有机房/ }).click();
+  await page.getByLabel("选择机房").selectOption("room-new-room");
+  await page.getByRole("button", { name: "确认删除" }).click();
+  await expect(page.getByRole("button", { name: "临时测试机房-改名" })).toHaveCount(0);
+
+  for (const roomName of [
+    "529数据中心",
+    "99数据中心",
+    "308数据中心",
+    "杭州数据中心",
+    "越南C7数据中心",
+  ]) {
+    await expect(page.getByRole("button", { name: roomName })).toBeVisible();
+  }
+});
+
 test("alert locate opens rack u view and highlights the related device", async ({
   page,
 }) => {

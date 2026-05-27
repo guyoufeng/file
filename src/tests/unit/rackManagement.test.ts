@@ -1,12 +1,18 @@
 import { describe, expect, it } from "vitest";
-import type { Rack, Room } from "../../types/domain";
+import type { Device, Rack, Room } from "../../types/domain";
 import {
   addSimpleRoom,
   addRackToRoom,
+  buildDeletedRackItem,
+  buildDeletedRoomItem,
   deleteRack,
   deleteRoomWithRacks,
+  getRecoverableDeletedItems,
+  restoreDeletedRack,
+  restoreDeletedRoom,
   renameRoom,
   renameRack,
+  type DeletedTopologyItem,
 } from "../../services/rack/rackManagement";
 
 const rooms: Room[] = [
@@ -30,6 +36,24 @@ const racks: Rack[] = [
     columnIndex: 1,
     heightU: 42,
     status: "normal",
+  },
+];
+
+const devices: Device[] = [
+  {
+    id: "device-1",
+    rackId: "rack-529-a1",
+    categoryId: "server",
+    name: "测试服务器",
+    computerName: "test-server",
+    businessIp: "192.168.1.10",
+    ips: ["192.168.1.10"],
+    side: "front",
+    startU: 1,
+    endU: 2,
+    heightU: 2,
+    status: "normal",
+    ports: [],
   },
 ];
 
@@ -98,5 +122,65 @@ describe("rack management", () => {
 
     expect(result.racks).toHaveLength(0);
     expect(result.deletedRackId).toBe("rack-529-a1");
+  });
+
+  it("keeps deleted rooms and racks recoverable for seven days", () => {
+    const deletedAt = "2026-05-27T08:00:00.000Z";
+    const roomItem: DeletedTopologyItem = {
+      id: "deleted-room-1",
+      type: "room",
+      deletedAt,
+      expiresAt: "2026-06-03T08:00:00.000Z",
+      room: rooms[0],
+      racks,
+      devices,
+    };
+    const rackItem: DeletedTopologyItem = {
+      id: "deleted-rack-1",
+      type: "rack",
+      deletedAt,
+      expiresAt: "2026-06-03T08:00:00.000Z",
+      rack: racks[0],
+      devices,
+    };
+
+    expect(
+      getRecoverableDeletedItems(
+        [
+          roomItem,
+          rackItem,
+          {
+            ...rackItem,
+            id: "expired-rack",
+            expiresAt: "2026-05-28T08:00:00.000Z",
+          },
+        ],
+        new Date("2026-05-30T08:00:00.000Z"),
+      ).map((item) => item.id),
+    ).toEqual(["deleted-room-1", "deleted-rack-1"]);
+
+    const restoredRoom = restoreDeletedRoom([], [], roomItem);
+    expect(restoredRoom.rooms[0].id).toBe("room-529");
+    expect(restoredRoom.racks[0].id).toBe("rack-529-a1");
+
+    const restoredRack = restoreDeletedRack([], rackItem);
+    expect(restoredRack[0].id).toBe("rack-529-a1");
+  });
+
+  it("stores devices with recoverable deleted rooms and racks", () => {
+    const deletedRoom = buildDeletedRoomItem(
+      rooms[0],
+      racks,
+      devices,
+      new Date("2026-05-27T08:00:00.000Z"),
+    );
+    const deletedRack = buildDeletedRackItem(
+      racks[0],
+      devices,
+      new Date("2026-05-27T08:00:00.000Z"),
+    );
+
+    expect(deletedRoom.devices.map((device) => device.id)).toEqual(["device-1"]);
+    expect(deletedRack.devices.map((device) => device.id)).toEqual(["device-1"]);
   });
 });

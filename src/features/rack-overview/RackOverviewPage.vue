@@ -45,13 +45,13 @@ const roomMenu = ref({
   open: false,
   x: 0,
   y: 0,
-  mode: "actions" as "actions" | "add" | "rename" | "delete",
+  mode: "actions" as "actions" | "add" | "rename" | "delete" | "restore",
 });
 const rackMenu = ref({
   open: false,
   x: 0,
   y: 0,
-  mode: "actions" as "actions" | "add" | "rename" | "delete",
+  mode: "actions" as "actions" | "add" | "rename" | "delete" | "restore",
 });
 const roomFormName = ref("");
 const roomFormTargetId = ref("");
@@ -82,6 +82,12 @@ const overviewMetrics = computed(() =>
     alertStore.alerts,
     selectedRoom.value?.id,
   ),
+);
+const recoverableRooms = computed(() =>
+  roomStore.deletedTopology.filter((item) => item.type === "room"),
+);
+const recoverableRacks = computed(() =>
+  roomStore.deletedTopology.filter((item) => item.type === "rack"),
 );
 const locationFocusText = computed(() => {
   if (!selectedRack.value && !selectedDevice.value) return "";
@@ -207,8 +213,9 @@ function closeRackMenu() {
   rackMenu.value.open = false;
 }
 
-function setRoomMenuMode(mode: "add" | "rename" | "delete") {
+function setRoomMenuMode(mode: "add" | "rename" | "delete" | "restore") {
   roomMenu.value.mode = mode;
+  if (mode === "restore") return;
   if (mode === "add") {
     roomFormName.value = "";
     roomFormTargetId.value = selectedRoom.value?.id ?? "";
@@ -249,14 +256,31 @@ async function submitDeleteRoom() {
   const deviceIds = assetStore.devices
     .filter((device) => rackIds.includes(device.rackId))
     .map((device) => device.id);
+  const deletedDevices = assetStore.devices.filter((device) =>
+    rackIds.includes(device.rackId),
+  );
 
   for (const deviceId of deviceIds) {
     await assetStore.deleteDevice(deviceId);
   }
-  roomStore.deleteRoom(room.id);
+  roomStore.deleteRoom(room.id, deletedDevices);
   selectedRoomId.value = roomOptions.value.find((item) => item.id !== room.id)?.id ?? null;
   selectedRack.value = null;
   selectedDeviceId.value = null;
+  closeRoomMenu();
+}
+
+async function restoreRoomItem(itemId: string) {
+  const item = roomStore.restoreDeletedItem(itemId);
+  if (item?.type === "room") {
+    for (const device of item.devices ?? []) {
+      await assetStore.upsertDevice(device);
+    }
+    selectedRoomId.value = item.room.id;
+    selectedRack.value = null;
+    selectedDeviceId.value = null;
+    detailOpen.value = false;
+  }
   closeRoomMenu();
 }
 
@@ -276,8 +300,9 @@ function openRackManagementMenu(event: MouseEvent) {
   rackFormType.value = target?.type ?? "server";
 }
 
-function setRackMenuMode(mode: "add" | "rename" | "delete") {
+function setRackMenuMode(mode: "add" | "rename" | "delete" | "restore") {
   rackMenu.value.mode = mode;
+  if (mode === "restore") return;
   if (mode === "add") {
     rackFormName.value = "";
     rackFormType.value = "server";
@@ -325,13 +350,30 @@ async function submitDeleteRack() {
   const deviceIds = assetStore.devices
     .filter((device) => device.rackId === rack.id)
     .map((device) => device.id);
+  const deletedDevices = assetStore.devices.filter(
+    (device) => device.rackId === rack.id,
+  );
   for (const deviceId of deviceIds) {
     await assetStore.deleteDevice(deviceId);
   }
-  roomStore.deleteRack(rack.id);
+  roomStore.deleteRack(rack.id, deletedDevices);
   selectedRack.value = null;
   selectedDeviceId.value = null;
   detailOpen.value = false;
+  closeRackMenu();
+}
+
+async function restoreRackItem(itemId: string) {
+  const item = roomStore.restoreDeletedItem(itemId);
+  if (item?.type === "rack") {
+    for (const device of item.devices ?? []) {
+      await assetStore.upsertDevice(device);
+    }
+    selectedRoomId.value = item.rack.roomId;
+    selectedRack.value = item.rack;
+    selectedDeviceId.value = null;
+    detailOpen.value = true;
+  }
   closeRackMenu();
 }
 </script>
@@ -489,6 +531,10 @@ async function submitDeleteRack() {
           <span class="menu-icon">✎</span>
           <span>修改现有机房</span>
         </button>
+        <button type="button" role="menuitem" @click="setRoomMenuMode('restore')">
+          <span class="menu-icon">↺</span>
+          <span>恢复已删除机房</span>
+        </button>
         <button
           type="button"
           role="menuitem"
@@ -507,10 +553,12 @@ async function submitDeleteRack() {
               ? "新增机房"
               : roomMenu.mode === "rename"
                 ? "修改机房名称"
-                : "删除机房"
+                : roomMenu.mode === "restore"
+                  ? "恢复已删除机房"
+                  : "删除机房"
           }}
         </div>
-        <label v-if="roomMenu.mode !== 'add'">
+        <label v-if="roomMenu.mode !== 'add' && roomMenu.mode !== 'restore'">
           选择机房
           <select
             :value="roomFormTargetId"
@@ -521,13 +569,28 @@ async function submitDeleteRack() {
             </option>
           </select>
         </label>
-        <label v-if="roomMenu.mode !== 'delete'">
+        <label v-if="roomMenu.mode !== 'delete' && roomMenu.mode !== 'restore'">
           机房名称
           <input v-model="roomFormName" placeholder="例如：新数据中心" />
         </label>
-        <p v-else class="delete-hint">
+        <p v-else-if="roomMenu.mode === 'delete'" class="delete-hint">
           删除会移除该机房、机柜和机柜内设备。至少保留一个机房。
         </p>
+        <div v-else class="restore-list" aria-label="可恢复机房">
+          <button
+            v-for="item in recoverableRooms"
+            :key="item.id"
+            type="button"
+            class="restore-item"
+            @click="restoreRoomItem(item.id)"
+          >
+            <span>{{ item.room.name }}</span>
+            <small>保留至 {{ new Date(item.expiresAt).toLocaleDateString("zh-CN") }}</small>
+          </button>
+          <p v-if="recoverableRooms.length === 0" class="restore-empty">
+            暂无 7 天内可恢复机房。
+          </p>
+        </div>
         <div class="menu-actions">
           <button type="button" class="ghost" @click="roomMenu.mode = 'actions'">
             返回
@@ -547,7 +610,7 @@ async function submitDeleteRack() {
             保存
           </button>
           <button
-            v-else
+            v-else-if="roomMenu.mode === 'delete'"
             type="button"
             class="danger-button"
             :disabled="roomOptions.length <= 1"
@@ -581,6 +644,10 @@ async function submitDeleteRack() {
           <span class="menu-icon">✎</span>
           <span>修改现有机柜</span>
         </button>
+        <button type="button" role="menuitem" @click="setRackMenuMode('restore')">
+          <span class="menu-icon">↺</span>
+          <span>恢复已删除机柜</span>
+        </button>
         <button
           type="button"
           role="menuitem"
@@ -599,10 +666,12 @@ async function submitDeleteRack() {
               ? "新增机柜"
               : rackMenu.mode === "rename"
                 ? "修改机柜名称"
-                : "删除机柜"
+                : rackMenu.mode === "restore"
+                  ? "恢复已删除机柜"
+                  : "删除机柜"
           }}
         </div>
-        <label v-if="rackMenu.mode !== 'add'">
+        <label v-if="rackMenu.mode !== 'add' && rackMenu.mode !== 'restore'">
           选择机柜
           <select
             :value="rackFormTargetId"
@@ -613,7 +682,7 @@ async function submitDeleteRack() {
             </option>
           </select>
         </label>
-        <label v-if="rackMenu.mode !== 'delete'">
+        <label v-if="rackMenu.mode !== 'delete' && rackMenu.mode !== 'restore'">
           机柜名称
           <input v-model="rackFormName" placeholder="例如：529-A11" />
         </label>
@@ -633,6 +702,21 @@ async function submitDeleteRack() {
         <p v-if="rackMenu.mode === 'delete'" class="delete-hint">
           删除会移除该机柜和机柜内设备，相关资产位置也会同步清理。
         </p>
+        <div v-else-if="rackMenu.mode === 'restore'" class="restore-list" aria-label="可恢复机柜">
+          <button
+            v-for="item in recoverableRacks"
+            :key="item.id"
+            type="button"
+            class="restore-item"
+            @click="restoreRackItem(item.id)"
+          >
+            <span>{{ item.rack.name }}</span>
+            <small>保留至 {{ new Date(item.expiresAt).toLocaleDateString("zh-CN") }}</small>
+          </button>
+          <p v-if="recoverableRacks.length === 0" class="restore-empty">
+            暂无 7 天内可恢复机柜。
+          </p>
+        </div>
         <div class="menu-actions">
           <button type="button" class="ghost" @click="rackMenu.mode = 'actions'">
             返回
@@ -652,7 +736,7 @@ async function submitDeleteRack() {
             保存
           </button>
           <button
-            v-else
+            v-else-if="rackMenu.mode === 'delete'"
             type="button"
             class="danger-button"
             :disabled="selectedRoomRacks.length === 0"
@@ -853,6 +937,44 @@ async function submitDeleteRack() {
 .delete-hint {
   margin: 8px;
   color: #fca5a5;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.restore-list {
+  display: grid;
+  gap: 6px;
+  max-height: 180px;
+  overflow: auto;
+  padding: 8px;
+}
+
+.room-context-menu .restore-item {
+  min-height: 44px;
+  display: grid;
+  align-content: center;
+  gap: 2px;
+  padding: 6px 9px;
+  border: 1px solid rgba(14, 165, 233, 0.2);
+  background: rgba(14, 165, 233, 0.08);
+}
+
+.restore-item span {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.restore-item small {
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+
+.restore-empty {
+  margin: 4px 0;
+  color: var(--color-text-muted);
   font-size: 12px;
   line-height: 1.5;
 }

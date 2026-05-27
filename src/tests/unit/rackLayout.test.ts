@@ -18,6 +18,29 @@ describe("rack layout helpers", () => {
     ]);
   });
 
+  it("keeps newly added rooms after the known room order", () => {
+    expect(
+      getRoomOptions([
+        ...sampleProject.rooms,
+        {
+          id: "room-temp",
+          dataCenterId: "dc-nanjing",
+          name: "临时测试机房",
+          layoutType: "simple_rows",
+          defaultRackHeightU: 42,
+          racks: [],
+        },
+      ]).map((room) => room.name),
+    ).toEqual([
+      "529数据中心",
+      "99数据中心",
+      "308数据中心",
+      "杭州数据中心",
+      "越南C7数据中心",
+      "临时测试机房",
+    ]);
+  });
+
   it("counts devices, alerts, and capacity for a rack tile", () => {
     const rack = sampleProject.racks[0];
     const stats = getRackTileStats(

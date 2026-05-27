@@ -10,7 +10,18 @@ export interface RackTileStats {
 const roomOrder = ['529数据中心', '99数据中心', '308数据中心', '杭州数据中心', '越南C7数据中心']
 
 export function getRoomOptions(rooms: Room[]): Room[] {
-  return [...rooms].sort((a, b) => roomOrder.indexOf(a.name) - roomOrder.indexOf(b.name))
+  return [...rooms].sort((a, b) => {
+    const leftIndex = roomOrder.indexOf(a.name)
+    const rightIndex = roomOrder.indexOf(b.name)
+    const leftOrder = leftIndex >= 0 ? leftIndex : roomOrder.length
+    const rightOrder = rightIndex >= 0 ? rightIndex : roomOrder.length
+
+    if (leftOrder !== rightOrder) {
+      return leftOrder - rightOrder
+    }
+
+    return rooms.indexOf(a) - rooms.indexOf(b)
+  })
 }
 
 export function getRackTileStats(rack: Rack, devices: Device[], alerts: Alert[]): RackTileStats {

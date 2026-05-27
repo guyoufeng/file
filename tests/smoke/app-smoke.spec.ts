@@ -187,6 +187,29 @@ test("room and rack context menus manage a temporary room without touching exist
   await page.getByRole("button", { name: "确认删除" }).click();
   await expect(page.getByRole("button", { name: /TEMP-A1-改名/ })).toHaveCount(0);
 
+  await page.locator(".overview-metrics div", { hasText: "当前机柜" }).click({
+    button: "right",
+  });
+  await page.getByRole("menuitem", { name: /恢复已删除机柜/ }).click();
+  await page.getByRole("button", { name: /TEMP-A1-改名/ }).click();
+  await expect(page.getByRole("button", { name: /TEMP-A1-改名/ })).toBeVisible();
+
+  await page.locator(".overview-metrics div", { hasText: "总机房" }).click({
+    button: "right",
+  });
+  await page.getByRole("menuitem", { name: /删除现有机房/ }).click();
+  await page.getByLabel("选择机房").selectOption("room-new-room");
+  await page.getByRole("button", { name: "确认删除" }).click();
+  await expect(page.getByRole("button", { name: "临时测试机房-改名" })).toHaveCount(0);
+
+  await page.locator(".overview-metrics div", { hasText: "总机房" }).click({
+    button: "right",
+  });
+  await page.getByRole("menuitem", { name: /恢复已删除机房/ }).click();
+  await page.getByRole("button", { name: /临时测试机房-改名/ }).click();
+  await expect(page.getByRole("button", { name: "临时测试机房-改名" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /TEMP-A1-改名/ })).toBeVisible();
+
   await page.locator(".overview-metrics div", { hasText: "总机房" }).click({
     button: "right",
   });

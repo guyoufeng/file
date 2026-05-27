@@ -2,6 +2,10 @@
 import { computed } from "vue";
 import type { Alert, Device, Rack } from "../../../types/domain";
 import { getRackTileStats } from "../layout";
+import {
+  getRackTypeColor,
+  getRackTypeLabel,
+} from "../../../services/rack/rackTypePresentation";
 
 const props = defineProps<{
   rack: Rack;
@@ -14,21 +18,10 @@ const emit = defineEmits<{
   select: [rack: Rack];
 }>();
 
-const rackTypeLabels: Record<string, string> = {
-  server: "服务器柜",
-  network: "网络柜",
-  storage: "存储柜",
-  patching: "配线柜",
-  row_head: "列头柜",
-  cooling: "精密空调",
-  ups_pdu: "供电柜",
-  empty: "空柜",
-  other: "其他",
-};
-
 const stats = computed(() =>
   getRackTileStats(props.rack, props.devices, props.alerts),
 );
+const rackColor = computed(() => getRackTypeColor(props.rack.type));
 const activeRackAlerts = computed(() => {
   const deviceIds = new Set(
     props.devices
@@ -57,10 +50,11 @@ const hasWarningAlert = computed(() =>
       warning: hasWarningAlert && !hasCriticalAlert,
       selected,
     }"
+    :style="{ '--rack-type-color': rackColor }"
     @click="emit('select', rack)"
   >
     <span class="rack-name">{{ rack.name }}</span>
-    <span class="rack-type">{{ rackTypeLabels[rack.type] ?? rack.type }}</span>
+    <span class="rack-type">{{ getRackTypeLabel(rack.type) }}</span>
     <span class="rack-meta">
       {{ stats.deviceCount }} 台 /
       {{ stats.capacityText }}
@@ -85,9 +79,10 @@ const hasWarningAlert = computed(() =>
   color: var(--color-text);
   background: linear-gradient(
     180deg,
-    rgba(21, 28, 46, 0.96),
+    color-mix(in srgb, var(--rack-type-color) 24%, rgba(21, 28, 46, 0.96)),
     rgba(10, 18, 32, 0.96)
   );
+  box-shadow: inset 4px 0 0 color-mix(in srgb, var(--rack-type-color) 84%, #ffffff 0%);
   cursor: pointer;
 }
 

@@ -3,6 +3,10 @@ import { computed, nextTick, ref, watch } from "vue";
 import type { Alert, Device, DeviceSide, Rack } from "../../../types/domain";
 import RackColumnCanvas from "./RackColumnCanvas.vue";
 import ZoomToolbar from "./ZoomToolbar.vue";
+import {
+  getRackTypeColor,
+  getRackTypeLabel,
+} from "../../../services/rack/rackTypePresentation";
 
 const props = defineProps<{
   rack: Rack | null;
@@ -16,18 +20,6 @@ const emit = defineEmits<{
   selectRack: [rack: Rack];
   selectDevice: [device: Device];
 }>();
-
-const rackTypeLabels: Record<string, string> = {
-  server: "服务器柜",
-  network: "网络柜",
-  storage: "存储柜",
-  patching: "配线柜",
-  row_head: "列头柜",
-  cooling: "精密空调",
-  ups_pdu: "供电柜",
-  empty: "空柜",
-  other: "其他",
-};
 
 const zoom = ref(1.25);
 const side = ref<DeviceSide>("front");
@@ -154,11 +146,12 @@ watch(
             <button
               type="button"
               class="rack-u-title"
+              :style="{ '--rack-type-color': getRackTypeColor(item.type) }"
               @click="emit('selectRack', item)"
             >
               <strong>{{ item.name }}</strong>
               <span
-                >{{ rackTypeLabels[item.type] ?? item.type }} /
+                >{{ getRackTypeLabel(item.type) }} /
                 {{ item.heightU }}U</span
               >
             </button>
@@ -312,7 +305,13 @@ h3 {
   border-radius: 8px;
   color: var(--color-text);
   text-align: left;
-  background: rgba(8, 17, 31, 0.9);
+  background:
+    linear-gradient(
+      135deg,
+      color-mix(in srgb, var(--rack-type-color) 22%, transparent),
+      rgba(8, 17, 31, 0.92)
+    );
+  box-shadow: inset 4px 0 0 color-mix(in srgb, var(--rack-type-color) 86%, #ffffff 0%);
   cursor: pointer;
 }
 

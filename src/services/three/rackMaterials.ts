@@ -1,16 +1,5 @@
 import type { Alert, AlertLevel, Device, Rack, RackType } from '../../types/domain'
-
-const rackTypeColors: Record<RackType, string> = {
-  server: '#2563eb',
-  network: '#059669',
-  storage: '#d97706',
-  patching: '#ca8a04',
-  row_head: '#0891b2',
-  cooling: '#7c3aed',
-  ups_pdu: '#dc2626',
-  empty: '#334155',
-  other: '#64748b',
-}
+import { getRackTypeColor } from '../rack/rackTypePresentation'
 
 const alertPriority: Record<AlertLevel, number> = {
   info: 1,
@@ -26,7 +15,7 @@ export interface RackVisualState {
 }
 
 export function rackTypeColor(type: RackType): string {
-  return rackTypeColors[type] ?? rackTypeColors.other
+  return getRackTypeColor(type)
 }
 
 export function getRackVisualState(rack: Rack, devices: Device[], alerts: Alert[]): RackVisualState {

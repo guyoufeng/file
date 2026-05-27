@@ -123,6 +123,22 @@ test("room context menu supports renaming an existing room", async ({ page }) =>
   await expect(page.getByRole("button", { name: "99数据中心测试" })).toBeVisible();
 });
 
+test("rack context menu supports renaming an existing rack", async ({ page }) => {
+  await page.goto("/#/rack-overview");
+  await page.locator(".overview-metrics div", { hasText: "当前机柜" }).click({
+    button: "right",
+  });
+
+  await expect(page.getByRole("menu")).toBeVisible();
+  await expect(page.getByRole("menuitem", { name: /新增机柜/ })).toBeVisible();
+  await page.getByRole("menuitem", { name: /修改现有机柜/ }).click();
+  await page.getByLabel("选择机柜").selectOption("rack-529-a1");
+  await page.getByLabel("机柜名称").fill("529-A1测试");
+  await page.getByRole("button", { name: "保存" }).click();
+
+  await expect(page.getByRole("button", { name: /529-A1测试/ })).toBeVisible();
+});
+
 test("alert locate opens rack u view and highlights the related device", async ({
   page,
 }) => {

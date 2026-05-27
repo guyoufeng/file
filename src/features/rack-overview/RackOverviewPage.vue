@@ -47,8 +47,17 @@ const roomMenu = ref({
   y: 0,
   mode: "actions" as "actions" | "add" | "rename" | "delete",
 });
+const rackMenu = ref({
+  open: false,
+  x: 0,
+  y: 0,
+  mode: "actions" as "actions" | "add" | "rename" | "delete",
+});
 const roomFormName = ref("");
 const roomFormTargetId = ref("");
+const rackFormName = ref("");
+const rackFormTargetId = ref("");
+const rackFormType = ref<RackType>("server");
 
 const roomOptions = computed(() => getRoomOptions(roomStore.rooms));
 const selectedRoom = computed(
@@ -178,6 +187,7 @@ function clampMenuPosition(event: MouseEvent) {
 
 function openRoomManagementMenu(event: MouseEvent) {
   if (!selectedRoom.value) return;
+  closeRackMenu();
   const position = clampMenuPosition(event);
   roomMenu.value = {
     open: true,
@@ -191,6 +201,10 @@ function openRoomManagementMenu(event: MouseEvent) {
 
 function closeRoomMenu() {
   roomMenu.value.open = false;
+}
+
+function closeRackMenu() {
+  rackMenu.value.open = false;
 }
 
 function setRoomMenuMode(mode: "add" | "rename" | "delete") {
@@ -246,48 +260,79 @@ async function submitDeleteRoom() {
   closeRoomMenu();
 }
 
-function openRackManagementMenu() {
+function openRackManagementMenu(event: MouseEvent) {
   if (!selectedRoom.value) return;
-  const action = window.prompt(
-    [
-      "机柜管理：",
-      "1 修改当前选中机柜名称",
-      "2 新增服务器柜",
-      "3 新增网络柜",
-      "4 新增配线柜",
-      "5 新增列头柜",
-      "6 新增精密空调柜",
-    ].join("\n"),
-    "1",
-  );
+  closeRoomMenu();
+  const position = clampMenuPosition(event);
+  rackMenu.value = {
+    open: true,
+    x: position.x,
+    y: position.y,
+    mode: "actions",
+  };
+  const target = selectedRack.value ?? selectedRoomRacks.value[0];
+  rackFormTargetId.value = target?.id ?? "";
+  rackFormName.value = target?.name ?? "";
+  rackFormType.value = target?.type ?? "server";
+}
 
-  if (action === "1") {
-    if (!selectedRack.value) {
-      window.alert("请先在布局总览或 U 位大图中选择一个机柜，再修改名称。");
-      return;
-    }
-    const name = window.prompt("请输入新的机柜名称", selectedRack.value.name);
-    if (!name?.trim()) return;
-    roomStore.renameRack(selectedRack.value.id, name);
-    selectedRack.value =
-      roomStore.racks.find((rack) => rack.id === selectedRack.value?.id) ?? null;
+function setRackMenuMode(mode: "add" | "rename" | "delete") {
+  rackMenu.value.mode = mode;
+  if (mode === "add") {
+    rackFormName.value = "";
+    rackFormType.value = "server";
+    rackFormTargetId.value = selectedRack.value?.id ?? selectedRoomRacks.value[0]?.id ?? "";
     return;
   }
 
-  const typeByAction: Record<string, RackType> = {
-    "2": "server",
-    "3": "network",
-    "4": "patching",
-    "5": "row_head",
-    "6": "cooling",
-  };
-  const type = typeByAction[action ?? ""];
-  if (!type) return;
-  const name = window.prompt("请输入新机柜名称", `${selectedRoom.value.name}-新机柜`);
-  if (!name?.trim()) return;
-  const rack = roomStore.addRack(selectedRoom.value, name, type);
+  const target =
+    selectedRoomRacks.value.find((rack) => rack.id === rackFormTargetId.value) ??
+    selectedRack.value ??
+    selectedRoomRacks.value[0];
+  rackFormTargetId.value = target?.id ?? "";
+  rackFormName.value = target?.name ?? "";
+  rackFormType.value = target?.type ?? "server";
+}
+
+function updateRackTarget(rackId: string) {
+  const rack = selectedRoomRacks.value.find((item) => item.id === rackId);
+  rackFormTargetId.value = rackId;
+  rackFormName.value = rack?.name ?? "";
+  rackFormType.value = rack?.type ?? "server";
+}
+
+function submitAddRack() {
+  if (!selectedRoom.value || !rackFormName.value.trim()) return;
+  const rack = roomStore.addRack(selectedRoom.value, rackFormName.value, rackFormType.value);
   selectedRack.value = rack;
   detailOpen.value = true;
+  closeRackMenu();
+}
+
+function submitRenameRack() {
+  if (!rackFormTargetId.value || !rackFormName.value.trim()) return;
+  roomStore.renameRack(rackFormTargetId.value, rackFormName.value);
+  selectedRack.value =
+    roomStore.racks.find((rack) => rack.id === rackFormTargetId.value) ?? null;
+  detailOpen.value = Boolean(selectedRack.value);
+  closeRackMenu();
+}
+
+async function submitDeleteRack() {
+  const rack = selectedRoomRacks.value.find((item) => item.id === rackFormTargetId.value);
+  if (!rack) return;
+
+  const deviceIds = assetStore.devices
+    .filter((device) => device.rackId === rack.id)
+    .map((device) => device.id);
+  for (const deviceId of deviceIds) {
+    await assetStore.deleteDevice(deviceId);
+  }
+  roomStore.deleteRack(rack.id);
+  selectedRack.value = null;
+  selectedDeviceId.value = null;
+  detailOpen.value = false;
+  closeRackMenu();
 }
 </script>
 
@@ -513,6 +558,111 @@ function openRackManagementMenu() {
         </div>
       </template>
     </div>
+
+    <div
+      v-if="rackMenu.open"
+      class="context-backdrop"
+      @click="closeRackMenu"
+      @contextmenu.prevent="closeRackMenu"
+    />
+    <div
+      v-if="rackMenu.open"
+      class="room-context-menu"
+      :style="{ left: `${rackMenu.x}px`, top: `${rackMenu.y}px` }"
+      role="menu"
+      @click.stop
+    >
+      <template v-if="rackMenu.mode === 'actions'">
+        <button type="button" role="menuitem" @click="setRackMenuMode('add')">
+          <span class="menu-icon">＋</span>
+          <span>新增机柜</span>
+        </button>
+        <button type="button" role="menuitem" @click="setRackMenuMode('rename')">
+          <span class="menu-icon">✎</span>
+          <span>修改现有机柜</span>
+        </button>
+        <button
+          type="button"
+          role="menuitem"
+          class="danger"
+          @click="setRackMenuMode('delete')"
+        >
+          <span class="menu-icon">×</span>
+          <span>删除现有机柜</span>
+        </button>
+      </template>
+
+      <template v-else>
+        <div class="menu-panel-title">
+          {{
+            rackMenu.mode === "add"
+              ? "新增机柜"
+              : rackMenu.mode === "rename"
+                ? "修改机柜名称"
+                : "删除机柜"
+          }}
+        </div>
+        <label v-if="rackMenu.mode !== 'add'">
+          选择机柜
+          <select
+            :value="rackFormTargetId"
+            @change="updateRackTarget(($event.target as HTMLSelectElement).value)"
+          >
+            <option v-for="rack in selectedRoomRacks" :key="rack.id" :value="rack.id">
+              {{ rack.name }}
+            </option>
+          </select>
+        </label>
+        <label v-if="rackMenu.mode !== 'delete'">
+          机柜名称
+          <input v-model="rackFormName" placeholder="例如：529-A11" />
+        </label>
+        <label v-if="rackMenu.mode === 'add'">
+          机柜类型
+          <select v-model="rackFormType">
+            <option value="server">服务器柜</option>
+            <option value="network">网络柜</option>
+            <option value="patching">配线柜</option>
+            <option value="row_head">列头柜</option>
+            <option value="cooling">精密空调</option>
+            <option value="ups_pdu">供电柜</option>
+            <option value="empty">空柜</option>
+            <option value="other">其他</option>
+          </select>
+        </label>
+        <p v-if="rackMenu.mode === 'delete'" class="delete-hint">
+          删除会移除该机柜和机柜内设备，相关资产位置也会同步清理。
+        </p>
+        <div class="menu-actions">
+          <button type="button" class="ghost" @click="rackMenu.mode = 'actions'">
+            返回
+          </button>
+          <button
+            v-if="rackMenu.mode === 'add'"
+            type="button"
+            @click="submitAddRack"
+          >
+            确认新增
+          </button>
+          <button
+            v-else-if="rackMenu.mode === 'rename'"
+            type="button"
+            @click="submitRenameRack"
+          >
+            保存
+          </button>
+          <button
+            v-else
+            type="button"
+            class="danger-button"
+            :disabled="selectedRoomRacks.length === 0"
+            @click="submitDeleteRack"
+          >
+            确认删除
+          </button>
+        </div>
+      </template>
+    </div>
   </section>
 </template>
 
@@ -712,6 +862,10 @@ function openRackManagementMenu() {
   grid-template-columns: 1fr 1fr;
   gap: 8px;
   padding: 8px;
+}
+
+.menu-actions button {
+  justify-content: center;
 }
 
 .room-context-menu .ghost {

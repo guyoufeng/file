@@ -90,3 +90,17 @@ export function deleteRoomWithRacks(
     deletedRackIds,
   };
 }
+
+export function deleteRack(
+  racks: Rack[],
+  rackId: string,
+): { racks: Rack[]; deletedRackId: string | null } {
+  if (!racks.some((rack) => rack.id === rackId)) {
+    return { racks, deletedRackId: null };
+  }
+
+  return {
+    racks: racks.filter((rack) => rack.id !== rackId),
+    deletedRackId: rackId,
+  };
+}

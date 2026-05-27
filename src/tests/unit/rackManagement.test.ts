@@ -3,6 +3,7 @@ import type { Rack, Room } from "../../types/domain";
 import {
   addSimpleRoom,
   addRackToRoom,
+  deleteRack,
   deleteRoomWithRacks,
   renameRoom,
   renameRack,
@@ -90,5 +91,12 @@ describe("rack management", () => {
     expect(result.rooms.map((room) => room.id)).not.toContain("room-empty");
     expect(result.racks.map((rack) => rack.id)).not.toContain("rack-temp-a1");
     expect(result.deletedRackIds).toEqual(["rack-temp-a1"]);
+  });
+
+  it("deletes a rack and reports the affected rack id", () => {
+    const result = deleteRack(racks, "rack-529-a1");
+
+    expect(result.racks).toHaveLength(0);
+    expect(result.deletedRackId).toBe("rack-529-a1");
   });
 });

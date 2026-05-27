@@ -1,6 +1,8 @@
-import type { Alert, Device, Rack, Room } from "../../types/domain";
+import type { Alert, AuditLog, Device, Rack, Room } from "../../types/domain";
+import type { VirtualServer } from "../../features/virtual-server-management/virtualServers";
 import {
   formatActiveAlertDevicesAnswer,
+  formatAuditLogSearchAnswer,
   formatDeviceAlertsAnswer,
   formatDeviceLocationAnswer,
   formatDeviceSearchAnswer,
@@ -8,10 +10,12 @@ import {
   formatRackDeviceListAnswer,
   formatRackAlertRankingAnswer,
   formatRoomDeviceSummaryAnswer,
+  formatVirtualServerSearchAnswer,
   formatWarrantyExpiringAnswer,
   sourceFooter,
 } from "./answerFormatter";
 import { searchDevices } from "../search/deviceSearch";
+import { getAuditActionLabel } from "../audit/auditLogView";
 
 export type AiToolName =
   | "general_chat"
@@ -21,6 +25,8 @@ export type AiToolName =
   | "list_rack_devices"
   | "list_room_devices"
   | "list_alert_devices"
+  | "search_virtual_servers"
+  | "search_audit_logs"
   | "summarize_room_status";
 
 export interface AiToolResult {
@@ -31,12 +37,84 @@ export interface AiToolResult {
   relatedRackId?: string;
 }
 
+function includesKeyword(value: unknown, keyword: string): boolean {
+  if (value === null || value === undefined) return false;
+  if (typeof value === "string" || typeof value === "number") {
+    return String(value).toLowerCase().includes(keyword);
+  }
+  if (Array.isArray(value)) {
+    return value.some((item) => includesKeyword(item, keyword));
+  }
+  if (typeof value === "object") {
+    return Object.values(value).some((item) => includesKeyword(item, keyword));
+  }
+  return false;
+}
+
+function searchVirtualServers(
+  query: string,
+  virtualServers: VirtualServer[],
+): VirtualServer[] {
+  const keywords = query
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (keywords.length === 0) return [];
+
+  return virtualServers.filter((server) =>
+    keywords.every((keyword) =>
+      [
+        server.name,
+        server.businessIp,
+        server.os,
+        server.purpose,
+        server.owner,
+        server.hostDeviceName,
+        server.platform,
+        server.status,
+      ]
+        .filter(Boolean)
+        .some((field) => field!.toLowerCase().includes(keyword)),
+    ),
+  );
+}
+
+function searchAuditLogsForAi(query: string, auditLogs: AuditLog[]): AuditLog[] {
+  const keyword = query.trim().toLowerCase();
+  if (!keyword) return [];
+  const keywords = keyword.split(/\s+/).filter(Boolean);
+
+  return auditLogs
+    .filter((log) => {
+      const fields = [
+        log.actor,
+        log.action,
+        getAuditActionLabel(log.action),
+        log.targetType,
+        log.targetId,
+        log.summary,
+        JSON.stringify(log.metadata ?? {}),
+      ].filter(Boolean);
+      const joined = fields.join(" ").toLowerCase();
+
+      return (
+        joined.includes(keyword) ||
+        keywords.every((item) => joined.includes(item)) ||
+        keywords.every((item) => includesKeyword(log.metadata, item))
+      );
+    })
+    .sort((first, second) => second.createdAt.localeCompare(first.createdAt));
+}
+
 export function runDeterministicAiQuery(
   question: string,
   rooms: Room[],
   racks: Rack[],
   devices: Device[],
   alerts: Alert[],
+  virtualServers: VirtualServer[] = [],
+  auditLogs: AuditLog[] = [],
 ): AiToolResult {
   const queriedAt = new Date().toLocaleString("zh-CN", { hour12: false });
   const normalized = question.toLowerCase();
@@ -48,6 +126,8 @@ export function runDeterministicAiQuery(
   const asksAlertRanking =
     asksAlert && /最多|排行|排名|哪个机柜/.test(question);
   const asksWarranty = /过保|维保.*到期|到期.*维保|保修.*到期|即将.*到期/.test(question);
+  const asksVirtualServer = /虚拟机|虚拟服务器|云主机|vm|VM|zstack|ZStack|宿主/.test(question);
+  const asksAuditLog = /审计|操作记录|日志|历史记录|谁|导入记录|查询记录|修改记录/.test(question);
   const asksMissingField = /没有|缺少|为空|未填/.test(question);
   const missingFieldRules = [
     {
@@ -85,6 +165,43 @@ export function runDeterministicAiQuery(
     /查询|查下|查一下|查看|看下|看一下|搜索|负责|用途|资产|编号|sn|SN|详细|详情|哪些服务器|哪些设备|硬件配置|内存|cpu|CPU|操作系统|型号|处理方法|处理状态|处理到|解决方法|解决方案|附件|照片/.test(
       question,
     );
+
+  if (asksVirtualServer) {
+    const cleanedQuery = question
+      .replace(/查询|查下|查一下|查看下|查看|看下|看一下|搜索|这台|虚拟机|虚拟服务器|云主机|用途|责任人|宿主服务器|宿主物理服务器|业务IP|业务ip|平台|状态|操作系统|的|吗|？|\?/g, " ")
+      .trim();
+    const directToken = question.match(/[a-zA-Z][a-zA-Z0-9._-]{2,}/)?.[0];
+    const candidates =
+      [directToken, ip, cleanedQuery, question]
+        .filter((query): query is string => Boolean(query))
+        .map((query) => searchVirtualServers(query, virtualServers))
+        .find((matches) => matches.length > 0) ?? [];
+
+    return {
+      toolName: "search_virtual_servers",
+      answer:
+        formatVirtualServerSearchAnswer(candidates) +
+        sourceFooter({ label: "本地虚拟服务器库", queriedAt }),
+    };
+  }
+
+  if (asksAuditLog) {
+    const cleanedQuery = question
+      .replace(/最近|查询|查下|查一下|查看|看下|看一下|搜索|审计|操作记录|日志|历史记录|记录|哪些|谁|的|吗|？|\?/g, " ")
+      .trim();
+    const candidates =
+      [ip, cleanedQuery, question]
+        .filter((query): query is string => Boolean(query))
+        .map((query) => searchAuditLogsForAi(query, auditLogs))
+        .find((matches) => matches.length > 0) ?? [];
+
+    return {
+      toolName: "search_audit_logs",
+      answer:
+        formatAuditLogSearchAnswer(candidates) +
+        sourceFooter({ label: "本地审计日志", queriedAt }),
+    };
+  }
 
   if (ip) {
     const device = devices.find(

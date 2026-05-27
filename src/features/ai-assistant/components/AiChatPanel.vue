@@ -178,7 +178,7 @@ function buildNavigationTarget(result: {
       data-testid="ai-message-list"
     >
       <div v-if="answers.length === 0" class="welcome-message">
-        <strong>我可以查询资产、机柜位置、当前告警，也可以回答通用运维问题。</strong>
+        <strong>我可以查询资产、虚拟服务器、机柜位置、当前告警和审计记录。</strong>
         <span>实时天气、新闻和联网搜索需要后续启用外网辅助 Skill。</span>
       </div>
       <div v-for="answer in answers" :key="answer.id" class="answer-item">

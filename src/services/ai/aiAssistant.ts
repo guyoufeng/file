@@ -1,10 +1,16 @@
 import type {
   Alert,
   AiModelConfig,
+  AuditLog,
   Device,
   Rack,
   Room,
 } from "../../types/domain";
+import {
+  loadVirtualServers,
+  type VirtualServer,
+} from "../../features/virtual-server-management/virtualServers";
+import { getLocalAiAuditLogs } from "../backend/ai";
 import { getProviderAdapter } from "./aiGateway";
 import { runDeterministicAiQuery, type AiToolResult } from "./aiTools";
 import { buildSkillPrompt, qfDcimAgentRole } from "./agentProfile";
@@ -21,6 +27,8 @@ export interface AiAssistantRequest {
   racks: Rack[];
   devices: Device[];
   alerts: Alert[];
+  virtualServers?: VirtualServer[];
+  auditLogs?: AuditLog[];
   capabilities?: AiAgentCapabilitySettings;
 }
 
@@ -47,7 +55,7 @@ function buildUserPrompt(question: string, toolResult: AiToolResult) {
 function isDcimQuestion(question: string, rooms: Room[], racks: Rack[]) {
   const normalized = question.toLowerCase();
   if (/\b\d{1,3}(?:\.\d{1,3}){3}\b/.test(question)) return true;
-  if (/机房|机柜|服务器|设备|资产|告警|报警|异常|故障|责任人|用途|业务ip|带外ip|u位|位置|在哪|计算机名|固定资产|编号|sn|SN|序列号|维保|硬件配置|操作系统|负责人|负责|查询|查下|查看|看下|搜索/.test(question)) {
+  if (/机房|机柜|服务器|设备|资产|告警|报警|异常|故障|责任人|用途|业务ip|带外ip|u位|位置|在哪|计算机名|固定资产|编号|sn|SN|序列号|维保|硬件配置|操作系统|负责人|负责|查询|查下|查看|看下|搜索|虚拟机|虚拟服务器|云主机|宿主|审计|操作记录|历史记录|导入记录|查询记录/.test(question)) {
     return true;
   }
   if (rooms.some((room) => normalized.includes(room.name.toLowerCase()))) return true;
@@ -126,6 +134,8 @@ export async function answerWithAiAssistant(
     request.racks,
     request.devices,
     request.alerts,
+    request.virtualServers ?? loadVirtualServers(),
+    request.auditLogs ?? getLocalAiAuditLogs(),
   );
 
   if (!config) {

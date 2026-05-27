@@ -1,5 +1,7 @@
-import type { Alert, Device, Rack, Room } from "../../types/domain";
+import type { Alert, AuditLog, Device, Rack, Room } from "../../types/domain";
+import type { VirtualServer } from "../../features/virtual-server-management/virtualServers";
 import { getAlertStatusLabel } from "../alerts/alertWorkflow";
+import { getAuditActionLabel } from "../audit/auditLogView";
 
 export interface AnswerSource {
   label: string;
@@ -77,6 +79,69 @@ export function formatDeviceSearchAnswer(
     ...lines,
     matches.length > 20
       ? `仅展示前 20 台，剩余 ${matches.length - 20} 台可继续缩小条件查询。`
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function virtualServerStatusLabel(status: VirtualServer["status"]): string {
+  if (status === "running") return "运行中";
+  if (status === "stopped") return "已停止";
+  if (status === "warning") return "异常";
+  return "未知";
+}
+
+export function formatVirtualServerSearchAnswer(
+  matches: VirtualServer[],
+): string {
+  if (matches.length === 0) {
+    return "未在虚拟服务器管理中找到匹配记录。可以尝试输入虚拟机名、业务IP、用途、责任人或宿主物理服务器。";
+  }
+
+  return [
+    `匹配虚拟服务器：${matches.length} 台`,
+    "",
+    ...matches.slice(0, 20).map((server, index) =>
+      [
+        `${index + 1}. ${server.name}`,
+        `业务IP：${server.businessIp || "-"}`,
+        `平台：${server.platform}`,
+        `状态：${virtualServerStatusLabel(server.status)}`,
+        `用途：${server.purpose || "-"}`,
+        `责任人：${server.owner || "-"}`,
+        `宿主物理服务器：${server.hostDeviceName || "-"}`,
+        `操作系统：${server.os || "-"}`,
+      ].join(" / "),
+    ),
+    matches.length > 20
+      ? `仅展示前 20 台，剩余 ${matches.length - 20} 台可继续缩小条件查询。`
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+export function formatAuditLogSearchAnswer(logs: AuditLog[]): string {
+  if (logs.length === 0) {
+    return "未在审计日志中找到匹配记录。可以尝试输入操作类型、人员、设备、机房、机柜、IP 或关键词。";
+  }
+
+  return [
+    `匹配审计记录：${logs.length} 条`,
+    "",
+    ...logs.slice(0, 20).map((log, index) =>
+      [
+        `${index + 1}. ${getAuditActionLabel(log.action)}`,
+        `时间：${log.createdAt}`,
+        `操作人：${log.actor}`,
+        `对象：${log.targetType}${log.targetId ? ` / ${log.targetId}` : ""}`,
+        `摘要：${log.summary}`,
+        `状态：${typeof log.metadata?.status === "string" ? log.metadata.status : "-"}`,
+      ].join(" / "),
+    ),
+    logs.length > 20
+      ? `仅展示前 20 条，剩余 ${logs.length - 20} 条可继续缩小条件查询。`
       : "",
   ]
     .filter(Boolean)

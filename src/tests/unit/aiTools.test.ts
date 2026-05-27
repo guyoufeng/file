@@ -466,4 +466,64 @@ describe("ai tools", () => {
     expect(businessIpResult.answer).toContain("缺失业务IP设备");
     expect(businessIpResult.answer).toContain("missing-business-ip");
   });
+
+  it("searches virtual servers by name ip owner purpose or host", () => {
+    const result = runDeterministicAiQuery(
+      "查询 MES-VM-DB-01 这台虚拟机的用途和宿主服务器",
+      sampleProject.rooms,
+      sampleProject.racks,
+      sampleProject.devices,
+      sampleProject.alerts,
+      [
+        {
+          id: "vm-mes-db-01",
+          name: "MES-VM-DB-01",
+          platform: "ZStack",
+          businessIp: "192.168.129.90",
+          os: "Rocky Linux 9",
+          purpose: "MES数据库虚拟机",
+          owner: "张文军",
+          hostDeviceName: "QF-SRV-001",
+          status: "running",
+        },
+      ],
+    );
+
+    expect(result.toolName).toBe("search_virtual_servers");
+    expect(result.answer).toContain("虚拟服务器");
+    expect(result.answer).toContain("MES-VM-DB-01");
+    expect(result.answer).toContain("192.168.129.90");
+    expect(result.answer).toContain("MES数据库虚拟机");
+    expect(result.answer).toContain("QF-SRV-001");
+    expect(result.answer).toContain("数据来源");
+  });
+
+  it("searches audit logs by action actor summary or metadata", () => {
+    const result = runDeterministicAiQuery(
+      "最近项目导入操作记录",
+      sampleProject.rooms,
+      sampleProject.racks,
+      sampleProject.devices,
+      sampleProject.alerts,
+      [],
+      [
+        {
+          id: "audit-import-1",
+          actor: "admin",
+          action: "project.import_json",
+          targetType: "project",
+          summary: "导入项目 JSON：5 个机房、40 个机柜、156 台设备、12 条告警",
+          createdAt: "2026/05/27 09:30:00",
+          metadata: { status: "success", deviceCount: 156 },
+        },
+      ],
+    );
+
+    expect(result.toolName).toBe("search_audit_logs");
+    expect(result.answer).toContain("审计记录");
+    expect(result.answer).toContain("项目导入");
+    expect(result.answer).toContain("admin");
+    expect(result.answer).toContain("156 台设备");
+    expect(result.answer).toContain("数据来源");
+  });
 });

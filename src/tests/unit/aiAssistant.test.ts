@@ -141,6 +141,80 @@ describe("ai assistant", () => {
     expect(result.relatedDeviceId).toBe("real-cnsmffluxdb1");
   });
 
+  it("routes virtual server questions through internal tools", async () => {
+    const { answerWithAiAssistant } =
+      await import("../../services/ai/aiAssistant");
+    chat.mockResolvedValueOnce("模型整理后的虚拟服务器详情");
+
+    const result = await answerWithAiAssistant({
+      question: "查询 MES-VM-DB-01 这台虚拟机",
+      configs: [config],
+      rooms: sampleProject.rooms,
+      racks: sampleProject.racks,
+      devices: sampleProject.devices,
+      alerts: sampleProject.alerts,
+      virtualServers: [
+        {
+          id: "vm-mes-db-01",
+          name: "MES-VM-DB-01",
+          platform: "ZStack",
+          businessIp: "192.168.129.90",
+          purpose: "MES数据库虚拟机",
+          hostDeviceName: "QF-SRV-001",
+          status: "running",
+        },
+      ],
+    });
+
+    expect(result.toolName).toBe("search_virtual_servers");
+    expect(chat).toHaveBeenCalledWith(
+      config,
+      expect.arrayContaining([
+        expect.objectContaining({
+          role: "user",
+          content: expect.stringContaining("本地虚拟服务器库"),
+        }),
+      ]),
+    );
+  });
+
+  it("routes audit log questions through internal tools", async () => {
+    const { answerWithAiAssistant } =
+      await import("../../services/ai/aiAssistant");
+    chat.mockResolvedValueOnce("模型整理后的审计记录");
+
+    const result = await answerWithAiAssistant({
+      question: "最近项目导入操作记录",
+      configs: [config],
+      rooms: sampleProject.rooms,
+      racks: sampleProject.racks,
+      devices: sampleProject.devices,
+      alerts: sampleProject.alerts,
+      auditLogs: [
+        {
+          id: "audit-import-1",
+          actor: "admin",
+          action: "project.import_json",
+          targetType: "project",
+          summary: "导入项目 JSON：5 个机房、40 个机柜、156 台设备、12 条告警",
+          createdAt: "2026/05/27 09:30:00",
+          metadata: { status: "success" },
+        },
+      ],
+    });
+
+    expect(result.toolName).toBe("search_audit_logs");
+    expect(chat).toHaveBeenCalledWith(
+      config,
+      expect.arrayContaining([
+        expect.objectContaining({
+          role: "user",
+          content: expect.stringContaining("本地审计日志"),
+        }),
+      ]),
+    );
+  });
+
   it("falls back to deterministic tool answer when no model is enabled", async () => {
     const { answerWithAiAssistant } =
       await import("../../services/ai/aiAssistant");

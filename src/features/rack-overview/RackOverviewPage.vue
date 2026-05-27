@@ -8,7 +8,7 @@ import {
   watch,
 } from "vue";
 import { useRoute } from "vue-router";
-import type { Device, Rack } from "../../types/domain";
+import type { Device, Rack, RackType } from "../../types/domain";
 import type { DeviceSearchResult } from "../../services/search/deviceSearch";
 import { useAlertStore } from "../../stores/alertStore";
 import { useAssetStore } from "../../stores/assetStore";
@@ -158,6 +158,70 @@ async function saveDevice(device: Device) {
   selectedDeviceId.value = saved.id;
   deviceEditorOpen.value = false;
 }
+
+function openRoomManagementMenu() {
+  if (!selectedRoom.value) return;
+  const action = window.prompt(
+    "机房管理：输入 1 修改当前机房名称，输入 2 新增普通 42U 机房。",
+    "1",
+  );
+  if (action === "1") {
+    const name = window.prompt("请输入新的机房名称", selectedRoom.value.name);
+    if (!name?.trim()) return;
+    roomStore.renameRoom(selectedRoom.value.id, name);
+    return;
+  }
+  if (action === "2") {
+    const name = window.prompt("请输入新机房名称", "新数据中心");
+    if (!name?.trim()) return;
+    const room = roomStore.addSimpleRoom(name);
+    selectedRoomId.value = room.id;
+  }
+}
+
+function openRackManagementMenu() {
+  if (!selectedRoom.value) return;
+  const action = window.prompt(
+    [
+      "机柜管理：",
+      "1 修改当前选中机柜名称",
+      "2 新增服务器柜",
+      "3 新增网络柜",
+      "4 新增配线柜",
+      "5 新增列头柜",
+      "6 新增精密空调柜",
+    ].join("\n"),
+    "1",
+  );
+
+  if (action === "1") {
+    if (!selectedRack.value) {
+      window.alert("请先在布局总览或 U 位大图中选择一个机柜，再修改名称。");
+      return;
+    }
+    const name = window.prompt("请输入新的机柜名称", selectedRack.value.name);
+    if (!name?.trim()) return;
+    roomStore.renameRack(selectedRack.value.id, name);
+    selectedRack.value =
+      roomStore.racks.find((rack) => rack.id === selectedRack.value?.id) ?? null;
+    return;
+  }
+
+  const typeByAction: Record<string, RackType> = {
+    "2": "server",
+    "3": "network",
+    "4": "patching",
+    "5": "row_head",
+    "6": "cooling",
+  };
+  const type = typeByAction[action ?? ""];
+  if (!type) return;
+  const name = window.prompt("请输入新机柜名称", `${selectedRoom.value.name}-新机柜`);
+  if (!name?.trim()) return;
+  const rack = roomStore.addRack(selectedRoom.value, name, type);
+  selectedRack.value = rack;
+  detailOpen.value = true;
+}
 </script>
 
 <template>
@@ -193,7 +257,10 @@ async function saveDevice(device: Device) {
     />
 
     <div class="overview-metrics" aria-label="数据加载状态">
-      <div>
+      <div
+        title="右键管理机房"
+        @contextmenu.prevent="openRoomManagementMenu"
+      >
         <strong>{{ overviewMetrics.totalRooms }}</strong>
         <span>总机房</span>
       </div>
@@ -201,7 +268,10 @@ async function saveDevice(device: Device) {
         <strong>{{ overviewMetrics.totalDevices }}</strong>
         <span>总设备</span>
       </div>
-      <div>
+      <div
+        title="右键管理当前机房机柜"
+        @contextmenu.prevent="openRackManagementMenu"
+      >
         <strong>{{ overviewMetrics.currentRacks }}</strong>
         <span>当前机柜</span>
       </div>

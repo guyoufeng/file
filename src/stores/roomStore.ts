@@ -1,6 +1,17 @@
 import { defineStore } from 'pinia'
-import type { Rack, Room } from '../types/domain'
+import type { Rack, RackType, Room } from '../types/domain'
 import { getRacks, getRooms } from '../services/backend/rooms'
+import {
+  addRackToRoom,
+  addSimpleRoom,
+  renameRack as renameRackRecords,
+  renameRoom as renameRoomRecords,
+} from '../services/rack/rackManagement'
+
+function writeLocalJson(key: string, value: unknown) {
+  if (typeof localStorage === 'undefined') return
+  localStorage.setItem(key, JSON.stringify(value))
+}
 
 export const useRoomStore = defineStore('rooms', {
   state: () => ({
@@ -22,6 +33,24 @@ export const useRoomStore = defineStore('rooms', {
       } finally {
         this.loading = false
       }
+    },
+    renameRoom(roomId: string, name: string) {
+      this.rooms = renameRoomRecords(this.rooms, roomId, name)
+      writeLocalJson('qf-ai-dcim.rooms', this.rooms)
+    },
+    addSimpleRoom(name: string) {
+      this.rooms = addSimpleRoom(this.rooms, name)
+      writeLocalJson('qf-ai-dcim.rooms', this.rooms)
+      return this.rooms[this.rooms.length - 1]
+    },
+    renameRack(rackId: string, name: string) {
+      this.racks = renameRackRecords(this.racks, rackId, name)
+      writeLocalJson('qf-ai-dcim.racks', this.racks)
+    },
+    addRack(room: Room, name: string, type: RackType) {
+      this.racks = addRackToRoom(this.racks, room, { name, type })
+      writeLocalJson('qf-ai-dcim.racks', this.racks)
+      return this.racks[this.racks.length - 1]
     },
   },
 })

@@ -14,8 +14,9 @@ test("starts the app and navigates through v0.1 core pages", async ({
   await expect(page.getByRole("button", { name: "打开 AI助手" })).toBeVisible();
   await expect(page.getByText("南京 / 529数据中心")).toHaveCount(0);
   await expect(page.getByText("只读AI查询")).toHaveCount(0);
-
-  await page.getByRole("button", { name: "U位大图" }).click();
+  await expect(
+    page.getByRole("button", { name: "U位大图", exact: true }),
+  ).toHaveClass(/active/);
   const uView = page.getByTestId("rack-u-overview");
   await expect(
     page.getByRole("button", { name: "50%", exact: true }),

@@ -289,6 +289,16 @@ test("readonly agent api snapshot exposes current asset data", async ({ page }) 
   expect(devices.ok()).toBe(true);
   const payload = (await devices.json()) as { data: Array<{ computerName?: string }> };
   expect(payload.data.some((device) => device.computerName === "QF-SRV-001")).toBe(true);
+
+  const tools = await page.request.get("/api/agent/v1/tools");
+  expect(tools.ok()).toBe(true);
+  const toolPayload = (await tools.json()) as { data: Array<{ name: string; readonly: boolean }> };
+  expect(toolPayload.data.some((tool) => tool.name === "agent_search_devices" && tool.readonly)).toBe(true);
+
+  const openapi = await page.request.get("/api/agent/v1/openapi.json");
+  expect(openapi.ok()).toBe(true);
+  const openapiPayload = (await openapi.json()) as { paths: Record<string, unknown> };
+  expect(openapiPayload.paths).toHaveProperty("/devices");
 });
 
 test("project import shows a review preview before confirmation", async ({

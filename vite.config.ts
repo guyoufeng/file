@@ -4,6 +4,10 @@ import path from "node:path";
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 import {
+  buildAgentOpenApiDocument,
+  getAgentReadonlyTools,
+} from "./src/services/agent/apiManifest";
+import {
   buildAgentReadonlySnapshot,
   filterAgentAlerts,
   filterAgentAuditLogs,
@@ -30,6 +34,12 @@ const demoSeedPath = path.resolve(".local/demo-seed.json");
 function getQuery(req: IncomingMessage): AgentQuery {
   const url = new URL(req.url ?? "/", "http://localhost");
   return Object.fromEntries(url.searchParams.entries()) as AgentQuery;
+}
+
+function getAgentApiBaseUrl(req: IncomingMessage): string {
+  const protocol = req.headers["x-forwarded-proto"] ?? "http";
+  const host = req.headers.host ?? "127.0.0.1:5200";
+  return `${protocol}://${host}/api/agent/v1`;
 }
 
 function sendJson(res: Parameters<import("connect").NextHandleFunction>[1], value: unknown, statusCode = 200) {
@@ -119,6 +129,14 @@ function aiProxyPlugin() {
             "/api/agent/v1/audit-logs",
           ],
         });
+      });
+
+      server.middlewares.use("/api/agent/v1/tools", async (req, res) => {
+        sendJson(res, { data: getAgentReadonlyTools(getAgentApiBaseUrl(req)) });
+      });
+
+      server.middlewares.use("/api/agent/v1/openapi.json", async (req, res) => {
+        sendJson(res, buildAgentOpenApiDocument(getAgentApiBaseUrl(req)));
       });
 
       server.middlewares.use("/api/agent/v1/topology", async (_req, res) => {

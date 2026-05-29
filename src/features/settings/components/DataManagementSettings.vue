@@ -36,6 +36,8 @@ const agentApiBaseUrl = computed(() =>
 )
 const readonlyApiEndpoints = [
   'GET /health',
+  'GET /tools',
+  'GET /openapi.json',
   'GET /topology',
   'GET /rooms',
   'GET /racks?roomId=room-nj-529',

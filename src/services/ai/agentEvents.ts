@@ -25,6 +25,7 @@ export interface AiAgentEventInput {
   answer: string;
   usedModel?: string;
   fallbackReason?: string;
+  dataSource?: string;
   relatedDeviceId?: string;
   relatedRackId?: string;
   relatedRoomId?: string;
@@ -54,12 +55,16 @@ export function buildAiAgentEvents(input: AiAgentEventInput): AiAgentEvent[] {
     input.relatedDeviceId ? `设备 ${input.relatedDeviceId}` : "",
   ].filter(Boolean);
 
+  const toolDetail = input.dataSource
+    ? `${input.toolName} / ${input.dataSource}`
+    : input.toolName;
+
   return [
     createEvent(1, "agent_start", "Agent 启动", input.usedModel ? `模型：${input.usedModel}` : "使用本地确定性工具"),
     createEvent(2, "turn_start", "新一轮推理", input.question),
     createEvent(3, "message_start", "接收问题", input.question),
-    createEvent(4, "tool_execution_start", "工具开始", input.toolName),
-    createEvent(5, "tool_execution_end", "工具完成", input.toolName),
+    createEvent(4, "tool_execution_start", "工具开始", toolDetail),
+    createEvent(5, "tool_execution_end", "工具完成", toolDetail),
     createEvent(6, "message_end", "回答生成", input.answer.split("\n").slice(0, 1).join("")),
     createEvent(7, "turn_end", "本轮完成", relatedTargets.join(" / ") || "无定位目标"),
     createEvent(

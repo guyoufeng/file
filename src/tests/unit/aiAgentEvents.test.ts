@@ -36,11 +36,15 @@ describe("ai agent events", () => {
       toolName: "search_devices",
       fallbackReason: "模型调用失败",
       answer: "设备位于 529-A1",
+      dataSource: "只读 Agent API",
     });
 
     expect(events.find((event) => event.type === "agent_end")).toMatchObject({
       status: "warning",
       detail: "模型调用失败",
+    });
+    expect(events.find((event) => event.type === "tool_execution_start")).toMatchObject({
+      detail: "search_devices / 只读 Agent API",
     });
   });
 });

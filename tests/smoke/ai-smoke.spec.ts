@@ -28,7 +28,7 @@ test("opens AI assistant and answers a read-only asset location question", async
   await expect(drawer.getByText("Agent 轨迹")).toBeVisible();
   await drawer.getByText("Agent 轨迹").click();
   await expect(drawer.getByText("工具完成")).toBeVisible();
-  await expect(drawer.getByText("locate_device").first()).toBeVisible();
+  await expect(drawer.getByText(/locate_device.*只读 Agent API/).first()).toBeVisible();
   await expect(drawer.getByText(/模型：qwen3.6-35b-a3b-awq/)).toHaveCount(0);
 
   await drawer.getByRole("button", { name: "定位到机柜/设备" }).click();

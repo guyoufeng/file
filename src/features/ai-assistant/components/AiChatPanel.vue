@@ -8,6 +8,11 @@ import {
   type AiAgentEvent,
 } from "../../../services/ai/agentEvents";
 import { writeAiAuditLog } from "../../../services/backend/ai";
+import { exportProjectJson } from "../../../services/backend/data";
+import {
+  loadAgentReadonlyContext,
+  syncAgentReadonlySnapshot,
+} from "../../../services/agent/apiClient";
 import { useAiStore } from "../../../stores/aiStore";
 import { qfDcimSkills } from "../../../services/ai/agentProfile";
 import AiAnswerCard from "./AiAnswerCard.vue";
@@ -30,6 +35,7 @@ interface ChatAnswer {
   toolName: string;
   usedModel?: string;
   fallbackReason?: string;
+  dataSource: string;
   events: AiAgentEvent[];
   target?: AiNavigationTarget;
 }
@@ -74,13 +80,15 @@ async function ask() {
   asking.value = true;
   const currentQuestion = question.value;
   try {
+    const agentContext = await loadContextForAgent();
     const result = await answerWithAiAssistant({
       question: currentQuestion,
       configs: aiStore.configs,
-      rooms: props.rooms,
-      racks: props.racks,
-      devices: props.devices,
-      alerts: props.alerts,
+      rooms: agentContext.rooms,
+      racks: agentContext.racks,
+      devices: agentContext.devices,
+      alerts: agentContext.alerts,
+      auditLogs: agentContext.auditLogs,
     });
     answers.value.push({
       id: `${Date.now()}-${answers.value.length}`,
@@ -89,12 +97,14 @@ async function ask() {
       toolName: result.toolName,
       usedModel: result.usedModel,
       fallbackReason: result.fallbackReason,
+      dataSource: agentContext.dataSource,
       events: buildAiAgentEvents({
         question: currentQuestion,
         toolName: result.toolName,
         answer: result.answer,
         usedModel: result.usedModel,
         fallbackReason: result.fallbackReason,
+        dataSource: agentContext.dataSource,
         relatedDeviceId: result.relatedDeviceId,
         relatedRackId: result.relatedRackId,
         relatedRoomId: result.relatedRoomId,
@@ -121,6 +131,23 @@ async function ask() {
     });
   } finally {
     asking.value = false;
+  }
+}
+
+async function loadContextForAgent() {
+  try {
+    await syncAgentReadonlySnapshot(await exportProjectJson());
+    return await loadAgentReadonlyContext();
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "API 不可用";
+    return {
+      rooms: props.rooms,
+      racks: props.racks,
+      devices: props.devices,
+      alerts: props.alerts,
+      auditLogs: [],
+      dataSource: `页面状态（${reason}）`,
+    };
   }
 }
 
@@ -214,6 +241,7 @@ function buildNavigationTarget(result: {
           <summary>
             Agent 轨迹
             <span>{{ answer.toolName }}</span>
+            <small>{{ answer.dataSource }}</small>
             <small v-if="answer.usedModel">模型：{{ answer.usedModel }}</small>
             <small v-else-if="answer.fallbackReason">{{ answer.fallbackReason }}</small>
           </summary>

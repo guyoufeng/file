@@ -18,6 +18,7 @@ import { searchDevices } from "../search/deviceSearch";
 import { getAuditActionLabel } from "../audit/auditLogView";
 
 export type AiToolName =
+  | "agent_command"
   | "general_chat"
   | "search_devices"
   | "get_device_detail"

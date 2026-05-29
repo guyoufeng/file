@@ -1,5 +1,6 @@
 import type { Alert, AuditLog, Device, Rack, Room } from "../../types/domain";
 import type { ProjectJson } from "../backend/data";
+import type { AgentReadonlyTool } from "./apiManifest";
 import type { AgentReadonlySnapshot } from "./readonlyApi";
 
 export interface AgentReadonlyContext {
@@ -47,4 +48,13 @@ export async function loadAgentReadonlyContext(
     auditLogs: snapshot.data.auditLogs ?? [],
     dataSource: "只读 Agent API",
   };
+}
+
+export async function loadAgentReadonlyTools(
+  fetcher: Fetcher = fetch,
+): Promise<AgentReadonlyTool[]> {
+  const response = await readJsonResponse<{ data: AgentReadonlyTool[] }>(
+    await fetcher("/api/agent/v1/tools"),
+  );
+  return response.data;
 }

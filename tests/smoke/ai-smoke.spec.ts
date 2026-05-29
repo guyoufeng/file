@@ -49,3 +49,25 @@ test("opens AI assistant and answers a read-only asset location question", async
   );
   await expect(page.getByTestId("rack-detail-floating-window")).toHaveCount(0);
 });
+
+test("AI assistant lists readonly Agent API tools with slash command", async ({
+  page,
+}) => {
+  await page.goto("/#/rack-overview");
+
+  await page.getByRole("button", { name: "打开 AI助手" }).click();
+  const drawer = page.getByTestId("ai-floating-window");
+  const promptInput = page.getByPlaceholder(
+    "输入问题，按 Enter 发送，Shift+Enter 换行",
+  );
+
+  await promptInput.fill("/tools");
+  await promptInput.press("Enter");
+
+  await expect(drawer.getByTestId("ai-message-list")).toContainText(
+    "agent_search_devices",
+  );
+  await expect(drawer.getByTestId("ai-message-list")).toContainText(
+    "GET /api/agent/v1/devices",
+  );
+});

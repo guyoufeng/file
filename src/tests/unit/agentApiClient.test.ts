@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  loadAgentReadonlyTools,
   loadAgentReadonlyContext,
   syncAgentReadonlySnapshot,
 } from "../../services/agent/apiClient";
@@ -52,5 +53,27 @@ describe("agent api client", () => {
     expect(fetcher).toHaveBeenCalledWith("/api/agent/v1/topology");
     expect(context.dataSource).toBe("只读 Agent API");
     expect(context.devices[0].computerName).toBe("QF-SRV-001");
+  });
+
+  it("loads readonly agent tool catalog", async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        data: [
+          {
+            name: "agent_search_devices",
+            method: "GET",
+            path: "/devices",
+            url: "http://127.0.0.1:5200/api/agent/v1/devices",
+            readonly: true,
+          },
+        ],
+      }),
+    });
+
+    const tools = await loadAgentReadonlyTools(fetcher);
+
+    expect(fetcher).toHaveBeenCalledWith("/api/agent/v1/tools");
+    expect(tools[0].name).toBe("agent_search_devices");
   });
 });

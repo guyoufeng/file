@@ -3,6 +3,8 @@ import { computed, nextTick, onMounted, ref, watch } from "vue";
 import type { Alert, Device, Rack, Room } from "../../../types/domain";
 import type { AiNavigationTarget } from "../../../types/aiNavigation";
 import { answerWithAiAssistant } from "../../../services/ai/aiAssistant";
+import { recordAiAgentToolCall } from "../../../services/ai/agentAudit";
+import { answerAiAssistantCommand } from "../../../services/ai/agentCommands";
 import {
   buildAiAgentEvents,
   type AiAgentEvent,
@@ -10,6 +12,7 @@ import {
 import { writeAiAuditLog } from "../../../services/backend/ai";
 import { exportProjectJson } from "../../../services/backend/data";
 import {
+  loadAgentReadonlyTools,
   loadAgentReadonlyContext,
   syncAgentReadonlySnapshot,
 } from "../../../services/agent/apiClient";
@@ -79,7 +82,43 @@ async function ask() {
 
   asking.value = true;
   const currentQuestion = question.value;
+  const startedAt = Date.now();
   try {
+    const commandAnswer = await answerLocalAgentCommand(currentQuestion);
+    if (commandAnswer) {
+      answers.value.push({
+        id: `${Date.now()}-${answers.value.length}`,
+        question: currentQuestion,
+        content: commandAnswer.answer,
+        toolName: commandAnswer.toolName,
+        dataSource: "只读 Agent API 工具清单",
+        events: buildAiAgentEvents({
+          question: currentQuestion,
+          toolName: commandAnswer.toolName,
+          answer: commandAnswer.answer,
+          dataSource: "只读 Agent API 工具清单",
+        }),
+      });
+      updateActiveSession(currentQuestion);
+      question.value = "";
+      await scrollToLatestMessage();
+      recordAiAgentToolCall({
+        toolName: commandAnswer.toolName,
+        question: currentQuestion,
+        source: "只读 Agent API 工具清单",
+        answer: commandAnswer.answer,
+        startedAt,
+        status: "success",
+      });
+      writeAiAuditLog({
+        question: currentQuestion,
+        tools: [commandAnswer.toolName],
+        answerSummary: commandAnswer.answer.split("\n").slice(0, 2).join(" / "),
+        status: "success",
+      });
+      return;
+    }
+
     const agentContext = await loadContextForAgent();
     const result = await answerWithAiAssistant({
       question: currentQuestion,
@@ -111,15 +150,18 @@ async function ask() {
       }),
       target: buildNavigationTarget(result),
     });
-    if (activeSession.value) {
-      activeSession.value.title =
-        activeSession.value.title === "新的会话"
-          ? currentQuestion.slice(0, 18)
-          : activeSession.value.title;
-      activeSession.value.updatedAt = new Date().toISOString();
-    }
+    updateActiveSession(currentQuestion);
     question.value = "";
     await scrollToLatestMessage();
+    recordAiAgentToolCall({
+      toolName: result.toolName,
+      question: currentQuestion,
+      source: agentContext.dataSource,
+      answer: result.answer,
+      startedAt,
+      status: result.fallbackReason ? "failed" : "success",
+      errorMessage: result.fallbackReason,
+    });
     writeAiAuditLog({
       question: currentQuestion,
       tools: [result.toolName],
@@ -132,6 +174,22 @@ async function ask() {
   } finally {
     asking.value = false;
   }
+}
+
+async function answerLocalAgentCommand(questionText: string) {
+  if (!questionText.trim().startsWith("/")) return null;
+
+  const tools = await loadAgentReadonlyTools().catch(() => []);
+  return answerAiAssistantCommand(questionText, tools);
+}
+
+function updateActiveSession(titleSeed: string) {
+  if (!activeSession.value) return;
+  activeSession.value.title =
+    activeSession.value.title === "新的会话"
+      ? titleSeed.slice(0, 18)
+      : activeSession.value.title;
+  activeSession.value.updatedAt = new Date().toISOString();
 }
 
 async function loadContextForAgent() {

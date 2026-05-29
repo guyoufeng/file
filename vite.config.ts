@@ -1,8 +1,18 @@
 import type { IncomingMessage } from "node:http";
-import { readFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
+import {
+  buildAgentReadonlySnapshot,
+  filterAgentAlerts,
+  filterAgentAuditLogs,
+  filterAgentDevices,
+  filterAgentRacks,
+  type AgentReadonlySnapshot,
+  type AgentQuery,
+} from "./src/services/agent/readonlyApi";
+import type { ProjectJson } from "./src/services/backend/data";
 
 async function readBody(req: IncomingMessage) {
   const chunks: Uint8Array[] = [];
@@ -14,14 +24,40 @@ async function readBody(req: IncomingMessage) {
     : {};
 }
 
+const agentSnapshotPath = path.resolve(".local/agent-api-snapshot.json");
+const demoSeedPath = path.resolve(".local/demo-seed.json");
+
+function getQuery(req: IncomingMessage): AgentQuery {
+  const url = new URL(req.url ?? "/", "http://localhost");
+  return Object.fromEntries(url.searchParams.entries()) as AgentQuery;
+}
+
+function sendJson(res: Parameters<import("connect").NextHandleFunction>[1], value: unknown, statusCode = 200) {
+  res.statusCode = statusCode;
+  res.setHeader("Content-Type", "application/json; charset=utf-8");
+  res.end(JSON.stringify(value));
+}
+
+async function loadAgentSnapshot(): Promise<AgentReadonlySnapshot> {
+  try {
+    return JSON.parse(await readFile(agentSnapshotPath, "utf8")) as AgentReadonlySnapshot;
+  } catch {
+    const demoSeed = JSON.parse(await readFile(demoSeedPath, "utf8"));
+    return buildAgentReadonlySnapshot({
+      schemaVersion: "0.1.0",
+      exportedAt: new Date().toISOString(),
+      data: demoSeed,
+    });
+  }
+}
+
 function aiProxyPlugin() {
   return {
     name: "ai-proxy",
     configureServer(server: import("vite").ViteDevServer) {
       server.middlewares.use("/__demo_seed", async (_req, res) => {
         try {
-          const seedPath = path.resolve(".local/demo-seed.json");
-          const content = await readFile(seedPath, "utf8");
+          const content = await readFile(demoSeedPath, "utf8");
           res.setHeader("Content-Type", "application/json");
           res.end(content);
         } catch {
@@ -29,6 +65,90 @@ function aiProxyPlugin() {
           res.setHeader("Content-Type", "application/json");
           res.end(JSON.stringify({ message: "未配置本地演示种子" }));
         }
+      });
+
+      server.middlewares.use("/api/agent/v1/snapshot", async (req, res) => {
+        if (req.method === "GET") {
+          sendJson(res, await loadAgentSnapshot());
+          return;
+        }
+
+        if (req.method !== "POST") {
+          res.statusCode = 405;
+          res.end("Method Not Allowed");
+          return;
+        }
+
+        try {
+          const project = (await readBody(req)) as ProjectJson;
+          const snapshot = buildAgentReadonlySnapshot(project);
+          await mkdir(path.dirname(agentSnapshotPath), { recursive: true });
+          await writeFile(agentSnapshotPath, JSON.stringify(snapshot, null, 2), "utf8");
+          sendJson(res, {
+            message: "只读 Agent API 快照已更新",
+            generatedAt: snapshot.generatedAt,
+            counts: {
+              rooms: snapshot.data.rooms.length,
+              racks: snapshot.data.racks.length,
+              devices: snapshot.data.devices.length,
+              alerts: snapshot.data.alerts.length,
+              auditLogs: snapshot.data.auditLogs?.length ?? 0,
+            },
+          });
+        } catch (error) {
+          sendJson(
+            res,
+            { message: error instanceof Error ? error.message : "同步只读 API 快照失败" },
+            500,
+          );
+        }
+      });
+
+      server.middlewares.use("/api/agent/v1/health", async (_req, res) => {
+        const snapshot = await loadAgentSnapshot();
+        sendJson(res, {
+          status: "ok",
+          readonly: true,
+          generatedAt: snapshot.generatedAt,
+          endpoints: [
+            "/api/agent/v1/topology",
+            "/api/agent/v1/rooms",
+            "/api/agent/v1/racks",
+            "/api/agent/v1/devices",
+            "/api/agent/v1/alerts",
+            "/api/agent/v1/audit-logs",
+          ],
+        });
+      });
+
+      server.middlewares.use("/api/agent/v1/topology", async (_req, res) => {
+        const snapshot = await loadAgentSnapshot();
+        sendJson(res, snapshot);
+      });
+
+      server.middlewares.use("/api/agent/v1/rooms", async (_req, res) => {
+        const snapshot = await loadAgentSnapshot();
+        sendJson(res, { data: snapshot.data.rooms });
+      });
+
+      server.middlewares.use("/api/agent/v1/racks", async (req, res) => {
+        const snapshot = await loadAgentSnapshot();
+        sendJson(res, { data: filterAgentRacks(snapshot.data, getQuery(req)) });
+      });
+
+      server.middlewares.use("/api/agent/v1/devices", async (req, res) => {
+        const snapshot = await loadAgentSnapshot();
+        sendJson(res, { data: filterAgentDevices(snapshot.data, getQuery(req)) });
+      });
+
+      server.middlewares.use("/api/agent/v1/alerts", async (req, res) => {
+        const snapshot = await loadAgentSnapshot();
+        sendJson(res, { data: filterAgentAlerts(snapshot.data, getQuery(req)) });
+      });
+
+      server.middlewares.use("/api/agent/v1/audit-logs", async (req, res) => {
+        const snapshot = await loadAgentSnapshot();
+        sendJson(res, { data: filterAgentAuditLogs(snapshot.data, getQuery(req)) });
       });
 
       server.middlewares.use("/__ai_proxy/models", async (req, res) => {

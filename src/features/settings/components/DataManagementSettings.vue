@@ -31,6 +31,19 @@ const assetStore = useAssetStore()
 const alertStore = useAlertStore()
 const aiStore = useAiStore()
 const recoverableTopology = computed(() => roomStore.deletedTopology)
+const agentApiBaseUrl = computed(() =>
+  typeof location === 'undefined' ? '/api/agent/v1' : `${location.origin}/api/agent/v1`,
+)
+const readonlyApiEndpoints = [
+  'GET /health',
+  'GET /topology',
+  'GET /rooms',
+  'GET /racks?roomId=room-nj-529',
+  'GET /devices?q=cnsmffluxdb1',
+  'GET /devices?ip=192.168.129.200',
+  'GET /alerts?status=unconfirmed',
+  'GET /audit-logs?q=恢复机房',
+]
 
 async function reloadProjectData() {
   await reloadProjectStores({
@@ -111,6 +124,28 @@ async function exportJson(fileNamePrefix = 'qf-ai-dcim-project') {
   link.click()
   URL.revokeObjectURL(link.href)
   message.value = `已导出项目 JSON：${summary.roomCount} 个机房、${summary.rackCount} 个机柜、${summary.deviceCount} 台设备、${summary.alertCount} 条告警。${securitySummary}`
+}
+
+async function syncReadonlyAgentApiSnapshot() {
+  try {
+    const project = await exportProjectJson()
+    const response = await fetch('/api/agent/v1/snapshot', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(project),
+    })
+    const result = (await response.json()) as {
+      message?: string
+      counts?: { rooms: number; racks: number; devices: number; alerts: number; auditLogs: number }
+    }
+    if (!response.ok) {
+      throw new Error(result.message ?? '同步只读 Agent API 快照失败')
+    }
+
+    message.value = `只读 Agent API 快照已同步：${result.counts?.rooms ?? 0} 个机房、${result.counts?.racks ?? 0} 个机柜、${result.counts?.devices ?? 0} 台设备、${result.counts?.alerts ?? 0} 条告警。`
+  } catch (error) {
+    message.value = error instanceof Error ? error.message : '同步只读 Agent API 快照失败'
+  }
 }
 
 async function handleImport(event: Event) {
@@ -222,6 +257,7 @@ function clearReserved() {
     <div class="action-grid">
       <button type="button" @click="exportJson()">导出项目 JSON</button>
       <button type="button" @click="exportJson('qf-ai-dcim-backup')">创建本地备份</button>
+      <button type="button" @click="syncReadonlyAgentApiSnapshot">同步只读API快照</button>
       <label class="import-button">
         <input type="file" accept="application/json,.json" :disabled="importing" @change="handleImport" />
         导入项目 JSON
@@ -229,6 +265,25 @@ function clearReserved() {
       <button type="button" @click="restoreSample">恢复示例数据</button>
       <button type="button" class="danger" @click="clearReserved">清空当前数据</button>
     </div>
+
+    <section class="agent-api-panel" aria-label="只读 Agent API 配置">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Agent API</p>
+          <h3>只读 Agent API</h3>
+        </div>
+        <span>外部 AI Agent 可通过这些 HTTP 接口查询平台数据。当前版本只开放查询，不开放修改。</span>
+      </div>
+      <div class="api-base">
+        <strong>{{ agentApiBaseUrl }}</strong>
+        <small>同步快照后，外部工具访问该地址即可读取当前机房、机柜、资产、告警和审计数据。</small>
+      </div>
+      <div class="endpoint-list">
+        <code v-for="endpoint in readonlyApiEndpoints" :key="endpoint">
+          {{ agentApiBaseUrl }}{{ endpoint.replace('GET ', '') }}
+        </code>
+      </div>
+    </section>
 
     <section class="recycle-center">
       <div class="section-heading">
@@ -408,6 +463,15 @@ header span,
   background: rgba(8, 17, 31, 0.62);
 }
 
+.agent-api-panel {
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid rgba(16, 185, 129, 0.28);
+  border-radius: 8px;
+  background: rgba(6, 78, 59, 0.16);
+}
+
 .section-heading {
   display: flex;
   justify-content: space-between;
@@ -419,6 +483,42 @@ header span,
 .empty-recycle {
   color: var(--color-text-muted);
   font-size: 13px;
+}
+
+.api-base {
+  display: grid;
+  gap: 4px;
+  padding: 10px;
+  border: 1px solid rgba(16, 185, 129, 0.26);
+  border-radius: 8px;
+  background: rgba(8, 17, 31, 0.72);
+}
+
+.api-base strong {
+  color: #bbf7d0;
+  word-break: break-all;
+}
+
+.api-base small {
+  color: var(--color-text-muted);
+}
+
+.endpoint-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 8px;
+}
+
+.endpoint-list code {
+  display: block;
+  padding: 8px;
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  border-radius: 6px;
+  color: #bae6fd;
+  background: rgba(2, 6, 23, 0.66);
+  font-size: 12px;
+  white-space: normal;
+  word-break: break-all;
 }
 
 .recycle-list {

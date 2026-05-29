@@ -274,6 +274,23 @@ test("project restore refreshes current browser data without manual reload", asy
   await expect(page.getByText("机房、机柜、资产、告警和 AI 配置已刷新")).toBeVisible();
 });
 
+test("readonly agent api snapshot exposes current asset data", async ({ page }) => {
+  await page.goto("/#/settings");
+  await page.getByRole("button", { name: "数据管理" }).click();
+  await expect(page.getByLabel("只读 Agent API 配置")).toContainText("/api/agent/v1/devices");
+  await page.getByRole("button", { name: "同步只读API快照" }).click();
+  await expect(page.getByText("只读 Agent API 快照已同步")).toBeVisible();
+
+  const health = await page.request.get("/api/agent/v1/health");
+  expect(health.ok()).toBe(true);
+  await expect.poll(async () => (await health.json()).readonly).toBe(true);
+
+  const devices = await page.request.get("/api/agent/v1/devices?q=QF-SRV-001");
+  expect(devices.ok()).toBe(true);
+  const payload = (await devices.json()) as { data: Array<{ computerName?: string }> };
+  expect(payload.data.some((device) => device.computerName === "QF-SRV-001")).toBe(true);
+});
+
 test("project import shows a review preview before confirmation", async ({
   page,
 }) => {

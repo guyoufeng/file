@@ -3,8 +3,13 @@ import { computed, nextTick, onMounted, ref, watch } from "vue";
 import type { Alert, Device, Rack, Room } from "../../../types/domain";
 import type { AiNavigationTarget } from "../../../types/aiNavigation";
 import { answerWithAiAssistant } from "../../../services/ai/aiAssistant";
+import {
+  buildAiAgentEvents,
+  type AiAgentEvent,
+} from "../../../services/ai/agentEvents";
 import { writeAiAuditLog } from "../../../services/backend/ai";
 import { useAiStore } from "../../../stores/aiStore";
+import { qfDcimSkills } from "../../../services/ai/agentProfile";
 import AiAnswerCard from "./AiAnswerCard.vue";
 
 const props = defineProps<{
@@ -22,6 +27,10 @@ interface ChatAnswer {
   id: string;
   question: string;
   content: string;
+  toolName: string;
+  usedModel?: string;
+  fallbackReason?: string;
+  events: AiAgentEvent[];
   target?: AiNavigationTarget;
 }
 
@@ -77,6 +86,19 @@ async function ask() {
       id: `${Date.now()}-${answers.value.length}`,
       question: currentQuestion,
       content: result.answer,
+      toolName: result.toolName,
+      usedModel: result.usedModel,
+      fallbackReason: result.fallbackReason,
+      events: buildAiAgentEvents({
+        question: currentQuestion,
+        toolName: result.toolName,
+        answer: result.answer,
+        usedModel: result.usedModel,
+        fallbackReason: result.fallbackReason,
+        relatedDeviceId: result.relatedDeviceId,
+        relatedRackId: result.relatedRackId,
+        relatedRoomId: result.relatedRoomId,
+      }),
       target: buildNavigationTarget(result),
     });
     if (activeSession.value) {
@@ -180,9 +202,32 @@ function buildNavigationTarget(result: {
       <div v-if="answers.length === 0" class="welcome-message">
         <strong>我可以查询资产、虚拟服务器、机柜位置、当前告警和审计记录。</strong>
         <span>实时天气、新闻和联网搜索需要后续启用外网辅助 Skill。</span>
+        <div class="skill-row" aria-label="AI Skill 列表">
+          <small v-for="skill in qfDcimSkills" :key="skill.name">
+            {{ skill.name }}
+          </small>
+        </div>
       </div>
       <div v-for="answer in answers" :key="answer.id" class="answer-item">
         <div class="question-bubble">{{ answer.question }}</div>
+        <details class="agent-events">
+          <summary>
+            Agent 轨迹
+            <span>{{ answer.toolName }}</span>
+            <small v-if="answer.usedModel">模型：{{ answer.usedModel }}</small>
+            <small v-else-if="answer.fallbackReason">{{ answer.fallbackReason }}</small>
+          </summary>
+          <ol>
+            <li
+              v-for="event in answer.events"
+              :key="event.id"
+              :class="event.status"
+            >
+              <strong>{{ event.label }}</strong>
+              <span>{{ event.detail }}</span>
+            </li>
+          </ol>
+        </details>
         <AiAnswerCard :answer="answer.content" />
         <button
           v-if="answer.target"
@@ -275,6 +320,20 @@ function buildNavigationTarget(result: {
   font-size: 13px;
 }
 
+.skill-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.skill-row small {
+  padding: 3px 7px;
+  border: 1px solid rgba(56, 189, 248, 0.22);
+  border-radius: 999px;
+  color: #bae6fd;
+  background: rgba(14, 165, 233, 0.1);
+}
+
 .composer {
   flex: 0 0 auto;
   display: grid;
@@ -344,6 +403,52 @@ button:disabled {
   color: #e0f2fe;
   background: rgba(14, 165, 233, 0.12);
   line-height: 1.55;
+}
+
+.agent-events {
+  justify-self: start;
+  width: min(100%, 520px);
+  border: 1px solid rgba(56, 189, 248, 0.18);
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.62);
+}
+
+.agent-events summary {
+  min-height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  color: #dbeafe;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.agent-events summary span,
+.agent-events summary small {
+  color: var(--color-text-muted);
+}
+
+.agent-events ol {
+  display: grid;
+  gap: 5px;
+  margin: 0;
+  padding: 8px 10px 10px 28px;
+  border-top: 1px solid rgba(56, 189, 248, 0.12);
+}
+
+.agent-events li {
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.agent-events li.warning {
+  color: #fde68a;
+}
+
+.agent-events li strong {
+  margin-right: 6px;
+  color: #bae6fd;
 }
 
 .locate-button {

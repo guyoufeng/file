@@ -23,8 +23,12 @@ test("opens AI assistant and answers a read-only asset location question", async
   await promptInput.fill("IP 为 10.10.0.21 的服务器在哪里？");
   await promptInput.press("Enter");
 
-  await expect(drawer.getByText("QF-SRV-001")).toBeVisible();
-  await expect(drawer.getByText(/529数据中心/)).toBeVisible();
+  await expect(drawer.getByTestId("ai-message-list")).toContainText("QF-SRV-001");
+  await expect(drawer.getByTestId("ai-message-list")).toContainText("529数据中心");
+  await expect(drawer.getByText("Agent 轨迹")).toBeVisible();
+  await drawer.getByText("Agent 轨迹").click();
+  await expect(drawer.getByText("工具完成")).toBeVisible();
+  await expect(drawer.getByText("locate_device").first()).toBeVisible();
   await expect(drawer.getByText(/模型：qwen3.6-35b-a3b-awq/)).toHaveCount(0);
 
   await drawer.getByRole("button", { name: "定位到机柜/设备" }).click();

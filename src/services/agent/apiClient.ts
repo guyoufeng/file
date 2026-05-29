@@ -12,6 +12,13 @@ export interface AgentReadonlyContext {
   dataSource: string;
 }
 
+export interface AgentReadonlyHealth {
+  status: "ok" | string;
+  readonly: true;
+  generatedAt: string;
+  endpoints: string[];
+}
+
 type Fetcher = typeof fetch;
 
 async function readJsonResponse<T>(response: Response): Promise<T> {
@@ -57,4 +64,12 @@ export async function loadAgentReadonlyTools(
     await fetcher("/api/agent/v1/tools"),
   );
   return response.data;
+}
+
+export async function loadAgentReadonlyHealth(
+  fetcher: Fetcher = fetch,
+): Promise<AgentReadonlyHealth> {
+  return await readJsonResponse<AgentReadonlyHealth>(
+    await fetcher("/api/agent/v1/health"),
+  );
 }

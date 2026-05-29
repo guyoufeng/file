@@ -1,13 +1,32 @@
 <script setup lang="ts">
-import { ref } from "vue";
+import { computed, onMounted, ref } from "vue";
 import {
   getAiAgentCapabilitySettings,
   saveAiAgentCapabilitySettings,
   type AiAgentCapabilitySettings,
 } from "../../../services/ai/agentCapabilities";
+import type { AgentReadonlyTool } from "../../../services/agent/apiManifest";
+import {
+  loadAgentReadonlyHealth,
+  loadAgentReadonlyTools,
+  type AgentReadonlyHealth,
+} from "../../../services/agent/apiClient";
 
 const settings = ref<AiAgentCapabilitySettings>(getAiAgentCapabilitySettings());
 const message = ref("AI Agent 第一阶段默认只读，外网辅助默认关闭。");
+const apiHealth = ref<AgentReadonlyHealth | null>(null);
+const apiTools = ref<AgentReadonlyTool[]>([]);
+const apiLoading = ref(false);
+const apiMessage = ref("点击测试 API，确认只读 Agent API 和工具清单可用。");
+const apiBaseUrl = computed(() =>
+  typeof window === "undefined"
+    ? "/api/agent/v1"
+    : `${window.location.origin}/api/agent/v1`,
+);
+
+onMounted(() => {
+  void refreshAgentApi();
+});
 
 function save(settingsPatch: Partial<AiAgentCapabilitySettings>) {
   settings.value = saveAiAgentCapabilitySettings(settingsPatch);
@@ -20,6 +39,30 @@ function toggleExternalTools() {
 
 function toggleSkill(key: keyof AiAgentCapabilitySettings) {
   save({ [key]: !settings.value[key] });
+}
+
+async function refreshAgentApi() {
+  apiLoading.value = true;
+  try {
+    const [health, tools] = await Promise.all([
+      loadAgentReadonlyHealth(),
+      loadAgentReadonlyTools(),
+    ]);
+    apiHealth.value = health;
+    apiTools.value = tools;
+    apiMessage.value = `API 可用，快照时间：${new Date(health.generatedAt).toLocaleString("zh-CN", { hour12: false })}`;
+  } catch (error) {
+    apiHealth.value = null;
+    apiTools.value = [];
+    apiMessage.value =
+      error instanceof Error ? error.message : "只读 Agent API 检测失败";
+  } finally {
+    apiLoading.value = false;
+  }
+}
+
+function formatToolPath(tool: AgentReadonlyTool) {
+  return `/api/agent/v1${tool.path}`;
 }
 </script>
 
@@ -111,6 +154,36 @@ function toggleSkill(key: keyof AiAgentCapabilitySettings) {
         </label>
       </article>
     </div>
+
+    <section class="agent-api-panel">
+      <header>
+        <div>
+          <p class="eyebrow">Agent API</p>
+          <h3>只读 Agent API</h3>
+        </div>
+        <button type="button" @click="refreshAgentApi">
+          {{ apiLoading ? "测试中..." : "测试 API" }}
+        </button>
+      </header>
+
+      <div class="api-status">
+        <code>{{ apiBaseUrl }}</code>
+        <strong :class="{ healthy: apiHealth }">
+          {{ apiHealth ? "API 可用" : "待检测" }}
+        </strong>
+        <span>{{ apiMessage }}</span>
+      </div>
+
+      <div class="api-tool-list" aria-label="只读 Agent API 工具">
+        <article v-for="tool in apiTools" :key="tool.name">
+          <div>
+            <strong>{{ tool.name }}</strong>
+            <span>{{ tool.description }}</span>
+          </div>
+          <code>{{ tool.method }} {{ formatToolPath(tool) }}</code>
+        </article>
+      </div>
+    </section>
 
     <p class="message">{{ message }}</p>
   </section>
@@ -225,6 +298,76 @@ article.disabled {
 
 .message {
   margin: 0;
+}
+
+.agent-api-panel {
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid rgba(56, 189, 248, 0.22);
+  border-radius: 8px;
+  background: rgba(2, 6, 23, 0.46);
+}
+
+.agent-api-panel header button {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid rgba(14, 165, 233, 0.56);
+  border-radius: 8px;
+  color: var(--color-text);
+  background: rgba(14, 165, 233, 0.16);
+  cursor: pointer;
+}
+
+.api-status {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 12px;
+  align-items: center;
+}
+
+.api-status code {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: #bfdbfe;
+}
+
+.api-status strong {
+  padding: 4px 8px;
+  border: 1px solid rgba(148, 163, 184, 0.32);
+  border-radius: 999px;
+  color: var(--color-text-muted);
+  background: rgba(15, 23, 42, 0.82);
+  font-size: 12px;
+}
+
+.api-status strong.healthy {
+  border-color: rgba(16, 185, 129, 0.48);
+  color: #bbf7d0;
+  background: rgba(16, 185, 129, 0.12);
+}
+
+.api-status span {
+  grid-column: 1 / -1;
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.api-tool-list {
+  display: grid;
+  gap: 8px;
+}
+
+.api-tool-list article {
+  min-height: 0;
+  align-items: flex-start;
+}
+
+.api-tool-list code {
+  flex: 0 0 auto;
+  color: #bae6fd;
+  white-space: nowrap;
 }
 
 @media (max-width: 920px) {

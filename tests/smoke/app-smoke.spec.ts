@@ -259,6 +259,20 @@ test("alert locate opens rack u view and highlights the related device", async (
   await expect(page.getByTestId("rack-u-overview")).toBeVisible();
 });
 
+test("AI Agent settings shows readonly Agent API status and tools", async ({
+  page,
+}) => {
+  await page.goto("/#/settings");
+
+  await page.getByRole("button", { name: "AI Agent" }).click();
+  await expect(page.getByRole("heading", { name: "只读 Agent API" })).toBeVisible();
+  await page.getByRole("button", { name: "测试 API" }).click();
+
+  await expect(page.getByText("API 可用", { exact: true })).toBeVisible();
+  await expect(page.getByText("agent_search_devices")).toBeVisible();
+  await expect(page.getByText("/api/agent/v1/devices")).toBeVisible();
+});
+
 test("project restore refreshes current browser data without manual reload", async ({
   page,
 }) => {

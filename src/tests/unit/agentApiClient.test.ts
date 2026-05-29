@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  loadAgentReadonlyHealth,
   loadAgentReadonlyTools,
   loadAgentReadonlyContext,
   syncAgentReadonlySnapshot,
@@ -75,5 +76,23 @@ describe("agent api client", () => {
 
     expect(fetcher).toHaveBeenCalledWith("/api/agent/v1/tools");
     expect(tools[0].name).toBe("agent_search_devices");
+  });
+
+  it("loads readonly agent api health", async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({
+        status: "ok",
+        readonly: true,
+        generatedAt: "2026-05-29T06:00:00.000Z",
+        endpoints: ["/api/agent/v1/topology", "/api/agent/v1/devices"],
+      }),
+    });
+
+    const health = await loadAgentReadonlyHealth(fetcher);
+
+    expect(fetcher).toHaveBeenCalledWith("/api/agent/v1/health");
+    expect(health.readonly).toBe(true);
+    expect(health.endpoints).toContain("/api/agent/v1/devices");
   });
 });

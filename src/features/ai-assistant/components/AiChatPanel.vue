@@ -18,6 +18,16 @@ import {
 } from "../../../services/agent/apiClient";
 import { useAiStore } from "../../../stores/aiStore";
 import { qfDcimSkills } from "../../../services/ai/agentProfile";
+import {
+  addAgentMemory,
+  clearAgentMemories,
+  formatAgentMemoryPrompt,
+  getAgentMemories,
+} from "../../../services/ai/agentMemory";
+import {
+  addCustomAgentSkill,
+  formatCustomAgentSkillPrompt,
+} from "../../../services/ai/agentCustomSkills";
 import AiAnswerCard from "./AiAnswerCard.vue";
 
 const props = defineProps<{
@@ -41,6 +51,13 @@ interface ChatAnswer {
   dataSource: string;
   events: AiAgentEvent[];
   target?: AiNavigationTarget;
+  attachments?: ChatAttachment[];
+}
+
+interface ChatAttachment {
+  name: string;
+  type: string;
+  size: number;
 }
 
 interface ChatSession {
@@ -58,6 +75,9 @@ const sessions = ref<ChatSession[]>([]);
 const activeSessionId = ref("");
 const asking = ref(false);
 const messageListRef = ref<HTMLElement | null>(null);
+const imageInputRef = ref<HTMLInputElement | null>(null);
+const fileInputRef = ref<HTMLInputElement | null>(null);
+const pendingAttachments = ref<ChatAttachment[]>([]);
 const activeSession = computed(() =>
   sessions.value.find((session) => session.id === activeSessionId.value),
 );
@@ -83,6 +103,7 @@ async function ask() {
   asking.value = true;
   const currentQuestion = question.value;
   const startedAt = Date.now();
+  const currentAttachments = [...pendingAttachments.value];
   try {
     const commandAnswer = await answerLocalAgentCommand(currentQuestion);
     if (commandAnswer) {
@@ -98,9 +119,11 @@ async function ask() {
           answer: commandAnswer.answer,
           dataSource: "只读 Agent API 工具清单",
         }),
+        attachments: currentAttachments,
       });
       updateActiveSession(currentQuestion);
       question.value = "";
+      pendingAttachments.value = [];
       await scrollToLatestMessage();
       recordAiAgentToolCall({
         toolName: commandAnswer.toolName,
@@ -129,6 +152,8 @@ async function ask() {
       alerts: agentContext.alerts,
       auditLogs: agentContext.auditLogs,
       dataSource: agentContext.dataSource,
+      memories: getAgentMemories().map((memory) => memory.content),
+      attachments: currentAttachments,
     });
     answers.value.push({
       id: `${Date.now()}-${answers.value.length}`,
@@ -140,9 +165,11 @@ async function ask() {
       dataSource: agentContext.dataSource,
       events: result.events,
       target: buildNavigationTarget(result),
+      attachments: currentAttachments,
     });
     updateActiveSession(currentQuestion);
     question.value = "";
+    pendingAttachments.value = [];
     await scrollToLatestMessage();
     recordAiAgentToolCall({
       toolName: result.toolName,
@@ -173,10 +200,82 @@ async function ask() {
 }
 
 async function answerLocalAgentCommand(questionText: string) {
-  if (!questionText.trim().startsWith("/")) return null;
+  const trimmed = questionText.trim();
+  if (!trimmed.startsWith("/")) return null;
+
+  if (trimmed.startsWith("/remember ")) {
+    const memory = addAgentMemory(trimmed.replace(/^\/remember\s+/, ""));
+    return {
+      toolName: "agent_command" as const,
+      answer: `已写入长期记忆：${memory.content}`,
+    };
+  }
+
+  if (trimmed === "/memory") {
+    return {
+      toolName: "agent_command" as const,
+      answer: formatAgentMemoryPrompt(),
+    };
+  }
+
+  if (trimmed === "/clear-memory") {
+    clearAgentMemories();
+    return {
+      toolName: "agent_command" as const,
+      answer: "已清空 AI Agent 长期记忆。",
+    };
+  }
+
+  if (trimmed.startsWith("/skill add ")) {
+    try {
+      const skill = addCustomAgentSkill(trimmed.replace(/^\/skill\s+add\s+/, ""));
+      return {
+        toolName: "agent_command" as const,
+        answer: `已新增自定义 Skill：${skill.name}\n${skill.description}`,
+      };
+    } catch (error) {
+      return {
+        toolName: "agent_command" as const,
+        answer: error instanceof Error ? error.message : "新增 Skill 失败",
+      };
+    }
+  }
+
+  if (trimmed === "/custom-skills") {
+    return {
+      toolName: "agent_command" as const,
+      answer: formatCustomAgentSkillPrompt(),
+    };
+  }
 
   const tools = await loadAgentReadonlyTools().catch(() => []);
   return answerAiAssistantCommand(questionText, tools);
+}
+
+function pickImages() {
+  imageInputRef.value?.click();
+}
+
+function pickFiles() {
+  fileInputRef.value?.click();
+}
+
+function handleAttachmentChange(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const files = Array.from(input.files ?? []);
+  pendingAttachments.value = [
+    ...pendingAttachments.value,
+    ...files.map((file) => ({
+      name: file.name,
+      type: file.type || "未知类型",
+      size: file.size,
+    })),
+  ].slice(0, 8);
+  input.value = "";
+}
+
+function removeAttachment(index: number) {
+  pendingAttachments.value.splice(index, 1);
 }
 
 function updateActiveSession(titleSeed: string) {
@@ -291,6 +390,11 @@ function buildNavigationTarget(result: {
       </div>
       <div v-for="answer in answers" :key="answer.id" class="answer-item">
         <div class="question-bubble">{{ answer.question }}</div>
+        <div v-if="answer.attachments?.length" class="attachment-list">
+          <small v-for="item in answer.attachments" :key="item.name">
+            {{ item.name }}
+          </small>
+        </div>
         <details class="agent-events">
           <summary>
             Agent 轨迹
@@ -322,6 +426,12 @@ function buildNavigationTarget(result: {
       </div>
     </div>
     <form class="composer" data-testid="ai-composer" @submit.prevent="ask">
+      <div v-if="pendingAttachments.length" class="attachment-list pending">
+        <small v-for="(item, index) in pendingAttachments" :key="`${item.name}-${index}`">
+          {{ item.name }}
+          <button type="button" aria-label="移除附件" @click="removeAttachment(index)">×</button>
+        </small>
+      </div>
       <textarea
         v-model="question"
         rows="2"
@@ -329,14 +439,29 @@ function buildNavigationTarget(result: {
         @keydown="handleComposerKeydown"
       />
       <div class="composer-actions">
-        <button type="button" class="tool-button" aria-label="添加图片">
+        <input
+          ref="imageInputRef"
+          class="hidden-input"
+          type="file"
+          accept="image/*"
+          multiple
+          @change="handleAttachmentChange"
+        />
+        <input
+          ref="fileInputRef"
+          class="hidden-input"
+          type="file"
+          multiple
+          @change="handleAttachmentChange"
+        />
+        <button type="button" class="tool-button" aria-label="添加图片" @click="pickImages">
           图片
         </button>
-        <button type="button" class="tool-button" aria-label="添加附件">
+        <button type="button" class="tool-button" aria-label="添加附件" @click="pickFiles">
           附件
         </button>
         <button type="submit" class="send-button" :disabled="asking">
-          {{ asking ? "分析中..." : "发送查询" }}
+          {{ asking ? "分析中..." : "发送" }}
         </button>
       </div>
     </form>
@@ -441,6 +566,42 @@ textarea {
   display: flex;
   align-items: center;
   gap: 8px;
+}
+
+.hidden-input {
+  display: none;
+}
+
+.attachment-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.attachment-list small {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  max-width: 180px;
+  padding: 4px 7px;
+  border: 1px solid rgba(56, 189, 248, 0.22);
+  border-radius: 999px;
+  color: #bfdbfe;
+  background: rgba(14, 165, 233, 0.1);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attachment-list.pending {
+  padding-bottom: 2px;
+}
+
+.attachment-list button {
+  border: 0;
+  color: var(--color-text-muted);
+  background: transparent;
+  cursor: pointer;
 }
 
 .tool-button,

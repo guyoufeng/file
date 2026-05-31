@@ -75,3 +75,33 @@ test("AI assistant lists readonly Agent API tools with slash command", async ({
     "GET /api/agent/v1/devices",
   );
 });
+
+test("AI assistant handles general chat and user memory without platform summary fallback", async ({
+  page,
+}) => {
+  await page.goto("/#/rack-overview");
+
+  await page.getByRole("button", { name: "打开 AI助手" }).click();
+  const drawer = page.getByTestId("ai-floating-window");
+  const promptInput = page.getByPlaceholder(
+    "输入问题，按 Enter 发送，Shift+Enter 换行",
+  );
+
+  await promptInput.fill("/remember 回答日常问题时优先结合数据中心运维场景。");
+  await promptInput.press("Enter");
+  await expect(drawer.getByTestId("ai-message-list")).toContainText("已写入长期记忆");
+
+  await promptInput.fill("/memory");
+  await promptInput.press("Enter");
+  await expect(drawer.getByTestId("ai-message-list")).toContainText("数据中心运维场景");
+
+  await promptInput.fill("/skill add 报警维修建议: 结合硬件告警给出排查步骤");
+  await promptInput.press("Enter");
+  await expect(drawer.getByTestId("ai-message-list")).toContainText("已新增自定义 Skill");
+
+  await promptInput.fill("你好，请问你能帮忙做哪些事情");
+  await promptInput.press("Enter");
+  await expect(drawer.getByTestId("ai-message-list")).not.toContainText(
+    "当前平台已纳管 5 个机房",
+  );
+});

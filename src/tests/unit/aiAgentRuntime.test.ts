@@ -100,4 +100,30 @@ describe("QF AI agent runtime", () => {
     expect(result.plan.planner).toBe("deterministic");
     expect(chat).not.toHaveBeenCalled();
   });
+
+  it("answers general questions directly with the selected model instead of platform summary", async () => {
+    const { runQfAiAgent } = await import("../../services/ai/agentRuntime");
+    chat.mockResolvedValueOnce("你好，我可以帮你查询平台，也可以回答通用运维问题。");
+
+    const result = await runQfAiAgent({
+      question: "你好，请问你能帮忙做哪些事情",
+      configs: [config],
+      rooms: sampleProject.rooms,
+      racks: sampleProject.racks,
+      devices: sampleProject.devices,
+      alerts: sampleProject.alerts,
+      dataSource: "只读 Agent API",
+      memories: ["用户希望我优先围绕数据中心运维辅助工作回答。"],
+    });
+
+    expect(result.toolName).toBe("general_chat");
+    expect(result.answer).toContain("通用运维问题");
+    expect(result.answer).not.toContain("当前平台已纳管");
+    expect(result.plan).toMatchObject({
+      toolName: "general_chat",
+      planner: "model",
+    });
+    expect(chat).toHaveBeenCalledTimes(1);
+    expect(chat.mock.calls[0][1].at(-1).content).toContain("用户希望我优先围绕数据中心运维辅助工作回答");
+  });
 });

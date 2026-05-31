@@ -25,6 +25,8 @@ import {
   isQfAgentToolName,
   qfAgentTools,
 } from "./agentToolRegistry";
+import { formatAgentMemoryPrompt } from "./agentMemory";
+import { formatCustomAgentSkillPrompt } from "./agentCustomSkills";
 
 export interface QfAgentRequest {
   question: string;
@@ -37,6 +39,12 @@ export interface QfAgentRequest {
   auditLogs?: AuditLog[];
   capabilities?: AiAgentCapabilitySettings;
   dataSource: string;
+  memories?: string[];
+  attachments?: Array<{
+    name: string;
+    type: string;
+    size: number;
+  }>;
 }
 
 export interface QfAgentPlan {
@@ -88,6 +96,51 @@ function buildSummaryPrompt(question: string, toolResult: AiToolResult) {
   ].join("\n");
 }
 
+function isPlatformQuestion(question: string, rooms: Room[], racks: Rack[]) {
+  const normalized = question.toLowerCase();
+  if (/\b\d{1,3}(?:\.\d{1,3}){3}\b/.test(question)) return true;
+  if (/机房|机柜|服务器|设备|资产|告警|报警|异常|故障|责任人|用途|业务ip|带外ip|u位|位置|在哪|计算机名|固定资产|编号|sn|SN|序列号|维保|硬件配置|操作系统|负责人|负责|查询|查下|查看|看下|搜索|虚拟机|虚拟服务器|云主机|宿主|审计|操作记录|历史记录|导入记录|查询记录|接口|端口|接线|容量|巡检|维修建议/.test(question)) {
+    return true;
+  }
+  if (rooms.some((room) => normalized.includes(room.name.toLowerCase()))) return true;
+  if (racks.some((rack) => normalized.includes(rack.name.toLowerCase()))) return true;
+  return false;
+}
+
+function formatAttachmentPrompt(attachments: QfAgentRequest["attachments"]) {
+  if (!attachments || attachments.length === 0) return "附件：无。";
+  return [
+    "附件：",
+    ...attachments.map(
+      (item, index) =>
+        `${index + 1}. ${item.name}（${item.type || "未知类型"}，${Math.ceil(item.size / 1024)} KB）`,
+    ),
+    "当前第一版只记录附件元数据，后续会接入文件解析和知识库检索。",
+  ].join("\n");
+}
+
+function buildGeneralAgentPrompt(
+  question: string,
+  capabilities: AiAgentCapabilitySettings,
+  memories?: string[],
+  attachments?: QfAgentRequest["attachments"],
+) {
+  return [
+    `用户问题：${question}`,
+    "",
+    "你是嵌入在泉峰AI数据中心管理平台内的智能运维 Agent。",
+    "如果问题不需要查询平台事实数据，可以直接使用当前大模型能力回答。",
+    "如果回答涉及平台资产、IP、责任人、机柜位置、告警等事实，必须说明需要调用平台工具，不能编造。",
+    "回答要自然、专业，优先服务数据中心日常运维工作。",
+    "",
+    formatAgentMemoryPrompt(memories),
+    "",
+    formatAttachmentPrompt(attachments),
+    "",
+    buildCapabilityPrompt(capabilities),
+  ].join("\n");
+}
+
 async function planWithModel(
   question: string,
   config: AiModelConfig | undefined,
@@ -98,6 +151,7 @@ async function planWithModel(
   const raw = await getProviderAdapter(config).chat(config, [
     { role: "system", content: qfDcimAgentRole },
     { role: "system", content: buildSkillPrompt() },
+    { role: "system", content: formatCustomAgentSkillPrompt() },
     { role: "system", content: buildCapabilityPrompt(capabilities) },
     { role: "user", content: buildPlannerPrompt(question) },
   ]);
@@ -125,6 +179,71 @@ export async function runQfAiAgent(request: QfAgentRequest): Promise<QfAgentRunR
   const capabilities = request.capabilities ?? getAiAgentCapabilitySettings();
   const virtualServers = request.virtualServers ?? loadVirtualServers();
   const auditLogs = request.auditLogs ?? getLocalAiAuditLogs();
+
+  if (!isPlatformQuestion(request.question, request.rooms, request.racks)) {
+    const plan: QfAgentPlan = {
+      toolName: "general_chat",
+      reason: "用户问题不需要查询平台事实数据，直接交给当前模型回答。",
+      planner: config ? "model" : "deterministic",
+    };
+    const fallbackAnswer =
+      "我可以回答通用问题，也可以调用平台工具查询资产、机柜、告警、审计和虚拟服务器信息。当前未配置启用模型，所以通用回答能力受限。";
+
+    if (!config) {
+      return {
+        toolName: "general_chat",
+        answer: fallbackAnswer,
+        fallbackReason: "未配置启用模型",
+        plan,
+        events: buildAiAgentEvents({
+          question: request.question,
+          toolName: "general_chat",
+          answer: fallbackAnswer,
+          fallbackReason: "未配置启用模型",
+          dataSource: "当前模型",
+        }),
+      };
+    }
+
+    try {
+      const answer = await getProviderAdapter(config).chat(config, [
+        { role: "system", content: qfDcimAgentRole },
+        { role: "system", content: buildSkillPrompt() },
+        { role: "system", content: formatCustomAgentSkillPrompt() },
+        { role: "system", content: buildCapabilityPrompt(capabilities) },
+        { role: "system", content: formatAgentMemoryPrompt(request.memories) },
+        { role: "user", content: buildGeneralAgentPrompt(request.question, capabilities, request.memories, request.attachments) },
+      ]);
+      return {
+        toolName: "general_chat",
+        answer: answer.trim() || fallbackAnswer,
+        usedModel: config.model,
+        plan,
+        events: buildAiAgentEvents({
+          question: request.question,
+          toolName: "general_chat",
+          answer: answer.trim() || fallbackAnswer,
+          usedModel: config.model,
+          dataSource: "当前模型",
+        }),
+      };
+    } catch (error) {
+      const fallbackReason = error instanceof Error ? error.message : "模型调用失败";
+      return {
+        toolName: "general_chat",
+        answer: fallbackAnswer,
+        fallbackReason,
+        plan,
+        events: buildAiAgentEvents({
+          question: request.question,
+          toolName: "general_chat",
+          answer: fallbackAnswer,
+          fallbackReason,
+          dataSource: "当前模型",
+        }),
+      };
+    }
+  }
 
   const toolResult = runDeterministicAiQuery(
     request.question,
@@ -180,6 +299,7 @@ export async function runQfAiAgent(request: QfAgentRequest): Promise<QfAgentRunR
     const answer = await getProviderAdapter(config).chat(config, [
       { role: "system", content: qfDcimAgentRole },
       { role: "system", content: buildSkillPrompt() },
+      { role: "system", content: formatCustomAgentSkillPrompt() },
       { role: "system", content: buildCapabilityPrompt(capabilities) },
       { role: "user", content: buildSummaryPrompt(request.question, toolResult) },
     ]);

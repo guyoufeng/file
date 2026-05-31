@@ -7,6 +7,20 @@ import {
 } from '../services/backend/settings'
 import { getProviderAdapter } from '../services/ai/aiGateway'
 
+const defaultAiModelConfig: AiModelConfig = {
+  id: 'ai-config-gpustack-default',
+  provider: 'gpustack',
+  name: 'GPUStack qwen3.6-35b-a3b-awq',
+  baseUrl: 'http://192.168.127.8/v1',
+  model: 'qwen3.6-35b-a3b-awq',
+  apiKeyRef: import.meta.env.VITE_QF_DEFAULT_AI_KEY ?? '',
+  enabled: true,
+}
+
+function ensureDefaultConfig(configs: AiModelConfig[]) {
+  return configs.length > 0 ? configs : [{ ...defaultAiModelConfig }]
+}
+
 export const useAiStore = defineStore('ai', {
   state: () => ({
     configs: [] as AiModelConfig[],
@@ -19,9 +33,10 @@ export const useAiStore = defineStore('ai', {
       this.loading = true
       this.error = null
       try {
-        this.configs = await getAiModelConfigs()
+        this.configs = ensureDefaultConfig(await getAiModelConfigs())
       } catch (error) {
         this.error = error instanceof Error ? error.message : '加载 AI 模型配置失败'
+        this.configs = ensureDefaultConfig([])
       } finally {
         this.loading = false
       }

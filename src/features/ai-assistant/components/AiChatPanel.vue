@@ -4,11 +4,11 @@ import type { Alert, Device, Rack, Room } from "../../../types/domain";
 import type { AiNavigationTarget } from "../../../types/aiNavigation";
 import { runQfAiAgent } from "../../../services/ai/agentRuntime";
 import { recordAiAgentToolCall } from "../../../services/ai/agentAudit";
-import { answerAiAssistantCommand } from "../../../services/ai/agentCommands";
 import {
   buildAiAgentEvents,
   type AiAgentEvent,
 } from "../../../services/ai/agentEvents";
+import { answerAgentControlMessage } from "../../../services/ai/agentNaturalLanguageCommands";
 import { writeAiAuditLog } from "../../../services/backend/ai";
 import { exportProjectJson } from "../../../services/backend/data";
 import {
@@ -18,16 +18,7 @@ import {
 } from "../../../services/agent/apiClient";
 import { useAiStore } from "../../../stores/aiStore";
 import { qfDcimSkills } from "../../../services/ai/agentProfile";
-import {
-  addAgentMemory,
-  clearAgentMemories,
-  formatAgentMemoryPrompt,
-  getAgentMemories,
-} from "../../../services/ai/agentMemory";
-import {
-  addCustomAgentSkill,
-  formatCustomAgentSkillPrompt,
-} from "../../../services/ai/agentCustomSkills";
+import { getAgentMemories } from "../../../services/ai/agentMemory";
 import AiAnswerCard from "./AiAnswerCard.vue";
 
 const props = defineProps<{
@@ -200,56 +191,7 @@ async function ask() {
 }
 
 async function answerLocalAgentCommand(questionText: string) {
-  const trimmed = questionText.trim();
-  if (!trimmed.startsWith("/")) return null;
-
-  if (trimmed.startsWith("/remember ")) {
-    const memory = addAgentMemory(trimmed.replace(/^\/remember\s+/, ""));
-    return {
-      toolName: "agent_command" as const,
-      answer: `已写入长期记忆：${memory.content}`,
-    };
-  }
-
-  if (trimmed === "/memory") {
-    return {
-      toolName: "agent_command" as const,
-      answer: formatAgentMemoryPrompt(),
-    };
-  }
-
-  if (trimmed === "/clear-memory") {
-    clearAgentMemories();
-    return {
-      toolName: "agent_command" as const,
-      answer: "已清空 AI Agent 长期记忆。",
-    };
-  }
-
-  if (trimmed.startsWith("/skill add ")) {
-    try {
-      const skill = addCustomAgentSkill(trimmed.replace(/^\/skill\s+add\s+/, ""));
-      return {
-        toolName: "agent_command" as const,
-        answer: `已新增自定义 Skill：${skill.name}\n${skill.description}`,
-      };
-    } catch (error) {
-      return {
-        toolName: "agent_command" as const,
-        answer: error instanceof Error ? error.message : "新增 Skill 失败",
-      };
-    }
-  }
-
-  if (trimmed === "/custom-skills") {
-    return {
-      toolName: "agent_command" as const,
-      answer: formatCustomAgentSkillPrompt(),
-    };
-  }
-
-  const tools = await loadAgentReadonlyTools().catch(() => []);
-  return answerAiAssistantCommand(questionText, tools);
+  return answerAgentControlMessage(questionText, loadAgentReadonlyTools);
 }
 
 function pickImages() {
@@ -400,8 +342,7 @@ function buildNavigationTarget(result: {
             Agent 轨迹
             <span>{{ answer.toolName }}</span>
             <small>{{ answer.dataSource }}</small>
-            <small v-if="answer.usedModel">模型：{{ answer.usedModel }}</small>
-            <small v-else-if="answer.fallbackReason">{{ answer.fallbackReason }}</small>
+            <small v-if="answer.fallbackReason">{{ answer.fallbackReason }}</small>
           </summary>
           <ol>
             <li

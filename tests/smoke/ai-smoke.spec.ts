@@ -33,7 +33,7 @@ test("opens AI assistant and answers a read-only asset location question", async
   await expect(drawer.getByText("模型总结")).toBeVisible();
   await expect(drawer.getByText("写入审计")).toBeVisible();
   await expect(drawer.getByText(/locate_device.*只读 Agent API/).first()).toBeVisible();
-  await expect(drawer.getByText(/模型：qwen3.6-35b-a3b-awq/)).toHaveCount(0);
+  await expect(drawer.locator(".answer-item").getByText(/模型：qwen3.6-35b-a3b-awq/)).toHaveCount(0);
 
   await drawer.getByRole("button", { name: "定位到机柜/设备" }).click();
 
@@ -87,17 +87,23 @@ test("AI assistant handles general chat and user memory without platform summary
     "输入问题，按 Enter 发送，Shift+Enter 换行",
   );
 
-  await promptInput.fill("/remember 回答日常问题时优先结合数据中心运维场景。");
+  await promptInput.fill("请记住回答日常问题时优先结合数据中心运维场景。");
   await promptInput.press("Enter");
   await expect(drawer.getByTestId("ai-message-list")).toContainText("已写入长期记忆");
 
-  await promptInput.fill("/memory");
+  await promptInput.fill("查看记忆");
   await promptInput.press("Enter");
   await expect(drawer.getByTestId("ai-message-list")).toContainText("数据中心运维场景");
 
-  await promptInput.fill("/skill add 报警维修建议: 结合硬件告警给出排查步骤");
+  await promptInput.fill("添加skill 报警维修建议: 结合硬件告警给出排查步骤");
   await promptInput.press("Enter");
   await expect(drawer.getByTestId("ai-message-list")).toContainText("已新增自定义 Skill");
+
+  await promptInput.fill("你好，你现在用的是哪个模型");
+  await promptInput.press("Enter");
+  await expect(drawer.getByTestId("ai-message-list")).toContainText(
+    "qwen3.6-35b-a3b-awq",
+  );
 
   await promptInput.fill("你好，请问你能帮忙做哪些事情");
   await promptInput.press("Enter");

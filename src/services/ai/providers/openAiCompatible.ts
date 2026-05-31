@@ -43,10 +43,12 @@ export const openAiCompatibleAdapter: AiProviderAdapter = {
   },
   async chat(config, messages: AiMessageInput[]) {
     try {
-      return await invokeCommand<string>("chat_with_ai_model", {
+      const answer = await invokeCommand<string>("chat_with_ai_model", {
         input: config,
         messages,
       });
+      if (answer?.trim()) return answer;
+      throw new Error("模型返回为空");
     } catch {
       try {
         const response = await fetch("/__ai_proxy/chat", {
@@ -61,24 +63,16 @@ export const openAiCompatibleAdapter: AiProviderAdapter = {
           }),
         });
         const data = await response.json();
-        return (
-          data.choices?.[0]?.message?.content ?? data.message?.content ?? ""
+        if (!response.ok) {
+          throw new Error(data.message || data.error?.message || "模型代理请求失败");
+        }
+        const answer = data.choices?.[0]?.message?.content ?? data.message?.content ?? "";
+        if (answer.trim()) return answer;
+        throw new Error(data.message || data.error?.message || "模型返回为空");
+      } catch (proxyError) {
+        throw new Error(
+          proxyError instanceof Error ? proxyError.message : "模型代理请求失败",
         );
-      } catch {
-        const response = await fetch(
-          `${config.baseUrl.replace(/\/$/, "")}/chat/completions`,
-          {
-            method: "POST",
-            headers: headers(config),
-            body: JSON.stringify({
-              model: config.model,
-              messages,
-              temperature: 0.2,
-            }),
-          },
-        );
-        const data = await response.json();
-        return data.choices?.[0]?.message?.content ?? "";
       }
     }
   },

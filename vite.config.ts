@@ -373,6 +373,14 @@ function aiProxyPlugin() {
             }),
           });
           const data = await response.json();
+          if (!response.ok) {
+            sendJson(
+              res,
+              { message: data.error?.message || data.message || "模型上游请求失败" },
+              response.status,
+            );
+            return;
+          }
           res.setHeader("Content-Type", "application/json");
           res.end(JSON.stringify(data));
         } catch (error) {

@@ -14,7 +14,7 @@ import { getLocalAiAuditLogs } from "../backend/ai";
 import { getProviderAdapter } from "./aiGateway";
 import { runDeterministicAiQuery, type AiToolResult, type AiToolName } from "./aiTools";
 import { buildAiAgentEvents, type AiAgentEvent } from "./agentEvents";
-import { buildSkillPrompt, qfDcimAgentRole } from "./agentProfile";
+import { buildSkillPrompt } from "./agentProfile";
 import {
   buildCapabilityPrompt,
   getAiAgentCapabilitySettings,
@@ -27,6 +27,9 @@ import {
 } from "./agentToolRegistry";
 import { formatAgentMemoryPrompt } from "./agentMemory";
 import { formatCustomAgentSkillPrompt } from "./agentCustomSkills";
+import { getAgentRoleDefinition } from "./agentIdentity";
+import { formatCredentialCatalogForAgent } from "./agentCredentials";
+import { formatKnowledgePrompt } from "./agentKnowledgeBase";
 
 export interface QfAgentRequest {
   question: string;
@@ -93,18 +96,54 @@ function buildSummaryPrompt(question: string, toolResult: AiToolResult) {
     toolResult.answer,
     "",
     "请基于工具结果用专业运维口吻回答。不能添加工具结果中不存在的资产、IP、责任人、位置或告警事实。",
+    "",
+    formatKnowledgePrompt(question),
   ].join("\n");
+}
+
+function isGeneralMaintenanceAdviceQuestion(question: string) {
+  if (/\b\d{1,3}(?:\.\d{1,3}){3}\b/.test(question)) return false;
+  if (/机柜|u位|位置|在哪|责任人|用途|资产编号|固定资产|sn|SN|序列号|带外ip|业务ip|计算机名/.test(question)) {
+    return false;
+  }
+  return /怎么|如何|维修|处理|排查|注意什么|注意事项|阈值|多少合适|建议|方案|步骤|原因|原理|解释/.test(question);
 }
 
 function isPlatformQuestion(question: string, rooms: Room[], racks: Rack[]) {
   const normalized = question.toLowerCase();
   if (/\b\d{1,3}(?:\.\d{1,3}){3}\b/.test(question)) return true;
+  if (isGeneralMaintenanceAdviceQuestion(question)) return false;
   if (/机房|机柜|服务器|设备|资产|告警|报警|异常|故障|责任人|用途|业务ip|带外ip|u位|位置|在哪|计算机名|固定资产|编号|sn|SN|序列号|维保|硬件配置|操作系统|负责人|负责|查询|查下|查看|看下|搜索|虚拟机|虚拟服务器|云主机|宿主|审计|操作记录|历史记录|导入记录|查询记录|接口|端口|接线|容量|巡检|维修建议/.test(question)) {
     return true;
   }
   if (rooms.some((room) => normalized.includes(room.name.toLowerCase()))) return true;
   if (racks.some((rack) => normalized.includes(rack.name.toLowerCase()))) return true;
   return false;
+}
+
+function isModelIdentityQuestion(question: string) {
+  return /哪个模型|什么模型|当前模型|使用的模型|用的模型|模型名称|大模型|qwen|deepseek|gemini|gpustack/i.test(
+    question,
+  );
+}
+
+function buildModelIdentityAnswer(config: AiModelConfig | undefined) {
+  if (!config) return "当前没有启用 AI 模型配置，所以只能使用平台本地只读工具回答资产、机柜、告警等问题。";
+  return [
+    `当前启用模型：${config.model}`,
+    `配置名称：${config.name}`,
+    `供应商/协议：${config.provider}`,
+    `Base URL：${config.baseUrl}`,
+    "说明：平台事实类问题会先调用只读工具查询真实数据，通用运维问题会交给当前模型回答。",
+  ].join("\n");
+}
+
+function buildModelFailureAnswer(config: AiModelConfig, reason: string) {
+  return [
+    `当前已选择模型 ${config.model}，但本次模型调用失败：${reason}`,
+    "平台事实类问题仍可使用本地只读工具返回真实数据；通用问题需要模型服务可用后才能给出完整回答。",
+    "请检查 AI 模型配置、GPUStack 服务地址、API Key、模型名称和网络连通性。",
+  ].join("\n");
 }
 
 function formatAttachmentPrompt(attachments: QfAgentRequest["attachments"]) {
@@ -135,6 +174,10 @@ function buildGeneralAgentPrompt(
     "",
     formatAgentMemoryPrompt(memories),
     "",
+    formatKnowledgePrompt(question),
+    "",
+    formatCredentialCatalogForAgent(),
+    "",
     formatAttachmentPrompt(attachments),
     "",
     buildCapabilityPrompt(capabilities),
@@ -149,9 +192,10 @@ async function planWithModel(
   if (!config) return null;
 
   const raw = await getProviderAdapter(config).chat(config, [
-    { role: "system", content: qfDcimAgentRole },
+    { role: "system", content: getAgentRoleDefinition() },
     { role: "system", content: buildSkillPrompt() },
     { role: "system", content: formatCustomAgentSkillPrompt() },
+    { role: "system", content: formatCredentialCatalogForAgent() },
     { role: "system", content: buildCapabilityPrompt(capabilities) },
     { role: "user", content: buildPlannerPrompt(question) },
   ]);
@@ -180,6 +224,30 @@ export async function runQfAiAgent(request: QfAgentRequest): Promise<QfAgentRunR
   const virtualServers = request.virtualServers ?? loadVirtualServers();
   const auditLogs = request.auditLogs ?? getLocalAiAuditLogs();
 
+  if (isModelIdentityQuestion(request.question)) {
+    const answer = buildModelIdentityAnswer(config);
+    const plan: QfAgentPlan = {
+      toolName: "general_chat",
+      reason: "用户询问当前 AI 模型配置，直接读取平台模型配置回答。",
+      planner: "deterministic",
+    };
+    return {
+      toolName: "general_chat",
+      answer,
+      usedModel: config?.model,
+      fallbackReason: config ? undefined : "未配置启用模型",
+      plan,
+      events: buildAiAgentEvents({
+        question: request.question,
+        toolName: "general_chat",
+        answer,
+        usedModel: config?.model,
+        fallbackReason: config ? undefined : "未配置启用模型",
+        dataSource: "模型配置",
+      }),
+    };
+  }
+
   if (!isPlatformQuestion(request.question, request.rooms, request.racks)) {
     const plan: QfAgentPlan = {
       toolName: "general_chat",
@@ -207,9 +275,10 @@ export async function runQfAiAgent(request: QfAgentRequest): Promise<QfAgentRunR
 
     try {
       const answer = await getProviderAdapter(config).chat(config, [
-        { role: "system", content: qfDcimAgentRole },
+        { role: "system", content: getAgentRoleDefinition() },
         { role: "system", content: buildSkillPrompt() },
         { role: "system", content: formatCustomAgentSkillPrompt() },
+        { role: "system", content: formatCredentialCatalogForAgent() },
         { role: "system", content: buildCapabilityPrompt(capabilities) },
         { role: "system", content: formatAgentMemoryPrompt(request.memories) },
         { role: "user", content: buildGeneralAgentPrompt(request.question, capabilities, request.memories, request.attachments) },
@@ -229,15 +298,16 @@ export async function runQfAiAgent(request: QfAgentRequest): Promise<QfAgentRunR
       };
     } catch (error) {
       const fallbackReason = error instanceof Error ? error.message : "模型调用失败";
+      const answer = buildModelFailureAnswer(config, fallbackReason);
       return {
         toolName: "general_chat",
-        answer: fallbackAnswer,
+        answer,
         fallbackReason,
         plan,
         events: buildAiAgentEvents({
           question: request.question,
           toolName: "general_chat",
-          answer: fallbackAnswer,
+          answer,
           fallbackReason,
           dataSource: "当前模型",
         }),
@@ -297,9 +367,10 @@ export async function runQfAiAgent(request: QfAgentRequest): Promise<QfAgentRunR
 
   try {
     const answer = await getProviderAdapter(config).chat(config, [
-      { role: "system", content: qfDcimAgentRole },
+      { role: "system", content: getAgentRoleDefinition() },
       { role: "system", content: buildSkillPrompt() },
       { role: "system", content: formatCustomAgentSkillPrompt() },
+      { role: "system", content: formatCredentialCatalogForAgent() },
       { role: "system", content: buildCapabilityPrompt(capabilities) },
       { role: "user", content: buildSummaryPrompt(request.question, toolResult) },
     ]);

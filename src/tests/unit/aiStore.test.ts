@@ -41,6 +41,22 @@ describe("ai store", () => {
     expect(discoverAiModels).toHaveBeenCalledWith(config);
   });
 
+  it("uses the company GPUStack model as default when no config exists", async () => {
+    const { useAiStore } = await import("../../stores/aiStore");
+    const store = useAiStore();
+    getAiModelConfigs.mockResolvedValueOnce([]);
+
+    await store.loadConfigs();
+
+    expect(store.configs).toHaveLength(1);
+    expect(store.configs[0]).toMatchObject({
+      provider: "gpustack",
+      baseUrl: "http://192.168.127.8/v1",
+      model: "qwen3.6-35b-a3b-awq",
+      enabled: true,
+    });
+  });
+
   it("saves config and keeps only one enabled model", async () => {
     const { useAiStore } = await import("../../stores/aiStore");
     const store = useAiStore();

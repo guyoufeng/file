@@ -1,6 +1,8 @@
-import { describe, expect, it, vi, beforeEach } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { AiModelConfig } from "../../types/domain";
 import { sampleProject } from "../../services/backend/data";
+import { addKnowledgeEntry } from "../../services/ai/agentKnowledgeBase";
+import { saveAgentCredential } from "../../services/ai/agentCredentials";
 
 const chat = vi.fn();
 
@@ -21,9 +23,27 @@ const config: AiModelConfig = {
   enabled: true,
 };
 
+function installLocalStorage() {
+  const storage = new Map<string, string>();
+  Object.defineProperty(globalThis, "localStorage", {
+    value: {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+      removeItem: (key: string) => storage.delete(key),
+      clear: () => storage.clear(),
+    },
+    configurable: true,
+  });
+}
+
 describe("QF AI agent runtime", () => {
   beforeEach(() => {
+    installLocalStorage();
     chat.mockReset();
+  });
+
+  afterEach(() => {
+    globalThis.localStorage.clear();
   });
 
   it("runs a Pi-style readonly agent loop with model planning and tool execution", async () => {
@@ -125,5 +145,79 @@ describe("QF AI agent runtime", () => {
     });
     expect(chat).toHaveBeenCalledTimes(1);
     expect(chat.mock.calls[0][1].at(-1).content).toContain("用户希望我优先围绕数据中心运维辅助工作回答");
+  });
+
+  it("answers current model identity from enabled model config", async () => {
+    const { runQfAiAgent } = await import("../../services/ai/agentRuntime");
+
+    const result = await runQfAiAgent({
+      question: "你好，你现在用的是哪个模型？",
+      configs: [config],
+      rooms: sampleProject.rooms,
+      racks: sampleProject.racks,
+      devices: sampleProject.devices,
+      alerts: sampleProject.alerts,
+      dataSource: "只读 Agent API",
+    });
+
+    expect(result.toolName).toBe("general_chat");
+    expect(result.answer).toContain("qwen3.6-35b-a3b-awq");
+    expect(result.answer).toContain("GPUStack qwen3.6-35b-a3b-awq");
+    expect(chat).not.toHaveBeenCalled();
+  });
+
+  it("reports model call failure when generic chat has an enabled config", async () => {
+    const { runQfAiAgent } = await import("../../services/ai/agentRuntime");
+    chat.mockRejectedValueOnce(new Error("401 Unauthorized"));
+
+    const result = await runQfAiAgent({
+      question: "数据中心日常维护要注意什么？",
+      configs: [config],
+      rooms: sampleProject.rooms,
+      racks: sampleProject.racks,
+      devices: sampleProject.devices,
+      alerts: sampleProject.alerts,
+      dataSource: "只读 Agent API",
+    });
+
+    expect(result.toolName).toBe("general_chat");
+    expect(result.answer).toContain("模型调用失败");
+    expect(result.answer).toContain("qwen3.6-35b-a3b-awq");
+    expect(result.fallbackReason).toBe("401 Unauthorized");
+    expect(result.answer).not.toContain("当前未配置启用模型");
+  });
+
+  it("adds knowledge base and masked credential catalog to generic model prompt", async () => {
+    const { runQfAiAgent } = await import("../../services/ai/agentRuntime");
+    addKnowledgeEntry({
+      title: "服务器内存故障处理",
+      content: "先确认告警 DIMM 槽位，再安排停机更换同规格内存条。",
+      tags: ["硬件", "内存"],
+    });
+    saveAgentCredential({
+      type: "zoho",
+      name: "卓豪生产监控",
+      endpoint: "https://zoho.example/api",
+      username: "ops",
+      secret: "super-secret",
+      notes: "生产监控",
+    });
+    chat.mockResolvedValueOnce("建议先定位 DIMM 槽位，再安排更换。");
+
+    await runQfAiAgent({
+      question: "服务器内存条坏了要怎么维修？",
+      configs: [config],
+      rooms: sampleProject.rooms,
+      racks: sampleProject.racks,
+      devices: sampleProject.devices,
+      alerts: sampleProject.alerts,
+      dataSource: "只读 Agent API",
+    });
+
+    const prompt = chat.mock.calls[0][1].at(-1).content;
+    expect(prompt).toContain("服务器内存故障处理");
+    expect(prompt).toContain("卓豪生产监控");
+    expect(prompt).toContain("密钥：已保存");
+    expect(prompt).not.toContain("super-secret");
   });
 });

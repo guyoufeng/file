@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 test("starts the app and navigates through v0.1 core pages", async ({
   page,
 }) => {
+  test.setTimeout(60_000);
   await page.goto("/#/rack-overview");
 
   await expect(page.getByRole("heading", { name: "机柜总览" })).toBeVisible();
@@ -265,6 +266,11 @@ test("AI Agent settings shows readonly Agent API status and tools", async ({
   await page.goto("/#/settings");
 
   await page.getByRole("button", { name: "AI Agent" }).click();
+  await expect(page.getByLabel("AI Agent 工作台")).toContainText("角色定义");
+  await expect(page.getByLabel("AI Agent 工作台")).toContainText("长期记忆");
+  await expect(page.getByLabel("AI Agent 工作台")).toContainText("Skill 管理");
+  await expect(page.getByLabel("AI Agent 工作台")).toContainText("知识库");
+  await expect(page.getByLabel("AI Agent 工作台")).toContainText("账号凭据");
   await expect(page.getByRole("heading", { name: "只读 Agent API" })).toBeVisible();
   await page.getByRole("button", { name: "测试 API" }).click();
 

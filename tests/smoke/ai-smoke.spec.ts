@@ -27,7 +27,11 @@ test("opens AI assistant and answers a read-only asset location question", async
   await expect(drawer.getByTestId("ai-message-list")).toContainText("529数据中心");
   await expect(drawer.getByText("Agent 轨迹")).toBeVisible();
   await drawer.getByText("Agent 轨迹").click();
+  await expect(drawer.getByText("权限校验")).toBeVisible();
+  await expect(drawer.getByText("工具选择")).toBeVisible();
   await expect(drawer.getByText("工具完成")).toBeVisible();
+  await expect(drawer.getByText("模型总结")).toBeVisible();
+  await expect(drawer.getByText("写入审计")).toBeVisible();
   await expect(drawer.getByText(/locate_device.*只读 Agent API/).first()).toBeVisible();
   await expect(drawer.getByText(/模型：qwen3.6-35b-a3b-awq/)).toHaveCount(0);
 

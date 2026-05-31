@@ -34,6 +34,11 @@ describe("AI agent audit helper", () => {
       answer: "设备：QF-SRV-001\n位置：529-A1",
       startedAt: Date.now() - 25,
       status: "success",
+      plan: {
+        planner: "model",
+        reason: "用户提供 IP，需要定位设备。",
+      },
+      eventCount: 11,
     });
 
     expect(log).toMatchObject({
@@ -45,6 +50,11 @@ describe("AI agent audit helper", () => {
       inputSummary: "IP 为 10.10.0.21 的服务器在哪里？",
       source: "只读 Agent API",
       status: "success",
+      plan: {
+        planner: "model",
+        reason: "用户提供 IP，需要定位设备。",
+      },
+      eventCount: 11,
     });
     expect(getLocalAiAuditLogs()[0].targetId).toBe("locate_device");
   });

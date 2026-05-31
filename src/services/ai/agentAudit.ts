@@ -9,6 +9,11 @@ export function recordAiAgentToolCall(input: {
   startedAt: number;
   status: "success" | "failed";
   errorMessage?: string;
+  plan?: {
+    planner: string;
+    reason: string;
+  };
+  eventCount?: number;
 }) {
   const firstLine = input.answer.split("\n").find((line) => line.trim());
   return writeAiToolAuditLog({
@@ -19,5 +24,12 @@ export function recordAiAgentToolCall(input: {
     status: input.status,
     resultSummary: firstLine?.slice(0, 200) ?? "无返回内容",
     errorMessage: input.errorMessage,
+    requestId: input.plan?.planner,
+    ...("plan" in input || "eventCount" in input
+      ? {
+          plan: input.plan,
+          eventCount: input.eventCount,
+        }
+      : {}),
   });
 }

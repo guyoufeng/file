@@ -2,7 +2,7 @@
 import { computed, nextTick, onMounted, ref, watch } from "vue";
 import type { Alert, Device, Rack, Room } from "../../../types/domain";
 import type { AiNavigationTarget } from "../../../types/aiNavigation";
-import { answerWithAiAssistant } from "../../../services/ai/aiAssistant";
+import { runQfAiAgent } from "../../../services/ai/agentRuntime";
 import { recordAiAgentToolCall } from "../../../services/ai/agentAudit";
 import { answerAiAssistantCommand } from "../../../services/ai/agentCommands";
 import {
@@ -120,7 +120,7 @@ async function ask() {
     }
 
     const agentContext = await loadContextForAgent();
-    const result = await answerWithAiAssistant({
+    const result = await runQfAiAgent({
       question: currentQuestion,
       configs: aiStore.configs,
       rooms: agentContext.rooms,
@@ -128,6 +128,7 @@ async function ask() {
       devices: agentContext.devices,
       alerts: agentContext.alerts,
       auditLogs: agentContext.auditLogs,
+      dataSource: agentContext.dataSource,
     });
     answers.value.push({
       id: `${Date.now()}-${answers.value.length}`,
@@ -137,17 +138,7 @@ async function ask() {
       usedModel: result.usedModel,
       fallbackReason: result.fallbackReason,
       dataSource: agentContext.dataSource,
-      events: buildAiAgentEvents({
-        question: currentQuestion,
-        toolName: result.toolName,
-        answer: result.answer,
-        usedModel: result.usedModel,
-        fallbackReason: result.fallbackReason,
-        dataSource: agentContext.dataSource,
-        relatedDeviceId: result.relatedDeviceId,
-        relatedRackId: result.relatedRackId,
-        relatedRoomId: result.relatedRoomId,
-      }),
+      events: result.events,
       target: buildNavigationTarget(result),
     });
     updateActiveSession(currentQuestion);
@@ -161,6 +152,11 @@ async function ask() {
       startedAt,
       status: result.fallbackReason ? "failed" : "success",
       errorMessage: result.fallbackReason,
+      plan: {
+        planner: result.plan.planner,
+        reason: result.plan.reason,
+      },
+      eventCount: result.events.length,
     });
     writeAiAuditLog({
       question: currentQuestion,

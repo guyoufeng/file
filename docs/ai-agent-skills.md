@@ -134,3 +134,87 @@ curl -H "Authorization: Bearer <readonly-token>" "http://127.0.0.1:5200/api/agen
 9. 本轮结束
 
 轨迹记录的是“实际做了什么、调用了哪个工具、数据来自哪里、结果摘要是什么”。不要保存或展示模型内部不可验证的隐藏思维原文。
+
+## Pi Agent 融合方案
+
+Pi Agent 的核心价值不是某个界面，而是运行机制：Agent Loop、工具协议、事件流、会话、Skill、队列和可观测性。泉峰平台采用其中适合 DCIM 场景的部分，形成平台内置 Agent Runtime。
+
+### 15 步实施路线
+
+1. 研读 Pi Agent 核心循环、工具协议、事件、会话和审计思路。
+2. 抽象泉峰平台 Agent 边界：只读、工具事实、模型总结、全程审计。
+3. 定义平台 Agent 工具协议和工具注册表。
+4. 实现平台只读工具执行器，复用现有资产、告警、审计、虚拟服务器查询。
+5. 实现工具选择器：模型优先，规则兜底。
+6. 实现小型 Agent Loop：接收问题、校验、选工具、执行、总结、审计。
+7. 升级 Agent 事件流，记录每一步可追溯执行事实。
+8. 将 AI 助手切到 Agent Loop，不再散落调用工具。
+9. 补充 Agent 审计日志元数据和查询可见性。
+10. 系统设置展示 Agent 能力、API Token、外部调用示例。
+11. 补单元测试覆盖 Agent 工具选择、执行、失败回退。
+12. 补浏览器冒烟测试覆盖 Agent 查询和设置页。
+13. 更新文档，写清 Pi 风格融合方案。
+14. 运行全量验证并修复发现的问题。
+15. 提交代码并整理后续开发建议。
+
+### 当前已落地的 Agent Runtime
+
+实现位置：
+
+- 工具注册表：`src/services/ai/agentToolRegistry.ts`
+- Agent Runtime：`src/services/ai/agentRuntime.ts`
+- 事件轨迹：`src/services/ai/agentEvents.ts`
+- 工具审计：`src/services/ai/agentAudit.ts`
+- AI 助手接入：`src/features/ai-assistant/components/AiChatPanel.vue`
+
+一次查询的运行过程：
+
+```text
+用户问题
+  ↓
+Agent Runtime
+  ↓
+权限校验：只读模式
+  ↓
+模型工具选择：只输出工具 JSON
+  ↓
+平台工具执行：从真实资产、机柜、告警、审计数据查询
+  ↓
+模型总结：只能基于工具结果回答
+  ↓
+审计记录：问题、工具、计划来源、数据源、结果摘要、事件数量
+  ↓
+界面展示：回答、定位按钮、Agent 轨迹
+```
+
+### 当前工具
+
+- `locate_device`：定位设备所在机房、机柜和 U 位。
+- `search_devices`：查询资产详情、责任人、用途、业务 IP、带外 IP、硬件配置。
+- `list_rack_devices`：查询机柜设备清单。
+- `list_room_devices`：查询机房设备概览。
+- `list_alert_devices`：查询告警、故障和处理状态。
+- `search_virtual_servers`：查询虚拟服务器和宿主关系。
+- `search_audit_logs`：查询审计日志和历史操作。
+- `summarize_room_status`：汇总平台运行概览。
+
+### 与 Pi Agent 的对应关系
+
+```text
+Pi Agent Tool            → 泉峰平台 Agent 工具注册表
+Pi Agent Loop            → runQfAiAgent()
+Pi Agent EventStream     → AiAgentEvent[]
+Pi Harness Skill         → qfDcimSkills + 后续监控/CMDB/MCP Skill
+Pi Observability Trace   → Agent 轨迹 + AI 工具审计日志
+Pi Session               → AI 助手本地会话
+Pi beforeToolCall Hook   → 只读权限校验
+Pi afterToolCall Hook    → 工具审计与结果摘要
+```
+
+### 后续增强
+
+- 多轮工具调用：一个问题可以先查设备，再查告警，再查审计记录。
+- 工具流式更新：执行长耗时查询时实时显示阶段结果。
+- Skill 文件化：将卓豪、Prometheus、CMDB、ZStack MCP 的调用规范沉淀为可维护 Skill。
+- Agent 记忆：保留最近查询上下文，但敏感字段需要脱敏。
+- 外部 Agent 写入模式：未来单独加权限、审批、回滚和详细审计后再开放。

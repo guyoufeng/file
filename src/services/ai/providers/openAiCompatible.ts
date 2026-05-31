@@ -12,6 +12,17 @@ function headers(config: AiModelConfig): HeadersInit {
   };
 }
 
+function normalizeMessages(messages: AiMessageInput[]): AiMessageInput[] {
+  const systemContent = messages
+    .filter((message) => message.role === "system" && message.content.trim())
+    .map((message) => message.content.trim())
+    .join("\n\n");
+  const conversation = messages.filter((message) => message.role !== "system");
+  return systemContent
+    ? [{ role: "system", content: systemContent }, ...conversation]
+    : conversation;
+}
+
 export const openAiCompatibleAdapter: AiProviderAdapter = {
   name: "openai-compatible",
   async listModels(config) {
@@ -42,10 +53,11 @@ export const openAiCompatibleAdapter: AiProviderAdapter = {
     }
   },
   async chat(config, messages: AiMessageInput[]) {
+    const normalizedMessages = normalizeMessages(messages);
     try {
       const answer = await invokeCommand<string>("chat_with_ai_model", {
         input: config,
-        messages,
+        messages: normalizedMessages,
       });
       if (answer?.trim()) return answer;
       throw new Error("模型返回为空");
@@ -59,7 +71,7 @@ export const openAiCompatibleAdapter: AiProviderAdapter = {
             baseUrl: config.baseUrl,
             apiKeyRef: config.apiKeyRef,
             model: config.model,
-            messages,
+            messages: normalizedMessages,
           }),
         });
         const data = await response.json();

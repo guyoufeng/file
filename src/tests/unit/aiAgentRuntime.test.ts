@@ -147,6 +147,44 @@ describe("QF AI agent runtime", () => {
     expect(chat.mock.calls[0][1].at(-1).content).toContain("用户希望我优先围绕数据中心运维辅助工作回答");
   });
 
+  it("routes data-center maintenance advice questions to general model chat", async () => {
+    const { runQfAiAgent } = await import("../../services/ai/agentRuntime");
+    chat.mockResolvedValueOnce("推荐温度一般控制在 18-27 摄氏度。");
+
+    const result = await runQfAiAgent({
+      question: "机房推荐的参考温度多少度合适？",
+      configs: [config],
+      rooms: sampleProject.rooms,
+      racks: sampleProject.racks,
+      devices: sampleProject.devices,
+      alerts: sampleProject.alerts,
+      dataSource: "只读 Agent API",
+    });
+
+    expect(result.toolName).toBe("general_chat");
+    expect(result.answer).toContain("18-27");
+    expect(chat).toHaveBeenCalledTimes(1);
+  });
+
+  it("routes hardware alarm handling advice to general model chat", async () => {
+    const { runQfAiAgent } = await import("../../services/ai/agentRuntime");
+    chat.mockResolvedValueOnce("ECC 报警建议先确认 DIMM 槽位和错误计数。");
+
+    const result = await runQfAiAgent({
+      question: "物理机 ECC 报警如何处理？",
+      configs: [config],
+      rooms: sampleProject.rooms,
+      racks: sampleProject.racks,
+      devices: sampleProject.devices,
+      alerts: sampleProject.alerts,
+      dataSource: "只读 Agent API",
+    });
+
+    expect(result.toolName).toBe("general_chat");
+    expect(result.answer).toContain("ECC");
+    expect(chat).toHaveBeenCalledTimes(1);
+  });
+
   it("answers current model identity from enabled model config", async () => {
     const { runQfAiAgent } = await import("../../services/ai/agentRuntime");
 

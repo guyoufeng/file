@@ -110,4 +110,13 @@ test("AI assistant handles general chat and user memory without platform summary
   await expect(drawer.getByTestId("ai-message-list")).not.toContainText(
     "当前平台已纳管 5 个机房",
   );
+
+  await promptInput.fill("机房推荐的参考温度多少度合适？");
+  await promptInput.press("Enter");
+  await expect(drawer.getByTestId("ai-message-list")).not.toContainText(
+    "System message must be at the beginning",
+  );
+  await expect(drawer.getByTestId("ai-message-list")).not.toContainText(
+    "模型调用失败",
+  );
 });

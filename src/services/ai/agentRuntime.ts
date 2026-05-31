@@ -106,7 +106,7 @@ function isGeneralMaintenanceAdviceQuestion(question: string) {
   if (/机柜|u位|位置|在哪|责任人|用途|资产编号|固定资产|sn|SN|序列号|带外ip|业务ip|计算机名/.test(question)) {
     return false;
   }
-  return /怎么|如何|维修|处理|排查|注意什么|注意事项|阈值|多少合适|建议|方案|步骤|原因|原理|解释/.test(question);
+  return /怎么|如何|维修|维护|处理|排查|注意什么|注意事项|阈值|多少|几度|温度|湿度|合适|推荐|参考|最佳|建议|方案|步骤|原因|原理|解释/.test(question);
 }
 
 function isPlatformQuestion(question: string, rooms: Room[], racks: Rack[]) {

@@ -63,7 +63,7 @@ export function buildAiAgentEvents(input: AiAgentEventInput): AiAgentEvent[] {
     : input.toolName;
 
   return [
-    createEvent(1, "agent_start", "Agent 启动", input.usedModel ? `模型：${input.usedModel}` : "使用本地确定性工具"),
+    createEvent(1, "agent_start", "Agent 启动", input.usedModel ? "使用当前启用模型" : "使用本地确定性工具"),
     createEvent(2, "turn_start", "新一轮推理", input.question),
     createEvent(3, "message_start", "接收问题", input.question),
     createEvent(4, "permission_check", "权限校验", "只读模式：允许查询，禁止新增、修改、删除"),

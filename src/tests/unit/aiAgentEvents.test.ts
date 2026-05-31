@@ -17,9 +17,12 @@ describe("ai agent events", () => {
       "agent_start",
       "turn_start",
       "message_start",
+      "permission_check",
+      "tool_selection",
       "tool_execution_start",
       "tool_execution_end",
       "message_end",
+      "audit_write",
       "turn_end",
       "agent_end",
     ]);

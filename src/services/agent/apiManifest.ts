@@ -35,6 +35,17 @@ export interface AgentOpenApiDocument {
     description: string;
   };
   servers: Array<{ url: string }>;
+  security: Array<{ readonlyAgentToken: [] }>;
+  components: {
+    securitySchemes: {
+      readonlyAgentToken: {
+        type: "http";
+        scheme: "bearer";
+        bearerFormat: "只读访问令牌";
+        description: string;
+      };
+    };
+  };
   paths: Record<string, OpenApiPathItem>;
 }
 
@@ -134,6 +145,18 @@ export function buildAgentOpenApiDocument(baseUrl: string): AgentOpenApiDocument
       description: "供外部 AI Agent 查询机房、机柜、设备、告警和审计日志的只读 HTTP API。",
     },
     servers: [{ url: baseUrl.replace(/\/$/, "") }],
+    security: [{ readonlyAgentToken: [] }],
+    components: {
+      securitySchemes: {
+        readonlyAgentToken: {
+          type: "http",
+          scheme: "bearer",
+          bearerFormat: "只读访问令牌",
+          description:
+            "外部 AI Agent 调用只读接口时使用 Authorization: Bearer <token>。第一版令牌只允许读取，不允许写入平台数据。",
+        },
+      },
+    },
     paths: Object.fromEntries(
       tools.map((tool) => [
         tool.path,

@@ -1,8 +1,10 @@
 import { describe, expect, it, vi } from "vitest";
 import {
   loadAgentReadonlyHealth,
+  loadAgentReadonlyTokenSettings,
   loadAgentReadonlyTools,
   loadAgentReadonlyContext,
+  saveAgentReadonlyTokenSettings,
   syncAgentReadonlySnapshot,
 } from "../../services/agent/apiClient";
 import type { ProjectJson } from "../../services/backend/data";
@@ -30,6 +32,24 @@ describe("agent api client", () => {
     expect(fetcher).toHaveBeenCalledWith("/api/agent/v1/snapshot", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(project),
+    });
+  });
+
+  it("syncs snapshot with bearer token when readonly api auth is enabled", async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ message: "ok" }),
+    });
+
+    await syncAgentReadonlySnapshot(project, fetcher, "qf-agent-readonly-token");
+
+    expect(fetcher).toHaveBeenCalledWith("/api/agent/v1/snapshot", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: "Bearer qf-agent-readonly-token",
+      },
       body: JSON.stringify(project),
     });
   });
@@ -94,5 +114,45 @@ describe("agent api client", () => {
     expect(fetcher).toHaveBeenCalledWith("/api/agent/v1/health");
     expect(health.readonly).toBe(true);
     expect(health.endpoints).toContain("/api/agent/v1/devices");
+  });
+
+  it("saves and loads readonly agent token settings", async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ enabled: true, tokenPreview: "qf-agent-...9f2a" }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({ enabled: true, tokenPreview: "qf-agent-...9f2a" }),
+      });
+
+    await saveAgentReadonlyTokenSettings(
+      { enabled: true, token: "qf-agent-readonly-token" },
+      fetcher,
+    );
+    const settings = await loadAgentReadonlyTokenSettings(fetcher);
+
+    expect(fetcher).toHaveBeenNthCalledWith(1, "/api/agent/v1/auth/token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ enabled: true, token: "qf-agent-readonly-token" }),
+    });
+    expect(fetcher).toHaveBeenNthCalledWith(2, "/api/agent/v1/auth/token");
+    expect(settings).toMatchObject({ enabled: true, tokenPreview: "qf-agent-...9f2a" });
+  });
+
+  it("sends bearer token when loading readonly agent tools", async () => {
+    const fetcher = vi.fn().mockResolvedValue({
+      ok: true,
+      json: async () => ({ data: [] }),
+    });
+
+    await loadAgentReadonlyTools(fetcher, "qf-agent-readonly-token");
+
+    expect(fetcher).toHaveBeenCalledWith("/api/agent/v1/tools", {
+      headers: { Authorization: "Bearer qf-agent-readonly-token" },
+    });
   });
 });

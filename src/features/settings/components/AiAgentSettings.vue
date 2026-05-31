@@ -7,9 +7,14 @@ import {
 } from "../../../services/ai/agentCapabilities";
 import type { AgentReadonlyTool } from "../../../services/agent/apiManifest";
 import {
+  getStoredAgentReadonlyToken,
   loadAgentReadonlyHealth,
+  loadAgentReadonlyTokenSettings,
   loadAgentReadonlyTools,
+  saveAgentReadonlyTokenSettings,
+  storeAgentReadonlyToken,
   type AgentReadonlyHealth,
+  type AgentReadonlyTokenSettings,
 } from "../../../services/agent/apiClient";
 
 const settings = ref<AiAgentCapabilitySettings>(getAiAgentCapabilitySettings());
@@ -18,13 +23,21 @@ const apiHealth = ref<AgentReadonlyHealth | null>(null);
 const apiTools = ref<AgentReadonlyTool[]>([]);
 const apiLoading = ref(false);
 const apiMessage = ref("点击测试 API，确认只读 Agent API 和工具清单可用。");
+const tokenSettings = ref<AgentReadonlyTokenSettings>({ enabled: false });
+const tokenValue = ref(getStoredAgentReadonlyToken() ?? "");
+const tokenMessage = ref("令牌只用于只读查询，外部 Agent 不能通过该令牌修改平台数据。");
 const apiBaseUrl = computed(() =>
   typeof window === "undefined"
     ? "/api/agent/v1"
     : `${window.location.origin}/api/agent/v1`,
 );
+const curlExample = computed(() => {
+  const token = tokenValue.value.trim() || "<readonly-token>";
+  return `curl -H "Authorization: Bearer ${token}" "${apiBaseUrl.value}/devices?q=cnsmffluxdb1"`;
+});
 
 onMounted(() => {
+  void loadTokenSettings();
   void refreshAgentApi();
 });
 
@@ -63,6 +76,43 @@ async function refreshAgentApi() {
 
 function formatToolPath(tool: AgentReadonlyTool) {
   return `/api/agent/v1${tool.path}`;
+}
+
+async function loadTokenSettings() {
+  try {
+    tokenSettings.value = await loadAgentReadonlyTokenSettings();
+  } catch {
+    tokenSettings.value = { enabled: false };
+  }
+}
+
+function generateToken() {
+  const bytes = new Uint8Array(18);
+  crypto.getRandomValues(bytes);
+  tokenValue.value = `qf-agent-${Array.from(bytes)
+    .map((byte) => byte.toString(16).padStart(2, "0"))
+    .join("")}`;
+}
+
+async function saveTokenSettings(enabled: boolean) {
+  const token = tokenValue.value.trim();
+  try {
+    tokenSettings.value = await saveAgentReadonlyTokenSettings({
+      enabled,
+      token,
+    });
+    if (!enabled) {
+      tokenValue.value = "";
+      storeAgentReadonlyToken(undefined);
+    }
+    tokenMessage.value = enabled
+      ? "只读访问令牌已启用，外部 Agent 调用 API 时必须携带 Bearer Token。"
+      : "只读访问令牌已关闭，当前开发环境允许直接访问只读 API。";
+    await refreshAgentApi();
+  } catch (error) {
+    tokenMessage.value =
+      error instanceof Error ? error.message : "保存只读访问令牌失败";
+  }
 }
 </script>
 
@@ -172,6 +222,37 @@ function formatToolPath(tool: AgentReadonlyTool) {
           {{ apiHealth ? "API 可用" : "待检测" }}
         </strong>
         <span>{{ apiMessage }}</span>
+      </div>
+
+      <div class="token-box" aria-label="只读 API 访问令牌">
+        <div>
+          <strong>只读访问令牌</strong>
+          <span>用于外部 AI Agent 访问平台只读 API。启用后必须使用 Authorization: Bearer。</span>
+        </div>
+        <div class="token-controls">
+          <input
+            v-model="tokenValue"
+            type="text"
+            placeholder="生成或输入 qf-agent- 开头的只读令牌"
+            aria-label="只读访问令牌"
+          />
+          <button type="button" @click="generateToken">生成令牌</button>
+          <button type="button" @click="saveTokenSettings(true)">启用令牌</button>
+          <button type="button" @click="saveTokenSettings(false)">关闭令牌</button>
+        </div>
+        <small>
+          当前状态：{{ tokenSettings.enabled ? "已启用" : "未启用" }}
+          <template v-if="tokenSettings.tokenPreview">
+            / {{ tokenSettings.tokenPreview }}
+          </template>
+        </small>
+        <small>{{ tokenMessage }}</small>
+      </div>
+
+      <div class="agent-example" aria-label="外部 Agent 调用示例">
+        <strong>外部 Agent 调用示例</strong>
+        <code>{{ curlExample }}</code>
+        <span>OpenAPI：{{ apiBaseUrl }}/openapi.json</span>
       </div>
 
       <div class="api-tool-list" aria-label="只读 Agent API 工具">
@@ -359,6 +440,61 @@ article.disabled {
   gap: 8px;
 }
 
+.token-box,
+.agent-example {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid rgba(38, 50, 71, 0.88);
+  border-radius: 8px;
+  background: rgba(8, 17, 31, 0.62);
+}
+
+.token-box > div:first-child {
+  display: grid;
+  gap: 5px;
+}
+
+.token-controls {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) repeat(3, auto);
+  gap: 8px;
+}
+
+.token-controls input {
+  min-height: 32px;
+  min-width: 0;
+  padding: 0 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  color: var(--color-text);
+  background: rgba(2, 6, 23, 0.82);
+}
+
+.token-controls button {
+  min-height: 32px;
+  padding: 0 10px;
+  border: 1px solid rgba(14, 165, 233, 0.46);
+  border-radius: 8px;
+  color: var(--color-text);
+  background: rgba(14, 165, 233, 0.14);
+  cursor: pointer;
+}
+
+.token-box small,
+.agent-example span {
+  color: var(--color-text-muted);
+}
+
+.agent-example code {
+  min-width: 0;
+  overflow: auto;
+  padding: 8px;
+  border-radius: 8px;
+  color: #dbeafe;
+  background: rgba(2, 6, 23, 0.72);
+}
+
 .api-tool-list article {
   min-height: 0;
   align-items: flex-start;
@@ -372,6 +508,10 @@ article.disabled {
 
 @media (max-width: 920px) {
   .capability-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .token-controls {
     grid-template-columns: 1fr;
   }
 }

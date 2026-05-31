@@ -32,4 +32,14 @@ describe("agent api manifest", () => {
     expect(Object.keys(doc.paths)).toContain("/devices");
     expect(Object.values(doc.paths).every((pathItem) => !("post" in pathItem))).toBe(true);
   });
+
+  it("documents bearer token security for readonly external agents", () => {
+    const doc = buildAgentOpenApiDocument("http://127.0.0.1:5200/api/agent/v1");
+
+    expect(doc.components?.securitySchemes?.readonlyAgentToken).toMatchObject({
+      type: "http",
+      scheme: "bearer",
+    });
+    expect(doc.security).toEqual([{ readonlyAgentToken: [] }]);
+  });
 });

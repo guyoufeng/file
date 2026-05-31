@@ -270,7 +270,10 @@ test("AI Agent settings shows readonly Agent API status and tools", async ({
 
   await expect(page.getByText("API 可用", { exact: true })).toBeVisible();
   await expect(page.getByText("agent_search_devices")).toBeVisible();
-  await expect(page.getByText("/api/agent/v1/devices")).toBeVisible();
+  await expect(page.getByText("GET /api/agent/v1/devices")).toBeVisible();
+  await expect(page.getByLabel("只读 API 访问令牌")).toContainText("只读访问令牌");
+  await expect(page.getByText("外部 Agent 调用示例")).toBeVisible();
+  await expect(page.getByText("/api/agent/v1/openapi.json")).toBeVisible();
 });
 
 test("project restore refreshes current browser data without manual reload", async ({

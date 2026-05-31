@@ -29,6 +29,7 @@ async function readBody(req: IncomingMessage) {
 }
 
 const agentSnapshotPath = path.resolve(".local/agent-api-snapshot.json");
+const agentAuthPath = path.resolve(".local/agent-api-auth.json");
 const demoSeedPath = path.resolve(".local/demo-seed.json");
 
 function getQuery(req: IncomingMessage): AgentQuery {
@@ -46,6 +47,54 @@ function sendJson(res: Parameters<import("connect").NextHandleFunction>[1], valu
   res.statusCode = statusCode;
   res.setHeader("Content-Type", "application/json; charset=utf-8");
   res.end(JSON.stringify(value));
+}
+
+interface AgentAuthSettings {
+  enabled: boolean;
+  token?: string;
+}
+
+function previewToken(token?: string): string | undefined {
+  if (!token) return undefined;
+  if (token.length <= 12) return `${token.slice(0, 4)}...`;
+  return `${token.slice(0, 10)}...${token.slice(-4)}`;
+}
+
+async function loadAgentAuthSettings(): Promise<AgentAuthSettings> {
+  try {
+    return JSON.parse(await readFile(agentAuthPath, "utf8")) as AgentAuthSettings;
+  } catch {
+    return { enabled: false };
+  }
+}
+
+async function saveAgentAuthSettings(settings: AgentAuthSettings): Promise<void> {
+  await mkdir(path.dirname(agentAuthPath), { recursive: true });
+  await writeFile(agentAuthPath, JSON.stringify(settings, null, 2), "utf8");
+}
+
+async function ensureAgentAuthorized(
+  req: IncomingMessage,
+  res: Parameters<import("connect").NextHandleFunction>[1],
+): Promise<boolean> {
+  const settings = await loadAgentAuthSettings();
+  if (!settings.enabled) return true;
+
+  const authorization = req.headers.authorization ?? "";
+  const token = authorization.startsWith("Bearer ")
+    ? authorization.slice("Bearer ".length).trim()
+    : "";
+  if (token && token === settings.token) return true;
+
+  sendJson(
+    res,
+    {
+      message: "只读 Agent API 已启用访问令牌，请使用 Authorization: Bearer <token> 调用。",
+      readonly: true,
+    },
+    401,
+  );
+  return false;
 }
 
 async function loadAgentSnapshot(): Promise<AgentReadonlySnapshot> {
@@ -78,6 +127,7 @@ function aiProxyPlugin() {
       });
 
       server.middlewares.use("/api/agent/v1/snapshot", async (req, res) => {
+        if (!(await ensureAgentAuthorized(req, res))) return;
         if (req.method === "GET") {
           sendJson(res, await loadAgentSnapshot());
           return;
@@ -114,7 +164,40 @@ function aiProxyPlugin() {
         }
       });
 
-      server.middlewares.use("/api/agent/v1/health", async (_req, res) => {
+      server.middlewares.use("/api/agent/v1/auth/token", async (req, res) => {
+        if (req.method === "GET") {
+          const settings = await loadAgentAuthSettings();
+          sendJson(res, {
+            enabled: settings.enabled,
+            tokenPreview: previewToken(settings.token),
+          });
+          return;
+        }
+
+        if (req.method !== "POST") {
+          res.statusCode = 405;
+          res.end("Method Not Allowed");
+          return;
+        }
+
+        const body = (await readBody(req)) as { enabled?: boolean; token?: string };
+        const nextSettings: AgentAuthSettings = {
+          enabled: Boolean(body.enabled),
+          token: body.token?.trim() || undefined,
+        };
+        if (nextSettings.enabled && !nextSettings.token) {
+          sendJson(res, { message: "启用令牌时 Token 不能为空。" }, 400);
+          return;
+        }
+        await saveAgentAuthSettings(nextSettings);
+        sendJson(res, {
+          enabled: nextSettings.enabled,
+          tokenPreview: previewToken(nextSettings.token),
+        });
+      });
+
+      server.middlewares.use("/api/agent/v1/health", async (req, res) => {
+        if (!(await ensureAgentAuthorized(req, res))) return;
         const snapshot = await loadAgentSnapshot();
         sendJson(res, {
           status: "ok",
@@ -132,39 +215,47 @@ function aiProxyPlugin() {
       });
 
       server.middlewares.use("/api/agent/v1/tools", async (req, res) => {
+        if (!(await ensureAgentAuthorized(req, res))) return;
         sendJson(res, { data: getAgentReadonlyTools(getAgentApiBaseUrl(req)) });
       });
 
       server.middlewares.use("/api/agent/v1/openapi.json", async (req, res) => {
+        if (!(await ensureAgentAuthorized(req, res))) return;
         sendJson(res, buildAgentOpenApiDocument(getAgentApiBaseUrl(req)));
       });
 
-      server.middlewares.use("/api/agent/v1/topology", async (_req, res) => {
+      server.middlewares.use("/api/agent/v1/topology", async (req, res) => {
+        if (!(await ensureAgentAuthorized(req, res))) return;
         const snapshot = await loadAgentSnapshot();
         sendJson(res, snapshot);
       });
 
-      server.middlewares.use("/api/agent/v1/rooms", async (_req, res) => {
+      server.middlewares.use("/api/agent/v1/rooms", async (req, res) => {
+        if (!(await ensureAgentAuthorized(req, res))) return;
         const snapshot = await loadAgentSnapshot();
         sendJson(res, { data: snapshot.data.rooms });
       });
 
       server.middlewares.use("/api/agent/v1/racks", async (req, res) => {
+        if (!(await ensureAgentAuthorized(req, res))) return;
         const snapshot = await loadAgentSnapshot();
         sendJson(res, { data: filterAgentRacks(snapshot.data, getQuery(req)) });
       });
 
       server.middlewares.use("/api/agent/v1/devices", async (req, res) => {
+        if (!(await ensureAgentAuthorized(req, res))) return;
         const snapshot = await loadAgentSnapshot();
         sendJson(res, { data: filterAgentDevices(snapshot.data, getQuery(req)) });
       });
 
       server.middlewares.use("/api/agent/v1/alerts", async (req, res) => {
+        if (!(await ensureAgentAuthorized(req, res))) return;
         const snapshot = await loadAgentSnapshot();
         sendJson(res, { data: filterAgentAlerts(snapshot.data, getQuery(req)) });
       });
 
       server.middlewares.use("/api/agent/v1/audit-logs", async (req, res) => {
+        if (!(await ensureAgentAuthorized(req, res))) return;
         const snapshot = await loadAgentSnapshot();
         sendJson(res, { data: filterAgentAuditLogs(snapshot.data, getQuery(req)) });
       });

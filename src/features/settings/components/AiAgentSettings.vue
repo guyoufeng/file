@@ -45,9 +45,11 @@ import {
   type AgentCredential,
   type AgentCredentialType,
 } from "../../../services/ai/agentCredentials";
+import AgentRunHistory from "./AgentRunHistory.vue";
+import AgentToolIntegrations from "./AgentToolIntegrations.vue";
 
 const settings = ref<AiAgentCapabilitySettings>(getAiAgentCapabilitySettings());
-const message = ref("AI Agent 第一阶段默认只读，外网辅助默认关闭。");
+const message = ref("AI Agent 第一阶段默认只读，平台事实必须来自工具，通用问题走当前模型。");
 const apiHealth = ref<AgentReadonlyHealth | null>(null);
 const apiTools = ref<AgentReadonlyTool[]>([]);
 const apiLoading = ref(false);
@@ -210,10 +212,6 @@ function removeCredential(id: string) {
   message.value = "账号凭据已删除。";
 }
 
-function toggleExternalTools() {
-  save({ externalToolsEnabled: !settings.value.externalToolsEnabled });
-}
-
 function toggleSkill(key: keyof AiAgentCapabilitySettings) {
   save({ [key]: !settings.value[key] });
 }
@@ -301,53 +299,6 @@ async function saveTokenSettings(enabled: boolean) {
             type="checkbox"
             :checked="settings.generalChatEnabled"
             @change="toggleSkill('generalChatEnabled')"
-          />
-          <span />
-        </label>
-      </article>
-
-      <article>
-        <div>
-          <strong>外网辅助总开关</strong>
-          <span>后续天气、网页搜索等外部工具都受这个总开关控制。</span>
-        </div>
-        <label class="switch">
-          <input
-            type="checkbox"
-            :checked="settings.externalToolsEnabled"
-            @change="toggleExternalTools"
-          />
-          <span />
-        </label>
-      </article>
-
-      <article :class="{ disabled: !settings.externalToolsEnabled }">
-        <div>
-          <strong>天气查询 Skill</strong>
-          <span>预留南京等城市天气查询能力，实际结果必须来自工具。</span>
-        </div>
-        <label class="switch">
-          <input
-            type="checkbox"
-            :disabled="!settings.externalToolsEnabled"
-            :checked="settings.weatherSkillEnabled"
-            @change="toggleSkill('weatherSkillEnabled')"
-          />
-          <span />
-        </label>
-      </article>
-
-      <article :class="{ disabled: !settings.externalToolsEnabled }">
-        <div>
-          <strong>网页搜索 Skill</strong>
-          <span>预留联网搜索能力，后续需要权限、审计和来源展示。</span>
-        </div>
-        <label class="switch">
-          <input
-            type="checkbox"
-            :disabled="!settings.externalToolsEnabled"
-            :checked="settings.webSearchSkillEnabled"
-            @change="toggleSkill('webSearchSkillEnabled')"
           />
           <span />
         </label>
@@ -519,6 +470,10 @@ async function saveTokenSettings(enabled: boolean) {
         </ul>
       </article>
     </section>
+
+    <AgentToolIntegrations />
+
+    <AgentRunHistory />
 
     <section class="agent-api-panel">
       <header>

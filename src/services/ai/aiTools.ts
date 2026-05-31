@@ -108,6 +108,11 @@ function searchAuditLogsForAi(query: string, auditLogs: AuditLog[]): AuditLog[] 
     .sort((first, second) => second.createdAt.localeCompare(first.createdAt));
 }
 
+function extractLikelyAssetToken(question: string) {
+  const tokens = question.match(/[a-zA-Z0-9][a-zA-Z0-9._-]{2,}/g) ?? [];
+  return tokens.find((token) => /^[a-zA-Z]/.test(token) && /[\d.-]/.test(token));
+}
+
 export function runDeterministicAiQuery(
   question: string,
   rooms: Room[],
@@ -310,12 +315,38 @@ export function runDeterministicAiQuery(
     };
   }
 
+  const directAssetToken = extractLikelyAssetToken(question);
+  if (directAssetToken) {
+    const candidates = searchDevices(directAssetToken, devices, racks, rooms);
+    if (candidates.length > 0) {
+      if (asksAlertDetail && candidates.length === 1) {
+        return {
+          toolName: "list_alert_devices",
+          relatedDeviceId: candidates[0].device.id,
+          relatedRackId: candidates[0].rack?.id,
+          relatedRoomId: candidates[0].room?.id,
+          answer:
+            formatDeviceAlertsAnswer(candidates[0].device, rooms, racks, alerts) +
+            sourceFooter({ label: "本地资产库、机柜库、告警库", queriedAt }),
+        };
+      }
+      return {
+        toolName: "search_devices",
+        relatedDeviceId: candidates.length === 1 ? candidates[0].device.id : undefined,
+        relatedRackId: candidates.length === 1 ? candidates[0].rack?.id : undefined,
+        relatedRoomId: candidates.length === 1 ? candidates[0].room?.id : undefined,
+        answer:
+          formatDeviceSearchAnswer(candidates, alerts) +
+          sourceFooter({ label: "本地资产库、机柜库、告警库", queriedAt }),
+      };
+    }
+  }
+
   if (asksDeviceSearch) {
     const cleanedQuery = question
       .replace(/查询|查下|查一下|查看下|查看|看下|看一下|搜索|这台设备|设备|服务器|的详细信息|详情|责任人|负责哪些|负责|有哪些|哪些|用途|资产|编号|SN|sn|硬件配置|操作系统|型号|告警|报警|异常|故障|处理方法|处理状态|处理到什么状态|处理到|解决方法|解决方案|附件|照片|有没有|是什么|最近|包含|的|吗|？|\?/g, " ")
       .trim();
     const containsQuery = question.match(/包含\s*([a-zA-Z0-9.\-_\s]+?)(?:的|服务器|设备|$)/)?.[1]?.trim();
-    const directAssetToken = question.match(/[a-zA-Z][a-zA-Z0-9._-]{2,}/)?.[0];
     const candidates = [containsQuery, directAssetToken, cleanedQuery, question]
       .filter((query): query is string => Boolean(query))
       .map((query) => searchDevices(query, devices, racks, rooms))

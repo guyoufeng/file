@@ -1,12 +1,11 @@
 <script setup lang="ts">
-import { computed, nextTick, onMounted, ref, watch } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, ref, watch } from "vue";
 import type { Alert, Device, Rack, Room } from "../../../types/domain";
 import type { AiNavigationTarget } from "../../../types/aiNavigation";
 import { runQfAiAgent } from "../../../services/ai/agentRuntime";
 import { recordAiAgentToolCall } from "../../../services/ai/agentAudit";
 import {
   buildAiAgentEvents,
-  type AiAgentEvent,
 } from "../../../services/ai/agentEvents";
 import { answerAgentControlMessage } from "../../../services/ai/agentNaturalLanguageCommands";
 import { writeAiAuditLog } from "../../../services/backend/ai";
@@ -19,6 +18,11 @@ import {
 import { useAiStore } from "../../../stores/aiStore";
 import { qfDcimSkills } from "../../../services/ai/agentProfile";
 import { getAgentMemories } from "../../../services/ai/agentMemory";
+import {
+  buildLiveAgentTimeline,
+  saveAgentRunRecord,
+  type TimedAiAgentEvent,
+} from "../../../services/ai/agentRunStore";
 import AiAnswerCard from "./AiAnswerCard.vue";
 
 const props = defineProps<{
@@ -40,7 +44,7 @@ interface ChatAnswer {
   usedModel?: string;
   fallbackReason?: string;
   dataSource: string;
-  events: AiAgentEvent[];
+  events: TimedAiAgentEvent[];
   target?: AiNavigationTarget;
   attachments?: ChatAttachment[];
 }
@@ -65,6 +69,10 @@ const question = ref("");
 const sessions = ref<ChatSession[]>([]);
 const activeSessionId = ref("");
 const asking = ref(false);
+const runningQuestion = ref("");
+const runningStartedAt = ref("");
+const runningEvents = ref<TimedAiAgentEvent[]>([]);
+let runningTimer: number | undefined;
 const messageListRef = ref<HTMLElement | null>(null);
 const imageInputRef = ref<HTMLInputElement | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
@@ -73,10 +81,17 @@ const activeSession = computed(() =>
   sessions.value.find((session) => session.id === activeSessionId.value),
 );
 const answers = computed(() => activeSession.value?.answers ?? []);
+const runningElapsedLabel = computed(
+  () => runningEvents.value.at(-1)?.durationLabel ?? "0秒",
+);
 
 onMounted(() => {
   void aiStore.loadConfigs();
   loadSessions();
+});
+
+onUnmounted(() => {
+  stopThinkingTimeline();
 });
 
 watch(
@@ -93,23 +108,37 @@ async function ask() {
 
   asking.value = true;
   const currentQuestion = question.value;
-  const startedAt = Date.now();
+  const startedAt = new Date();
+  startThinkingTimeline(currentQuestion, startedAt.toISOString());
   const currentAttachments = [...pendingAttachments.value];
   try {
     const commandAnswer = await answerLocalAgentCommand(currentQuestion);
     if (commandAnswer) {
+      const endedAt = new Date();
+      const eventInput = {
+        question: currentQuestion,
+        toolName: commandAnswer.toolName,
+        answer: commandAnswer.answer,
+        dataSource: "只读 Agent API 工具清单",
+      } as const;
+      const runRecord = saveAgentRunRecord({
+        sessionId: activeSessionId.value,
+        question: currentQuestion,
+        answer: commandAnswer.answer,
+        toolName: commandAnswer.toolName,
+        dataSource: "只读 Agent API 工具清单",
+        startedAt: startedAt.toISOString(),
+        endedAt: endedAt.toISOString(),
+        events: buildAiAgentEvents(eventInput),
+        attachments: currentAttachments,
+      });
       answers.value.push({
         id: `${Date.now()}-${answers.value.length}`,
         question: currentQuestion,
         content: commandAnswer.answer,
         toolName: commandAnswer.toolName,
         dataSource: "只读 Agent API 工具清单",
-        events: buildAiAgentEvents({
-          question: currentQuestion,
-          toolName: commandAnswer.toolName,
-          answer: commandAnswer.answer,
-          dataSource: "只读 Agent API 工具清单",
-        }),
+        events: runRecord.events,
         attachments: currentAttachments,
       });
       updateActiveSession(currentQuestion);
@@ -121,7 +150,7 @@ async function ask() {
         question: currentQuestion,
         source: "只读 Agent API 工具清单",
         answer: commandAnswer.answer,
-        startedAt,
+        startedAt: startedAt.getTime(),
         status: "success",
       });
       writeAiAuditLog({
@@ -146,6 +175,22 @@ async function ask() {
       memories: getAgentMemories().map((memory) => memory.content),
       attachments: currentAttachments,
     });
+    const endedAt = new Date();
+    const target = buildNavigationTarget(result);
+    const runRecord = saveAgentRunRecord({
+      sessionId: activeSessionId.value,
+      question: currentQuestion,
+      answer: result.answer,
+      toolName: result.toolName,
+      dataSource: agentContext.dataSource,
+      usedModel: result.usedModel,
+      fallbackReason: result.fallbackReason,
+      startedAt: startedAt.toISOString(),
+      endedAt: endedAt.toISOString(),
+      events: result.events,
+      target,
+      attachments: currentAttachments,
+    });
     answers.value.push({
       id: `${Date.now()}-${answers.value.length}`,
       question: currentQuestion,
@@ -154,8 +199,8 @@ async function ask() {
       usedModel: result.usedModel,
       fallbackReason: result.fallbackReason,
       dataSource: agentContext.dataSource,
-      events: result.events,
-      target: buildNavigationTarget(result),
+      events: runRecord.events,
+      target,
       attachments: currentAttachments,
     });
     updateActiveSession(currentQuestion);
@@ -167,7 +212,7 @@ async function ask() {
       question: currentQuestion,
       source: agentContext.dataSource,
       answer: result.answer,
-      startedAt,
+      startedAt: startedAt.getTime(),
       status: result.fallbackReason ? "failed" : "success",
       errorMessage: result.fallbackReason,
       plan: {
@@ -187,6 +232,7 @@ async function ask() {
     });
   } finally {
     asking.value = false;
+    stopThinkingTimeline();
   }
 }
 
@@ -280,6 +326,36 @@ async function scrollToLatestMessage() {
   messageListRef.value.scrollTop = messageListRef.value.scrollHeight;
 }
 
+function startThinkingTimeline(questionText: string, startedAt: string) {
+  runningQuestion.value = questionText;
+  runningStartedAt.value = startedAt;
+  refreshThinkingTimeline();
+  if (runningTimer) window.clearInterval(runningTimer);
+  runningTimer = window.setInterval(() => {
+    refreshThinkingTimeline();
+    void scrollToLatestMessage();
+  }, 1000);
+  void scrollToLatestMessage();
+}
+
+function refreshThinkingTimeline() {
+  if (!runningStartedAt.value) return;
+  runningEvents.value = buildLiveAgentTimeline(
+    runningQuestion.value,
+    runningStartedAt.value,
+  );
+}
+
+function stopThinkingTimeline() {
+  if (runningTimer) {
+    window.clearInterval(runningTimer);
+    runningTimer = undefined;
+  }
+  runningQuestion.value = "";
+  runningStartedAt.value = "";
+  runningEvents.value = [];
+}
+
 function handleComposerKeydown(event: KeyboardEvent) {
   if (event.key !== "Enter" || event.shiftKey) return;
   event.preventDefault();
@@ -352,6 +428,7 @@ function buildNavigationTarget(result: {
             >
               <strong>{{ event.label }}</strong>
               <span>{{ event.detail }}</span>
+              <em>{{ event.durationLabel }}</em>
             </li>
           </ol>
         </details>
@@ -364,6 +441,27 @@ function buildNavigationTarget(result: {
         >
           定位到机柜/设备
         </button>
+      </div>
+      <div v-if="asking && runningEvents.length" class="answer-item pending-answer">
+        <div class="question-bubble">{{ runningQuestion }}</div>
+        <details class="agent-events live-events" open>
+          <summary>
+            执行过程
+            <span>Agent 正在处理</span>
+            <small>{{ runningElapsedLabel }}</small>
+          </summary>
+          <ol>
+            <li
+              v-for="event in runningEvents"
+              :key="event.id"
+              :class="event.status"
+            >
+              <strong>{{ event.label }}</strong>
+              <span>{{ event.detail }}</span>
+              <em>{{ event.durationLabel }}</em>
+            </li>
+          </ol>
+        </details>
       </div>
     </div>
     <form class="composer" data-testid="ai-composer" @submit.prevent="ask">
@@ -622,6 +720,10 @@ button:disabled {
 }
 
 .agent-events li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 6px;
+  align-items: start;
   color: var(--color-text-muted);
   font-size: 12px;
 }
@@ -631,8 +733,26 @@ button:disabled {
 }
 
 .agent-events li strong {
-  margin-right: 6px;
   color: #bae6fd;
+}
+
+.agent-events li span {
+  min-width: 0;
+}
+
+.agent-events li em {
+  color: #7dd3fc;
+  font-style: normal;
+  white-space: nowrap;
+}
+
+.live-events {
+  border-color: rgba(14, 165, 233, 0.34);
+  box-shadow: 0 14px 32px rgba(14, 165, 233, 0.1);
+}
+
+.live-events li.pending strong {
+  color: #e0f2fe;
 }
 
 .locate-button {

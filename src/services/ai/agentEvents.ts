@@ -20,6 +20,8 @@ export interface AiAgentEvent {
   detail: string;
   status: "pending" | "success" | "warning";
   createdAt: string;
+  elapsedMs?: number;
+  durationLabel?: string;
 }
 
 export interface AiAgentEventInput {

@@ -32,6 +32,7 @@ test("opens AI assistant and answers a read-only asset location question", async
   await expect(drawer.getByText("工具完成")).toBeVisible();
   await expect(drawer.getByText("模型总结")).toBeVisible();
   await expect(drawer.getByText("写入审计")).toBeVisible();
+  await expect(drawer.getByText(/秒/).first()).toBeVisible();
   await expect(drawer.getByText(/locate_device.*只读 Agent API/).first()).toBeVisible();
   await expect(drawer.locator(".answer-item").getByText(/模型：qwen3.6-35b-a3b-awq/)).toHaveCount(0);
 

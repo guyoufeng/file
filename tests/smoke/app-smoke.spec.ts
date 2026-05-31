@@ -271,6 +271,10 @@ test("AI Agent settings shows readonly Agent API status and tools", async ({
   await expect(page.getByLabel("AI Agent 工作台")).toContainText("Skill 管理");
   await expect(page.getByLabel("AI Agent 工作台")).toContainText("知识库");
   await expect(page.getByLabel("AI Agent 工作台")).toContainText("账号凭据");
+  await expect(page.getByRole("region", { name: "CMDB / MCP 工具接入" })).toContainText("工具接入");
+  await expect(page.getByRole("region", { name: "Agent 执行记录" })).toContainText("Agent 执行记录");
+  await expect(page.getByText("天气查询 Skill")).toHaveCount(0);
+  await expect(page.getByText("网页搜索 Skill")).toHaveCount(0);
   await expect(page.getByRole("heading", { name: "只读 Agent API" })).toBeVisible();
   await page.getByRole("button", { name: "测试 API" }).click();
 

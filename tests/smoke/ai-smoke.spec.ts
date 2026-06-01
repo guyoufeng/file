@@ -1,8 +1,10 @@
 import { expect, test } from "@playwright/test";
+import { loginAsAdmin } from "./helpers";
 
 test("opens AI assistant and answers a read-only asset location question", async ({
   page,
 }) => {
+  await loginAsAdmin(page);
   await page.goto("/#/rack-overview");
 
   await page.getByRole("button", { name: "打开 AI助手" }).click();
@@ -58,6 +60,7 @@ test("opens AI assistant and answers a read-only asset location question", async
 test("AI assistant lists readonly Agent API tools with slash command", async ({
   page,
 }) => {
+  await loginAsAdmin(page);
   await page.goto("/#/rack-overview");
 
   await page.getByRole("button", { name: "打开 AI助手" }).click();
@@ -80,6 +83,7 @@ test("AI assistant lists readonly Agent API tools with slash command", async ({
 test("AI assistant handles general chat and user memory without platform summary fallback", async ({
   page,
 }) => {
+  await loginAsAdmin(page);
   await page.goto("/#/rack-overview");
 
   await page.getByRole("button", { name: "打开 AI助手" }).click();

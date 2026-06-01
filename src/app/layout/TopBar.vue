@@ -1,10 +1,15 @@
 <script setup lang="ts">
 import { onBeforeUnmount, ref } from 'vue'
+import { useRouter } from 'vue-router'
+import { useAuthStore } from '../../stores/authStore'
 
 const emit = defineEmits<{
   openAi: []
 }>()
 
+const router = useRouter()
+const authStore = useAuthStore()
+const userMenuOpen = ref(false)
 const currentTime = ref(formatTime(new Date()))
 const timer = window.setInterval(() => {
   currentTime.value = formatTime(new Date())
@@ -25,6 +30,12 @@ function formatTime(date: Date): string {
     hour12: false,
   })
 }
+
+async function logout() {
+  authStore.logout()
+  userMenuOpen.value = false
+  await router.replace('/login')
+}
 </script>
 
 <template>
@@ -38,7 +49,21 @@ function formatTime(date: Date): string {
       <button type="button" class="ai-icon-button" aria-label="打开 AI助手" @click="emit('openAi')">
         <span>AI助手</span>
       </button>
-      <button type="button" data-testid="current-user" class="user-button">admin</button>
+      <div class="user-menu">
+        <button
+          type="button"
+          data-testid="current-user"
+          class="user-button"
+          @click="userMenuOpen = !userMenuOpen"
+        >
+          {{ authStore.session?.username || "未登录" }}
+        </button>
+        <div v-if="userMenuOpen" class="user-popover">
+          <strong>{{ authStore.session?.displayName }}</strong>
+          <span>{{ authStore.session?.role === "admin" ? "管理员" : "普通/只读账号" }}</span>
+          <button type="button" @click="logout">退出登录</button>
+        </div>
+      </div>
     </div>
   </header>
 </template>
@@ -93,6 +118,43 @@ h1 {
   min-height: 32px;
   padding: 0 13px;
   color: #e0f2fe;
+  cursor: pointer;
+}
+
+.user-menu {
+  position: relative;
+}
+
+.user-popover {
+  position: absolute;
+  top: 42px;
+  right: 0;
+  z-index: 40;
+  width: 178px;
+  display: grid;
+  gap: 7px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: rgba(8, 17, 31, 0.98);
+  box-shadow: 0 20px 50px rgba(2, 6, 23, 0.34);
+}
+
+.user-popover strong {
+  color: var(--color-text);
+}
+
+.user-popover span {
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.user-popover button {
+  min-height: 30px;
+  border: 1px solid rgba(14, 165, 233, 0.42);
+  border-radius: 8px;
+  color: var(--color-text);
+  background: rgba(14, 165, 233, 0.14);
   cursor: pointer;
 }
 

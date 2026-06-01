@@ -1,9 +1,11 @@
 import { expect, test } from "@playwright/test";
+import { loginAsAdmin } from "./helpers";
 
 test("starts the app and navigates through v0.1 core pages", async ({
   page,
 }) => {
   test.setTimeout(60_000);
+  await loginAsAdmin(page);
   await page.goto("/#/rack-overview");
 
   await expect(page.getByRole("heading", { name: "机柜总览" })).toBeVisible();
@@ -102,6 +104,7 @@ test("starts the app and navigates through v0.1 core pages", async ({
 });
 
 test("asset import replace mode is opt-in", async ({ page }) => {
+  await loginAsAdmin(page);
   await page.goto("/#/assets");
   await page.getByRole("button", { name: "导入Excel" }).click();
 
@@ -110,6 +113,7 @@ test("asset import replace mode is opt-in", async ({ page }) => {
 });
 
 test("room context menu supports renaming an existing room", async ({ page }) => {
+  await loginAsAdmin(page);
   await page.goto("/#/rack-overview");
   await page.locator(".overview-metrics div", { hasText: "总机房" }).click({
     button: "right",
@@ -126,6 +130,7 @@ test("room context menu supports renaming an existing room", async ({ page }) =>
 });
 
 test("rack context menu supports renaming an existing rack", async ({ page }) => {
+  await loginAsAdmin(page);
   await page.goto("/#/rack-overview");
   await page.locator(".overview-metrics div", { hasText: "当前机柜" }).click({
     button: "right",
@@ -144,6 +149,7 @@ test("rack context menu supports renaming an existing rack", async ({ page }) =>
 test("room and rack context menus manage a temporary room without touching existing rooms", async ({
   page,
 }) => {
+  await loginAsAdmin(page);
   await page.goto("/#/rack-overview");
 
   await page.locator(".overview-metrics div", { hasText: "总机房" }).click({
@@ -248,6 +254,7 @@ test("room and rack context menus manage a temporary room without touching exist
 test("alert locate opens rack u view and highlights the related device", async ({
   page,
 }) => {
+  await loginAsAdmin(page);
   await page.goto("/#/alerts");
   await page.getByRole("heading", { name: "告警中心" }).waitFor();
   await page.locator("tbody button", { hasText: "定位" }).first().click();
@@ -263,6 +270,7 @@ test("alert locate opens rack u view and highlights the related device", async (
 test("AI Agent settings shows readonly Agent API status and tools", async ({
   page,
 }) => {
+  await loginAsAdmin(page);
   await page.goto("/#/settings");
 
   await page.getByRole("button", { name: "AI Agent" }).click();
@@ -289,6 +297,7 @@ test("AI Agent settings shows readonly Agent API status and tools", async ({
 test("project restore refreshes current browser data without manual reload", async ({
   page,
 }) => {
+  await loginAsAdmin(page);
   await page.goto("/#/settings");
   await page.getByRole("button", { name: "数据管理" }).click();
 
@@ -302,6 +311,7 @@ test("project restore refreshes current browser data without manual reload", asy
 });
 
 test("readonly agent api snapshot exposes current asset data", async ({ page }) => {
+  await loginAsAdmin(page);
   await page.goto("/#/settings");
   await page.getByRole("button", { name: "数据管理" }).click();
   await expect(page.getByLabel("只读 Agent API 配置")).toContainText("/api/agent/v1/devices");
@@ -331,6 +341,7 @@ test("readonly agent api snapshot exposes current asset data", async ({ page }) 
 test("project import shows a review preview before confirmation", async ({
   page,
 }) => {
+  await loginAsAdmin(page);
   await page.goto("/#/settings");
   await page.getByRole("button", { name: "数据管理" }).click();
 

@@ -1,8 +1,10 @@
 import { expect, test } from "@playwright/test";
+import { loginAsAdmin } from "./helpers";
 
 test("shows asset table and locates a server from rack overview search", async ({
   page,
 }) => {
+  await loginAsAdmin(page);
   await page.goto("/#/assets");
 
   await expect(page.getByRole("heading", { name: "资产管理" })).toBeVisible();

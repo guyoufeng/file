@@ -52,6 +52,17 @@ select {
   font: inherit;
 }
 
+input,
+textarea,
+select {
+  color: var(--color-text);
+  background: var(--control-bg);
+}
+
+button {
+  color: var(--color-text);
+}
+
 .page {
   min-height: calc(100vh - 104px);
 }
@@ -100,4 +111,44 @@ select {
   margin: 0;
   color: var(--color-text-muted);
   line-height: 1.7;
+}
+
+:root[data-theme="light"] .asset-table,
+:root[data-theme="light"] .virtual-table,
+:root[data-theme="light"] .alert-table,
+:root[data-theme="light"] .table-wrap {
+  border-color: var(--color-border);
+  background: var(--color-panel);
+  box-shadow: var(--shadow-soft);
+}
+
+:root[data-theme="light"] table {
+  color: var(--color-text);
+}
+
+:root[data-theme="light"] th {
+  color: #475569;
+  background: var(--table-header-bg);
+}
+
+:root[data-theme="light"] td {
+  color: var(--color-text);
+  background: var(--table-row-bg);
+}
+
+:root[data-theme="light"] tbody tr:hover td {
+  background: var(--table-row-hover);
+}
+
+:root[data-theme="light"] .page-header,
+:root[data-theme="light"] .record-list,
+:root[data-theme="light"] .settings-panel,
+:root[data-theme="light"] .report-card,
+:root[data-theme="light"] .summary-card {
+  color: var(--color-text);
+}
+
+:root[data-theme="light"] .rack-u-view,
+:root[data-theme="light"] .rack-3d-view {
+  color: var(--viz-text);
 }

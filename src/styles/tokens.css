@@ -13,6 +13,17 @@
   --surface-glass: rgba(255, 255, 255, 0.86);
   --surface-raised: rgba(255, 255, 255, 0.94);
   --shadow-soft: 0 18px 42px rgba(15, 23, 42, 0.08);
+  --logo-color: #0f172a;
+  --control-bg: #ffffff;
+  --control-bg-muted: #edf3fb;
+  --table-header-bg: #eaf1fb;
+  --table-row-bg: #ffffff;
+  --table-row-hover: #f6f9fd;
+  --viz-bg: #06111f;
+  --viz-panel: #0b1728;
+  --viz-border: #263247;
+  --viz-text: #e5eefb;
+  --viz-muted: #94a3b8;
   --font-sans: Inter, "Microsoft YaHei", "PingFang SC", "Segoe UI", Arial, sans-serif;
 }
 
@@ -30,5 +41,16 @@
   --surface-glass: rgba(8, 17, 31, 0.92);
   --surface-raised: rgba(17, 24, 39, 0.82);
   --shadow-soft: 0 18px 42px rgba(0, 0, 0, 0.26);
+  --logo-color: #ffffff;
+  --control-bg: rgba(17, 24, 39, 0.82);
+  --control-bg-muted: #151c2e;
+  --table-header-bg: rgba(15, 23, 42, 0.95);
+  --table-row-bg: rgba(17, 24, 39, 0.64);
+  --table-row-hover: rgba(14, 165, 233, 0.08);
+  --viz-bg: #050a16;
+  --viz-panel: #0b1220;
+  --viz-border: #263247;
+  --viz-text: #e5eefb;
+  --viz-muted: #94a3b8;
   --font-sans: Inter, "Microsoft YaHei", "PingFang SC", "Segoe UI", Arial, sans-serif;
 }

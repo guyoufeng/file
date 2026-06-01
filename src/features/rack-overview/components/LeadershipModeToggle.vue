@@ -31,7 +31,8 @@ const emit = defineEmits<{
   border: 1px solid var(--color-border);
   border-radius: 8px;
   color: var(--color-text-muted);
-  background: rgba(8, 17, 31, 0.86);
+  background: var(--surface-raised);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04);
   cursor: pointer;
 }
 

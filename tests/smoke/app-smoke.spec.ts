@@ -267,6 +267,36 @@ test("alert locate opens rack u view and highlights the related device", async (
   await expect(page.getByTestId("rack-u-overview")).toBeVisible();
 });
 
+test("alert webhook is managed from a compact floating window", async ({
+  page,
+}) => {
+  await loginAsAdmin(page);
+  await page.goto("/#/alerts");
+
+  await page.getByRole("button", { name: "Webhook接入" }).click();
+  await expect(page.getByRole("dialog", { name: "告警 Webhook 接入" })).toBeVisible();
+  await page.getByLabel("Webhook名称").fill("卓豪硬件告警");
+  await page.getByLabel("Webhook来源").selectOption("zoho");
+  await page.getByRole("button", { name: "创建Webhook" }).click();
+
+  await expect(page.getByRole("dialog", { name: "告警 Webhook 接入" })).toContainText("卓豪硬件告警");
+});
+
+test("access records are created from a compact floating window", async ({
+  page,
+}) => {
+  await loginAsAdmin(page);
+  await page.goto("/#/access-records");
+
+  await page.getByRole("button", { name: "新增进出记录" }).click();
+  await expect(page.getByRole("dialog", { name: "新增进出记录" })).toBeVisible();
+  await page.getByLabel("单位").fill("维保厂家");
+  await page.getByLabel("人员").fill("李工");
+  await page.getByRole("button", { name: "新增", exact: true }).click();
+
+  await expect(page.getByRole("cell", { name: /维保厂家/ })).toBeVisible();
+});
+
 test("AI Agent settings shows readonly Agent API status and tools", async ({
   page,
 }) => {

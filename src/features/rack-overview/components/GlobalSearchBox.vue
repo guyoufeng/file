@@ -43,7 +43,7 @@ input {
   border: 1px solid var(--color-border);
   border-radius: 8px;
   color: var(--color-text);
-  background: rgba(8, 17, 31, 0.92);
+  background: var(--control-bg);
   outline: none;
 }
 
@@ -62,8 +62,8 @@ input:focus {
   padding: 8px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: #08111f;
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.28);
+  background: var(--surface-glass);
+  box-shadow: var(--shadow-soft);
 }
 
 .result-list button {

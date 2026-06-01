@@ -67,7 +67,7 @@ input {
   border: 1px solid var(--color-border);
   border-radius: 8px;
   color: var(--color-text);
-  background: rgba(8, 17, 31, 0.92);
+  background: var(--control-bg);
 }
 
 button {
@@ -86,7 +86,7 @@ button {
   align-items: center;
   gap: 7px;
   border-color: var(--color-border);
-  background: rgba(8, 17, 31, 0.78);
+  background: var(--surface-raised);
 }
 
 .filter-tab strong {

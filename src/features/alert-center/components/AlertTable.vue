@@ -60,7 +60,8 @@ const emit = defineEmits<{
   overflow: auto;
   border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: rgba(17, 24, 39, 0.82);
+  background: var(--color-panel);
+  box-shadow: var(--shadow-soft);
 }
 
 table {
@@ -78,7 +79,7 @@ td {
 
 th {
   color: var(--color-text-muted);
-  background: rgba(8, 17, 31, 0.72);
+  background: var(--table-header-bg);
 }
 
 tr.critical td:first-child {

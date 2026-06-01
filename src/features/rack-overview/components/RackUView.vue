@@ -186,6 +186,14 @@ watch(
 .rack-u-view {
   display: grid;
   gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--viz-border);
+  border-radius: 8px;
+  color: var(--viz-text);
+  background:
+    radial-gradient(circle at 10% 0%, rgba(14, 165, 233, 0.14), transparent 28%),
+    linear-gradient(180deg, rgba(11, 23, 40, 0.98), rgba(6, 17, 31, 0.99));
+  box-shadow: 0 18px 44px rgba(2, 6, 23, 0.2);
 }
 
 header {
@@ -213,7 +221,7 @@ header {
   padding: 0 10px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
-  color: var(--color-text-muted);
+  color: var(--viz-muted);
   background: rgba(8, 17, 31, 0.88);
   cursor: pointer;
 }
@@ -221,7 +229,7 @@ header {
 .side-switch button.active,
 .side-switch button:hover {
   border-color: rgba(14, 165, 233, 0.7);
-  color: var(--color-text);
+  color: var(--viz-text);
   background: rgba(14, 165, 233, 0.16);
 }
 
@@ -233,13 +241,14 @@ header {
 
 h3 {
   margin: 0;
+  color: var(--viz-text);
   font-size: 18px;
 }
 
 .hint {
   display: block;
   margin-top: 6px;
-  color: var(--color-text-muted);
+  color: var(--viz-muted);
   font-size: 12px;
 }
 
@@ -281,7 +290,7 @@ h3 {
 }
 
 .rack-u-row-label span {
-  color: var(--color-text-muted);
+  color: var(--viz-muted);
   font-size: 12px;
 }
 
@@ -305,7 +314,7 @@ h3 {
   padding: 8px 9px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
-  color: var(--color-text);
+  color: var(--viz-text);
   text-align: left;
   background:
     linear-gradient(
@@ -318,7 +327,7 @@ h3 {
 }
 
 .rack-u-title span {
-  color: var(--color-text-muted);
+  color: var(--viz-muted);
   font-size: 12px;
 }
 

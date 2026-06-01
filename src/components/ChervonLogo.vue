@@ -22,7 +22,7 @@ defineProps<{
 
 <style scoped>
 .chervon-logo {
-  color: #ffffff;
+  color: var(--logo-color);
   letter-spacing: 0;
 }
 

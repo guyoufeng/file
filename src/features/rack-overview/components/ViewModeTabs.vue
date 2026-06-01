@@ -36,7 +36,8 @@ const tabs: Array<{ value: ViewMode; label: string }> = [
   padding: 4px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: rgba(8, 17, 31, 0.86);
+  background: var(--surface-raised);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04);
 }
 
 button {

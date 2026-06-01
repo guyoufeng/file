@@ -193,7 +193,7 @@ input {
   border: 1px solid var(--color-border);
   border-radius: 8px;
   color: var(--color-text);
-  background: rgba(8, 17, 31, 0.92);
+  background: var(--control-bg);
 }
 
 select {
@@ -202,7 +202,7 @@ select {
   border: 1px solid var(--color-border);
   border-radius: 8px;
   color: var(--color-text);
-  background: rgba(8, 17, 31, 0.92);
+  background: var(--control-bg);
 }
 
 button {
@@ -223,7 +223,8 @@ button {
   overflow: auto;
   border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: rgba(17, 24, 39, 0.82);
+  background: var(--color-panel);
+  box-shadow: var(--shadow-soft);
 }
 
 table {
@@ -241,7 +242,7 @@ td {
 
 th {
   color: var(--color-text-muted);
-  background: rgba(8, 17, 31, 0.72);
+  background: var(--table-header-bg);
 }
 
 .modal-mask {
@@ -260,8 +261,8 @@ th {
   padding: 18px;
   border: 1px solid rgba(56, 189, 248, 0.36);
   border-radius: 8px;
-  background: rgba(10, 18, 32, 0.98);
-  box-shadow: 0 24px 80px rgba(0, 0, 0, 0.42);
+  background: var(--surface-glass);
+  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.2);
 }
 
 .dialog-header,
@@ -287,7 +288,7 @@ th {
   min-height: 32px;
   padding: 0;
   border-color: var(--color-border);
-  background: rgba(15, 23, 42, 0.92);
+  background: var(--control-bg-muted);
 }
 
 .form-grid {
@@ -310,7 +311,7 @@ label input {
 
 .ghost {
   border-color: var(--color-border);
-  background: rgba(15, 23, 42, 0.7);
+  background: var(--control-bg-muted);
 }
 
 @media (max-width: 720px) {

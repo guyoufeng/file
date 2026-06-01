@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import * as XLSX from "xlsx";
 import {
   createAccessRecord,
@@ -19,6 +19,11 @@ const records = ref<AccessRecord[]>([]);
 const keyword = ref("");
 const editingId = ref<string | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
+const recordWindowOpen = ref(false);
+const recordWindow = ref({ x: 0, y: 0 });
+let recordDrag:
+  | { startX: number; startY: number; originX: number; originY: number }
+  | null = null;
 const form = ref<AccessRecordInput>({
   date: new Date().toISOString().slice(0, 10),
   unit: "",
@@ -37,10 +42,19 @@ const form = ref<AccessRecordInput>({
 const filteredRecords = computed(() =>
   keyword.value ? searchAccessRecords(keyword.value, records.value) : records.value,
 );
+const recordWindowStyle = computed(() => ({
+  left: `${recordWindow.value.x}px`,
+  top: `${recordWindow.value.y}px`,
+}));
 
 onMounted(async () => {
   await assetStore.loadDevices();
   records.value = getAccessRecords();
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener("pointermove", moveRecordWindow);
+  window.removeEventListener("pointerup", stopRecordDrag);
 });
 
 function resetForm() {
@@ -61,6 +75,21 @@ function resetForm() {
   };
 }
 
+function openRecordWindow() {
+  resetForm();
+  const width = 520;
+  recordWindow.value = {
+    x: Math.max(18, window.innerWidth - width - 38),
+    y: 142,
+  };
+  recordWindowOpen.value = true;
+}
+
+function closeRecordWindow() {
+  recordWindowOpen.value = false;
+  resetForm();
+}
+
 function editRecord(record: AccessRecord) {
   editingId.value = record.id;
   form.value = {
@@ -77,6 +106,12 @@ function editRecord(record: AccessRecord) {
     result: record.result ?? "",
     attachments: [...record.attachments],
   };
+  const width = 520;
+  recordWindow.value = {
+    x: Math.max(18, window.innerWidth - width - 38),
+    y: 142,
+  };
+  recordWindowOpen.value = true;
 }
 
 function saveRecord() {
@@ -104,7 +139,7 @@ function saveRecord() {
     metadata: { deviceId: input.deviceId, isServerRepair: input.isServerRepair },
   });
   records.value = getAccessRecords();
-  resetForm();
+  closeRecordWindow();
 }
 
 function removeRecord(record: AccessRecord) {
@@ -121,6 +156,33 @@ function removeRecord(record: AccessRecord) {
 
 function openImport() {
   fileInputRef.value?.click();
+}
+
+function startRecordDrag(event: PointerEvent) {
+  const target = event.target as HTMLElement;
+  if (target.closest("button")) return;
+  recordDrag = {
+    startX: event.clientX,
+    startY: event.clientY,
+    originX: recordWindow.value.x,
+    originY: recordWindow.value.y,
+  };
+  window.addEventListener("pointermove", moveRecordWindow);
+  window.addEventListener("pointerup", stopRecordDrag);
+}
+
+function moveRecordWindow(event: PointerEvent) {
+  if (!recordDrag) return;
+  recordWindow.value = {
+    x: Math.max(10, Math.min(window.innerWidth - 540, recordDrag.originX + event.clientX - recordDrag.startX)),
+    y: Math.max(10, Math.min(window.innerHeight - 560, recordDrag.originY + event.clientY - recordDrag.startY)),
+  };
+}
+
+function stopRecordDrag() {
+  recordDrag = null;
+  window.removeEventListener("pointermove", moveRecordWindow);
+  window.removeEventListener("pointerup", stopRecordDrag);
 }
 
 async function importExcel(event: Event) {
@@ -167,13 +229,26 @@ async function importExcel(event: Event) {
       </div>
       <div class="header-actions">
         <input ref="fileInputRef" class="hidden-input" type="file" accept=".xlsx,.xls" @change="importExcel" />
+        <button type="button" @click="openRecordWindow">新增进出记录</button>
         <button type="button" @click="openImport">Excel导入</button>
       </div>
     </div>
 
-    <div class="access-grid">
+    <aside
+      v-if="recordWindowOpen"
+      class="record-window"
+      :style="recordWindowStyle"
+      role="dialog"
+      :aria-label="editingId ? '编辑进出记录' : '新增进出记录'"
+    >
       <form class="record-form" @submit.prevent="saveRecord">
-        <h3>{{ editingId ? "编辑进出记录" : "新增进出记录" }}</h3>
+        <header @pointerdown="startRecordDrag">
+          <div>
+            <h3>{{ editingId ? "编辑进出记录" : "新增进出记录" }}</h3>
+            <span>记录人员进出、维修和关联服务器信息。</span>
+          </div>
+          <button type="button" @click="closeRecordWindow">关闭</button>
+        </header>
         <label>日期<input v-model="form.date" type="date" /></label>
         <label>单位<input v-model="form.unit" placeholder="例如：维保厂家" /></label>
         <label>人员<input v-model="form.visitorName" placeholder="进入人员姓名" /></label>
@@ -196,7 +271,9 @@ async function importExcel(event: Event) {
           <button type="submit">{{ editingId ? "保存" : "新增" }}</button>
         </div>
       </form>
+    </aside>
 
+    <div class="access-grid">
       <section class="record-list">
         <div class="list-toolbar">
           <input v-model="keyword" placeholder="搜索日期、单位、人员、服务器、故障或处理结果" />
@@ -241,21 +318,25 @@ async function importExcel(event: Event) {
 
 <style scoped>
 .access-grid {
-  display: grid;
-  grid-template-columns: 360px minmax(0, 1fr);
-  gap: 16px;
+  display: block;
 }
 
 .header-actions button,
-.record-form,
 .record-list {
   border: 1px solid var(--color-border);
   border-radius: 8px;
   background: var(--color-panel);
 }
 
+.header-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
 .header-actions button,
 .form-actions button,
+.record-form header button,
 td button {
   min-height: 34px;
   border: 1px solid rgba(14, 165, 233, 0.38);
@@ -269,18 +350,50 @@ td button {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 12px;
-  padding: 16px;
 }
 
 .record-form h3,
+.record-form header,
 .full,
 .check-row,
 .form-actions {
   grid-column: 1 / -1;
 }
 
+.record-window {
+  position: fixed;
+  z-index: 90;
+  width: min(520px, calc(100vw - 28px));
+  max-height: calc(100vh - 40px);
+  overflow: auto;
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--surface-glass);
+  box-shadow: 0 20px 58px rgba(15, 23, 42, 0.2);
+  backdrop-filter: blur(16px);
+}
+
+.record-form header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: move;
+}
+
+.record-form header > div {
+  display: grid;
+  gap: 4px;
+}
+
 .record-form h3 {
   margin: 0;
+}
+
+.record-form header span {
+  color: var(--color-text-muted);
+  font-size: 12px;
 }
 
 label {

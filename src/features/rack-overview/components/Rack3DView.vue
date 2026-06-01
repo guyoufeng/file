@@ -282,9 +282,10 @@ function startAnimation() {
   position: relative;
   min-height: 560px;
   overflow: hidden;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--viz-border);
   border-radius: 8px;
-  background: #050a16;
+  background: var(--viz-bg);
+  box-shadow: 0 18px 44px rgba(2, 6, 23, 0.2);
 }
 
 .rack-3d-view.leadership {
@@ -338,12 +339,12 @@ canvas:active {
 }
 
 .scene-hud strong {
-  color: var(--color-text);
+  color: var(--viz-text);
   font-size: 18px;
 }
 
 .scene-hud span {
-  color: var(--color-text-muted);
+  color: var(--viz-muted);
   font-size: 12px;
 }
 </style>

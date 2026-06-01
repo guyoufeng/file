@@ -38,7 +38,8 @@ button {
   border: 1px solid var(--color-border);
   border-radius: 8px;
   color: var(--color-text-muted);
-  background: rgba(17, 24, 39, 0.82);
+  background: var(--surface-raised);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.04);
   cursor: pointer;
 }
 

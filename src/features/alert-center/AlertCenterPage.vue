@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import type { Alert, AlertStatus } from '../../types/domain'
 import { filterAlertsWithContext, getAlertDeviceContext, type AlertFilters as AlertFilterState } from '../../services/alerts/alertFilters'
@@ -34,11 +34,20 @@ const pageSize = ref(20)
 const webhookName = ref('卓豪监控告警')
 const webhookSource = ref<AlertWebhook['source']>('zoho')
 const webhooks = ref<AlertWebhook[]>([])
+const webhookWindowOpen = ref(false)
+const webhookWindow = ref({ x: 0, y: 0 })
+let webhookDrag:
+  | { startX: number; startY: number; originX: number; originY: number }
+  | null = null
 
 const filteredAlerts = computed(() =>
   sortByStartedAtDesc(filterAlertsWithContext(alertStore.alerts, assetStore.devices, roomStore.racks, roomStore.rooms, filters.value)),
 )
 const pagedAlerts = computed(() => paginate(filteredAlerts.value, { page: page.value, pageSize: pageSize.value }))
+const webhookWindowStyle = computed(() => ({
+  left: `${webhookWindow.value.x}px`,
+  top: `${webhookWindow.value.y}px`,
+}))
 
 watch([filters, pageSize], () => {
   page.value = 1
@@ -47,6 +56,11 @@ watch([filters, pageSize], () => {
 onMounted(async () => {
   await Promise.all([alertStore.loadAlerts(), assetStore.loadDevices(), roomStore.loadRooms()])
   webhooks.value = getAlertWebhooks()
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('pointermove', moveWebhookWindow)
+  window.removeEventListener('pointerup', stopWebhookDrag)
 })
 
 function saveAlert(alert: Alert) {
@@ -106,6 +120,42 @@ function removeWebhook(id: string) {
   deleteAlertWebhook(id)
   webhooks.value = getAlertWebhooks()
 }
+
+function openWebhookWindow() {
+  const width = 520
+  webhookWindow.value = {
+    x: Math.max(18, window.innerWidth - width - 38),
+    y: 142,
+  }
+  webhookWindowOpen.value = true
+}
+
+function startWebhookDrag(event: PointerEvent) {
+  const target = event.target as HTMLElement
+  if (target.closest('button')) return
+  webhookDrag = {
+    startX: event.clientX,
+    startY: event.clientY,
+    originX: webhookWindow.value.x,
+    originY: webhookWindow.value.y,
+  }
+  window.addEventListener('pointermove', moveWebhookWindow)
+  window.addEventListener('pointerup', stopWebhookDrag)
+}
+
+function moveWebhookWindow(event: PointerEvent) {
+  if (!webhookDrag) return
+  webhookWindow.value = {
+    x: Math.max(10, Math.min(window.innerWidth - 540, webhookDrag.originX + event.clientX - webhookDrag.startX)),
+    y: Math.max(10, Math.min(window.innerHeight - 360, webhookDrag.originY + event.clientY - webhookDrag.startY)),
+  }
+}
+
+function stopWebhookDrag() {
+  webhookDrag = null
+  window.removeEventListener('pointermove', moveWebhookWindow)
+  window.removeEventListener('pointerup', stopWebhookDrag)
+}
 </script>
 
 <template>
@@ -115,7 +165,10 @@ function removeWebhook(id: string) {
         <h2 class="page-title">告警中心</h2>
         <p class="page-subtitle">统一查看手工告警、未来 Prometheus 与卓豪监控同步的设备异常。</p>
       </div>
-      <button class="add-alert" type="button" @click="openAddAlert">新增告警</button>
+      <div class="header-actions">
+        <button class="webhook-button" type="button" @click="openWebhookWindow">Webhook接入</button>
+        <button class="add-alert" type="button" @click="openAddAlert">新增告警</button>
+      </div>
     </div>
 
     <AlertFilters
@@ -125,11 +178,20 @@ function removeWebhook(id: string) {
       :devices="assetStore.devices"
       @update:filters="filters = $event"
     />
-    <section class="webhook-panel" aria-label="告警 Webhook 接入">
-      <div>
-        <strong>Webhook 接入</strong>
-        <span>创建后可在卓豪或其他监控系统中填写地址，平台收到告警后进入告警中心。</span>
-      </div>
+    <aside
+      v-if="webhookWindowOpen"
+      class="webhook-window"
+      :style="webhookWindowStyle"
+      role="dialog"
+      aria-label="告警 Webhook 接入"
+    >
+      <header @pointerdown="startWebhookDrag">
+        <div>
+          <strong>Webhook 接入</strong>
+          <span>用于卓豪、Prometheus 或自定义监控推送告警。</span>
+        </div>
+        <button type="button" @click="webhookWindowOpen = false">关闭</button>
+      </header>
       <div class="webhook-form">
         <input v-model="webhookName" aria-label="Webhook名称" placeholder="Webhook名称" />
         <select v-model="webhookSource" aria-label="Webhook来源">
@@ -139,14 +201,17 @@ function removeWebhook(id: string) {
         </select>
         <button type="button" @click="addWebhook">创建Webhook</button>
       </div>
-      <div v-if="webhooks.length" class="webhook-list">
+      <div class="webhook-list">
         <article v-for="webhook in webhooks" :key="webhook.id">
-          <strong>{{ webhook.name }}</strong>
-          <code>{{ webhook.url }}</code>
+          <div>
+            <strong>{{ webhook.name }}</strong>
+            <code>{{ webhook.url }}</code>
+          </div>
           <button type="button" @click="removeWebhook(webhook.id)">删除</button>
         </article>
+        <p v-if="webhooks.length === 0">暂无 Webhook 配置。</p>
       </div>
-    </section>
+    </aside>
     <div class="batch-toolbar">
       <span>已选择 {{ selectedAlertIds.length }} 条告警</span>
       <select v-model="batchStatus">
@@ -186,6 +251,12 @@ function removeWebhook(id: string) {
 </template>
 
 <style scoped>
+.header-actions {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+
 .add-alert {
   min-height: 36px;
   padding: 0 14px;
@@ -193,6 +264,16 @@ function removeWebhook(id: string) {
   border-radius: 8px;
   color: var(--color-text);
   background: rgba(239, 68, 68, 0.16);
+  cursor: pointer;
+}
+
+.webhook-button {
+  min-height: 36px;
+  padding: 0 14px;
+  border: 1px solid rgba(14, 165, 233, 0.48);
+  border-radius: 8px;
+  color: var(--color-text);
+  background: rgba(14, 165, 233, 0.12);
   cursor: pointer;
 }
 
@@ -204,30 +285,44 @@ function removeWebhook(id: string) {
   color: var(--color-text-muted);
 }
 
-.webhook-panel {
+.webhook-form {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 138px auto;
+  gap: 8px;
+}
+
+.webhook-window {
+  position: fixed;
+  z-index: 90;
+  width: min(520px, calc(100vw - 28px));
   display: grid;
   gap: 12px;
-  margin-bottom: 14px;
   padding: 14px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: var(--surface-raised);
+  background: var(--surface-glass);
+  box-shadow: 0 20px 58px rgba(15, 23, 42, 0.2);
+  backdrop-filter: blur(16px);
 }
 
-.webhook-panel > div:first-child {
+.webhook-window header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: move;
+}
+
+.webhook-window header div {
   display: grid;
   gap: 4px;
 }
 
-.webhook-panel span {
+.webhook-window span,
+.webhook-list p {
+  margin: 0;
   color: var(--color-text-muted);
   font-size: 12px;
-}
-
-.webhook-form {
-  display: grid;
-  grid-template-columns: minmax(180px, 1fr) 160px auto;
-  gap: 8px;
 }
 
 .webhook-form input,
@@ -250,13 +345,25 @@ function removeWebhook(id: string) {
 .webhook-list {
   display: grid;
   gap: 8px;
+  max-height: 220px;
+  overflow: auto;
 }
 
 .webhook-list article {
-  display: grid;
-  grid-template-columns: 160px minmax(0, 1fr) auto;
+  display: flex;
+  justify-content: space-between;
   gap: 10px;
-  align-items: center;
+  align-items: start;
+  padding: 9px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-panel);
+}
+
+.webhook-list article > div {
+  min-width: 0;
+  display: grid;
+  gap: 4px;
 }
 
 .webhook-list code {
@@ -273,7 +380,7 @@ function removeWebhook(id: string) {
   border: 1px solid var(--color-border);
   border-radius: 8px;
   color: var(--color-text);
-  background: rgba(17, 24, 39, 0.82);
+  background: var(--control-bg);
 }
 
 .batch-toolbar button {

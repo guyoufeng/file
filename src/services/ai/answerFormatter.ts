@@ -1,5 +1,6 @@
 import type { Alert, AuditLog, Device, Rack, Room } from "../../types/domain";
 import type { VirtualServer } from "../../features/virtual-server-management/virtualServers";
+import type { AccessRecord } from "../../features/access-management/accessRecords";
 import { getAlertStatusLabel } from "../alerts/alertWorkflow";
 import { getAuditActionLabel } from "../audit/auditLogView";
 
@@ -142,6 +143,34 @@ export function formatAuditLogSearchAnswer(logs: AuditLog[]): string {
     ),
     logs.length > 20
       ? `仅展示前 20 条，剩余 ${logs.length - 20} 条可继续缩小条件查询。`
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
+export function formatAccessRecordSearchAnswer(records: AccessRecord[]): string {
+  if (records.length === 0) {
+    return "未在数据中心进出管理中找到匹配记录。可以尝试输入日期、单位、人员、服务器名、IP、故障描述或处理结果。";
+  }
+
+  return [
+    `匹配进出记录：${records.length} 条`,
+    "",
+    ...records.slice(0, 20).map((record, index) =>
+      [
+        `${index + 1}. ${record.date} ${record.enterTime}-${record.leaveTime || "未离开"}`,
+        `单位：${record.unit}`,
+        `人员：${record.visitorName}`,
+        `事由：${record.reason || "-"}`,
+        `关联服务器：${record.deviceName || record.deviceId || "-"}`,
+        `故障：${record.faultDescription || "-"}`,
+        `处理结果：${record.result || "-"}`,
+        `附件：${record.attachments.length > 0 ? record.attachments.join("、") : "-"}`,
+      ].join(" / "),
+    ),
+    records.length > 20
+      ? `仅展示前 20 条，剩余 ${records.length - 20} 条可继续缩小条件查询。`
       : "",
   ]
     .filter(Boolean)

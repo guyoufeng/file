@@ -63,7 +63,7 @@ const tabs: Array<{ value: SettingsTab; label: string }> = [
   margin-bottom: 16px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: rgba(8, 17, 31, 0.86);
+  background: var(--color-panel);
 }
 
 .settings-tabs button {
@@ -78,6 +78,6 @@ const tabs: Array<{ value: SettingsTab; label: string }> = [
 
 .settings-tabs button.active {
   color: var(--color-text);
-  background: rgba(14, 165, 233, 0.18);
+  background: color-mix(in srgb, var(--color-primary) 14%, transparent);
 }
 </style>

@@ -30,7 +30,8 @@ const navItems = computed(() =>
   min-height: 100vh;
   padding: 18px 14px;
   border-right: 1px solid var(--color-border);
-  background: #08111f;
+  background: var(--color-panel);
+  box-shadow: var(--shadow-soft);
 }
 
 .brand {

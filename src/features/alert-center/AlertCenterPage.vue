@@ -13,6 +13,12 @@ import AlertFormDrawer from './components/AlertFormDrawer.vue'
 import AlertTable from './components/AlertTable.vue'
 import PaginationControls from '../../components/PaginationControls.vue'
 import { paginate, sortByStartedAtDesc } from '../../services/pagination'
+import {
+  createAlertWebhook,
+  deleteAlertWebhook,
+  getAlertWebhooks,
+  type AlertWebhook,
+} from '../../services/alerts/alertWebhooks'
 
 const router = useRouter()
 const alertStore = useAlertStore()
@@ -25,6 +31,9 @@ const batchStatus = ref<AlertStatus>('read')
 const filters = ref<AlertFilterState>({ level: 'all', status: 'all' })
 const page = ref(1)
 const pageSize = ref(20)
+const webhookName = ref('卓豪监控告警')
+const webhookSource = ref<AlertWebhook['source']>('zoho')
+const webhooks = ref<AlertWebhook[]>([])
 
 const filteredAlerts = computed(() =>
   sortByStartedAtDesc(filterAlertsWithContext(alertStore.alerts, assetStore.devices, roomStore.racks, roomStore.rooms, filters.value)),
@@ -37,6 +46,7 @@ watch([filters, pageSize], () => {
 
 onMounted(async () => {
   await Promise.all([alertStore.loadAlerts(), assetStore.loadDevices(), roomStore.loadRooms()])
+  webhooks.value = getAlertWebhooks()
 })
 
 function saveAlert(alert: Alert) {
@@ -82,6 +92,20 @@ function locateAlert(alert: Alert) {
     query: buildAlertLocateQuery(alert, assetStore.devices, roomStore.racks, roomStore.rooms),
   })
 }
+
+function addWebhook() {
+  createAlertWebhook({
+    name: webhookName.value,
+    source: webhookSource.value,
+    enabled: true,
+  })
+  webhooks.value = getAlertWebhooks()
+}
+
+function removeWebhook(id: string) {
+  deleteAlertWebhook(id)
+  webhooks.value = getAlertWebhooks()
+}
 </script>
 
 <template>
@@ -101,6 +125,28 @@ function locateAlert(alert: Alert) {
       :devices="assetStore.devices"
       @update:filters="filters = $event"
     />
+    <section class="webhook-panel" aria-label="告警 Webhook 接入">
+      <div>
+        <strong>Webhook 接入</strong>
+        <span>创建后可在卓豪或其他监控系统中填写地址，平台收到告警后进入告警中心。</span>
+      </div>
+      <div class="webhook-form">
+        <input v-model="webhookName" aria-label="Webhook名称" placeholder="Webhook名称" />
+        <select v-model="webhookSource" aria-label="Webhook来源">
+          <option value="zoho">卓豪监控</option>
+          <option value="prometheus">Prometheus</option>
+          <option value="custom">自定义</option>
+        </select>
+        <button type="button" @click="addWebhook">创建Webhook</button>
+      </div>
+      <div v-if="webhooks.length" class="webhook-list">
+        <article v-for="webhook in webhooks" :key="webhook.id">
+          <strong>{{ webhook.name }}</strong>
+          <code>{{ webhook.url }}</code>
+          <button type="button" @click="removeWebhook(webhook.id)">删除</button>
+        </article>
+      </div>
+    </section>
     <div class="batch-toolbar">
       <span>已选择 {{ selectedAlertIds.length }} 条告警</span>
       <select v-model="batchStatus">
@@ -156,6 +202,69 @@ function locateAlert(alert: Alert) {
   gap: 10px;
   margin-bottom: 12px;
   color: var(--color-text-muted);
+}
+
+.webhook-panel {
+  display: grid;
+  gap: 12px;
+  margin-bottom: 14px;
+  padding: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--surface-raised);
+}
+
+.webhook-panel > div:first-child {
+  display: grid;
+  gap: 4px;
+}
+
+.webhook-panel span {
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.webhook-form {
+  display: grid;
+  grid-template-columns: minmax(180px, 1fr) 160px auto;
+  gap: 8px;
+}
+
+.webhook-form input,
+.webhook-form select,
+.webhook-form button,
+.webhook-list button {
+  min-height: 34px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  color: var(--color-text);
+  background: var(--color-panel);
+}
+
+.webhook-form button,
+.webhook-list button {
+  padding: 0 12px;
+  cursor: pointer;
+}
+
+.webhook-list {
+  display: grid;
+  gap: 8px;
+}
+
+.webhook-list article {
+  display: grid;
+  grid-template-columns: 160px minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+}
+
+.webhook-list code {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-primary);
 }
 
 .batch-toolbar select,

@@ -33,6 +33,12 @@ export const routes = [
     meta: { module: 'virtual-servers' },
   },
   {
+    path: '/access-records',
+    name: '数据中心进出管理',
+    component: () => import('../features/access-management/AccessManagementPage.vue'),
+    meta: { module: 'access-records' },
+  },
+  {
     path: '/connections',
     name: '连线管理',
     component: () => import('../features/connection-manager/ConnectionManagerPage.vue'),

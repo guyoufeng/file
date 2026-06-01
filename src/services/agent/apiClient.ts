@@ -1,4 +1,5 @@
 import type { Alert, AuditLog, Device, Rack, Room } from "../../types/domain";
+import type { AccessRecord } from "../../features/access-management/accessRecords";
 import type { ProjectJson } from "../backend/data";
 import type { AgentReadonlyTool } from "./apiManifest";
 import type { AgentReadonlySnapshot } from "./readonlyApi";
@@ -9,6 +10,7 @@ export interface AgentReadonlyContext {
   devices: Device[];
   alerts: Alert[];
   auditLogs: AuditLog[];
+  accessRecords: AccessRecord[];
   dataSource: string;
 }
 
@@ -93,6 +95,7 @@ export async function loadAgentReadonlyContext(
     devices: snapshot.data.devices,
     alerts: snapshot.data.alerts,
     auditLogs: snapshot.data.auditLogs ?? [],
+    accessRecords: snapshot.data.accessRecords ?? [],
     dataSource: "只读 Agent API",
   };
 }

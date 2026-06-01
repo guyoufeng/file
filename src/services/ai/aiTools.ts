@@ -1,6 +1,8 @@
 import type { Alert, AuditLog, Device, Rack, Room } from "../../types/domain";
 import type { VirtualServer } from "../../features/virtual-server-management/virtualServers";
+import type { AccessRecord } from "../../features/access-management/accessRecords";
 import {
+  formatAccessRecordSearchAnswer,
   formatActiveAlertDevicesAnswer,
   formatAuditLogSearchAnswer,
   formatDeviceAlertsAnswer,
@@ -28,6 +30,7 @@ export type AiToolName =
   | "list_alert_devices"
   | "search_virtual_servers"
   | "search_audit_logs"
+  | "search_access_records"
   | "summarize_room_status";
 
 export interface AiToolResult {
@@ -108,6 +111,20 @@ function searchAuditLogsForAi(query: string, auditLogs: AuditLog[]): AuditLog[] 
     .sort((first, second) => second.createdAt.localeCompare(first.createdAt));
 }
 
+function searchAccessRecordsForAi(query: string, records: AccessRecord[]): AccessRecord[] {
+  const keywords = query
+    .trim()
+    .toLowerCase()
+    .split(/\s+/)
+    .filter(Boolean);
+  if (keywords.length === 0) return [];
+  return records
+    .filter((record) => keywords.every((keyword) => includesKeyword(record, keyword)))
+    .sort((first, second) =>
+      `${second.date} ${second.enterTime}`.localeCompare(`${first.date} ${first.enterTime}`),
+    );
+}
+
 function extractLikelyAssetToken(question: string) {
   const tokens = question.match(/[a-zA-Z0-9][a-zA-Z0-9._-]{2,}/g) ?? [];
   return tokens.find((token) => /^[a-zA-Z]/.test(token) && /[\d.-]/.test(token));
@@ -121,6 +138,7 @@ export function runDeterministicAiQuery(
   alerts: Alert[],
   virtualServers: VirtualServer[] = [],
   auditLogs: AuditLog[] = [],
+  accessRecords: AccessRecord[] = [],
 ): AiToolResult {
   const queriedAt = new Date().toLocaleString("zh-CN", { hour12: false });
   const normalized = question.toLowerCase();
@@ -134,6 +152,7 @@ export function runDeterministicAiQuery(
   const asksWarranty = /过保|维保.*到期|到期.*维保|保修.*到期|即将.*到期/.test(question);
   const asksVirtualServer = /虚拟机|虚拟服务器|云主机|vm|VM|zstack|ZStack|宿主/.test(question);
   const asksAuditLog = /审计|操作记录|日志|历史记录|谁|导入记录|查询记录|修改记录/.test(question);
+  const asksAccessRecord = /进出|进入|离开|访客|维修记录|维修历史|维保记录|入场|出场|来过|谁来|维修/.test(question);
   const asksMissingField = /没有|缺少|为空|未填/.test(question);
   const missingFieldRules = [
     {
@@ -206,6 +225,45 @@ export function runDeterministicAiQuery(
       answer:
         formatAuditLogSearchAnswer(candidates) +
         sourceFooter({ label: "本地审计日志", queriedAt }),
+    };
+  }
+
+  if (asksAccessRecord) {
+    const relatedDevice = ip
+      ? devices.find(
+          (item) =>
+            item.businessIp === ip ||
+            item.managementIp === ip ||
+            item.ips.includes(ip),
+        )
+      : undefined;
+    const cleanedQuery = question
+      .replace(/最近|查询|查下|查一下|查看|看下|看一下|搜索|有没有|数据中心|机房|进出|进入|离开|访客|维修记录|维修历史|维保记录|入场|出场|来过|谁来|维修|记录|的|吗|？|\?/g, " ")
+      .trim();
+    const candidates =
+      [
+        relatedDevice?.computerName,
+        relatedDevice?.businessIp,
+        relatedDevice?.name,
+        ip,
+        cleanedQuery,
+        question,
+      ]
+        .filter((query): query is string => Boolean(query))
+        .map((query) => searchAccessRecordsForAi(query, accessRecords))
+        .find((matches) => matches.length > 0) ?? [];
+    const deviceFromRecord = candidates.find((record) => record.deviceId)?.deviceId;
+    const device = relatedDevice ?? devices.find((item) => item.id === deviceFromRecord);
+    const rack = racks.find((item) => item.id === device?.rackId);
+    const room = rooms.find((item) => item.id === rack?.roomId);
+    return {
+      toolName: "search_access_records",
+      relatedDeviceId: device?.id,
+      relatedRackId: rack?.id,
+      relatedRoomId: room?.id,
+      answer:
+        formatAccessRecordSearchAnswer(candidates) +
+        sourceFooter({ label: "数据中心进出管理", queriedAt }),
     };
   }
 

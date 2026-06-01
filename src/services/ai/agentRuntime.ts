@@ -10,6 +10,10 @@ import {
   loadVirtualServers,
   type VirtualServer,
 } from "../../features/virtual-server-management/virtualServers";
+import {
+  getAccessRecords,
+  type AccessRecord,
+} from "../../features/access-management/accessRecords";
 import { getLocalAiAuditLogs } from "../backend/ai";
 import { getProviderAdapter } from "./aiGateway";
 import { runDeterministicAiQuery, type AiToolResult, type AiToolName } from "./aiTools";
@@ -40,6 +44,7 @@ export interface QfAgentRequest {
   devices: Device[];
   alerts: Alert[];
   virtualServers?: VirtualServer[];
+  accessRecords?: AccessRecord[];
   auditLogs?: AuditLog[];
   capabilities?: AiAgentCapabilitySettings;
   dataSource: string;
@@ -114,7 +119,7 @@ function isPlatformQuestion(question: string, rooms: Room[], racks: Rack[]) {
   const normalized = question.toLowerCase();
   if (/\b\d{1,3}(?:\.\d{1,3}){3}\b/.test(question)) return true;
   if (isGeneralMaintenanceAdviceQuestion(question)) return false;
-  if (/机房|机柜|服务器|设备|资产|告警|报警|异常|故障|责任人|用途|业务ip|带外ip|u位|位置|在哪|计算机名|固定资产|编号|sn|SN|序列号|维保|硬件配置|操作系统|负责人|负责|查询|查下|查看|看下|搜索|虚拟机|虚拟服务器|云主机|宿主|审计|操作记录|历史记录|导入记录|查询记录|接口|端口|接线|容量|巡检|维修建议/.test(question)) {
+  if (/机房|机柜|服务器|设备|资产|告警|报警|异常|故障|责任人|用途|业务ip|带外ip|u位|位置|在哪|计算机名|固定资产|编号|sn|SN|序列号|维保|硬件配置|操作系统|负责人|负责|查询|查下|查看|看下|搜索|虚拟机|虚拟服务器|云主机|宿主|审计|操作记录|历史记录|导入记录|查询记录|接口|端口|接线|容量|巡检|维修建议|进出|进入|离开|访客|维修记录|入场|出场/.test(question)) {
     return true;
   }
   if (rooms.some((room) => normalized.includes(room.name.toLowerCase()))) return true;
@@ -226,6 +231,7 @@ export async function runQfAiAgent(request: QfAgentRequest): Promise<QfAgentRunR
   const config = getEnabledConfig(request.configs);
   const capabilities = request.capabilities ?? getAiAgentCapabilitySettings();
   const virtualServers = request.virtualServers ?? loadVirtualServers();
+  const accessRecords = request.accessRecords ?? getAccessRecords();
   const auditLogs = request.auditLogs ?? getLocalAiAuditLogs();
 
   if (isModelIdentityQuestion(request.question)) {
@@ -328,6 +334,7 @@ export async function runQfAiAgent(request: QfAgentRequest): Promise<QfAgentRunR
     request.alerts,
     virtualServers,
     auditLogs,
+    accessRecords,
   );
 
   let plan = buildDeterministicPlan(toolResult);

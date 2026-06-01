@@ -24,6 +24,7 @@ import {
   type TimedAiAgentEvent,
 } from "../../../services/ai/agentRunStore";
 import AiAnswerCard from "./AiAnswerCard.vue";
+import { getAccessRecords } from "../../access-management/accessRecords";
 
 const props = defineProps<{
   rooms: Room[];
@@ -77,6 +78,12 @@ const messageListRef = ref<HTMLElement | null>(null);
 const imageInputRef = ref<HTMLInputElement | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const pendingAttachments = ref<ChatAttachment[]>([]);
+const pendingSubmission = ref<{
+  question: string;
+  attachments: ChatAttachment[];
+} | null>(null);
+const queuedSubmissions = ref<Array<{ question: string; attachments: ChatAttachment[] }>>([]);
+const guidanceNotes = ref<string[]>([]);
 const activeSession = computed(() =>
   sessions.value.find((session) => session.id === activeSessionId.value),
 );
@@ -103,14 +110,27 @@ watch(
 );
 
 async function ask() {
-  if (!question.value.trim() || asking.value) return;
+  if (!question.value.trim()) return;
+  const nextQuestion = question.value.trim();
+  const nextAttachments = [...pendingAttachments.value];
+  if (asking.value) {
+    pendingSubmission.value = {
+      question: nextQuestion,
+      attachments: nextAttachments,
+    };
+    question.value = "";
+    pendingAttachments.value = [];
+    return;
+  }
+  await processQuestion(nextQuestion, nextAttachments);
+}
+
+async function processQuestion(currentQuestion: string, currentAttachments: ChatAttachment[]) {
   if (!activeSession.value) createSession();
 
   asking.value = true;
-  const currentQuestion = question.value;
   const startedAt = new Date();
   startThinkingTimeline(currentQuestion, startedAt.toISOString());
-  const currentAttachments = [...pendingAttachments.value];
   try {
     const commandAnswer = await answerLocalAgentCommand(currentQuestion);
     if (commandAnswer) {
@@ -171,8 +191,12 @@ async function ask() {
       devices: agentContext.devices,
       alerts: agentContext.alerts,
       auditLogs: agentContext.auditLogs,
+      accessRecords: agentContext.accessRecords,
       dataSource: agentContext.dataSource,
-      memories: getAgentMemories().map((memory) => memory.content),
+      memories: [
+        ...getAgentMemories().map((memory) => memory.content),
+        ...guidanceNotes.value.map((note) => `会话引导：${note}`),
+      ],
       attachments: currentAttachments,
     });
     const endedAt = new Date();
@@ -233,7 +257,27 @@ async function ask() {
   } finally {
     asking.value = false;
     stopThinkingTimeline();
+    const next = queuedSubmissions.value.shift();
+    if (next) {
+      await processQuestion(next.question, next.attachments);
+    }
   }
+}
+
+function guideRunningAnswer() {
+  if (!pendingSubmission.value) return;
+  guidanceNotes.value.push(pendingSubmission.value.question);
+  queuedSubmissions.value.unshift({
+    question: `补充引导：${pendingSubmission.value.question}\n请结合上一轮上下文继续处理。`,
+    attachments: pendingSubmission.value.attachments,
+  });
+  pendingSubmission.value = null;
+}
+
+function queuePendingQuestion() {
+  if (!pendingSubmission.value) return;
+  queuedSubmissions.value.push(pendingSubmission.value);
+  pendingSubmission.value = null;
 }
 
 async function answerLocalAgentCommand(questionText: string) {
@@ -287,6 +331,7 @@ async function loadContextForAgent() {
       devices: props.devices,
       alerts: props.alerts,
       auditLogs: [],
+      accessRecords: getAccessRecords(),
       dataSource: `页面状态（${reason}）`,
     };
   }
@@ -444,9 +489,9 @@ function buildNavigationTarget(result: {
       </div>
       <div v-if="asking && runningEvents.length" class="answer-item pending-answer">
         <div class="question-bubble">{{ runningQuestion }}</div>
-        <details class="agent-events live-events" open>
+        <details class="agent-events live-events">
           <summary>
-            执行过程
+            思考中
             <span>Agent 正在处理</span>
             <small>{{ runningElapsedLabel }}</small>
           </summary>
@@ -465,6 +510,14 @@ function buildNavigationTarget(result: {
       </div>
     </div>
     <form class="composer" data-testid="ai-composer" @submit.prevent="ask">
+      <div v-if="pendingSubmission" class="pending-choice">
+        <strong>上一条还在处理，这条消息怎么处理？</strong>
+        <span>{{ pendingSubmission.question }}</span>
+        <div>
+          <button type="button" @click="guideRunningAnswer">引导当前任务</button>
+          <button type="button" @click="queuePendingQuestion">等待后发送</button>
+        </div>
+      </div>
       <div v-if="pendingAttachments.length" class="attachment-list pending">
         <small v-for="(item, index) in pendingAttachments" :key="`${item.name}-${index}`">
           {{ item.name }}
@@ -499,8 +552,8 @@ function buildNavigationTarget(result: {
         <button type="button" class="tool-button" aria-label="添加附件" @click="pickFiles">
           附件
         </button>
-        <button type="submit" class="send-button" :disabled="asking">
-          {{ asking ? "分析中..." : "发送" }}
+        <button type="submit" class="send-button">
+          {{ asking ? "继续发送" : "发送" }}
         </button>
       </div>
     </form>
@@ -669,6 +722,36 @@ textarea {
 button:disabled {
   cursor: not-allowed;
   opacity: 0.58;
+}
+
+.pending-choice {
+  display: grid;
+  gap: 6px;
+  padding: 8px;
+  border: 1px solid rgba(245, 158, 11, 0.34);
+  border-radius: 8px;
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--color-warning) 10%, transparent);
+}
+
+.pending-choice span {
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.pending-choice div {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.pending-choice button {
+  min-height: 28px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  color: var(--color-text);
+  background: var(--color-panel);
+  cursor: pointer;
 }
 
 .answer-item {

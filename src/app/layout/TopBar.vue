@@ -41,8 +41,8 @@ async function logout() {
 <template>
   <header class="top-bar">
     <div>
-      <h1>数据中心运维控制台</h1>
-      <p class="eyebrow">v0.1 Foundation</p>
+      <h1>泉峰AI数据中心运维控制台</h1>
+      <p class="eyebrow">v0.1.0</p>
     </div>
     <div class="status-group">
       <span data-testid="app-clock" class="clock">{{ currentTime }}</span>
@@ -76,7 +76,8 @@ async function logout() {
   gap: 20px;
   padding: 0 20px;
   border-bottom: 1px solid var(--color-border);
-  background: rgba(8, 17, 31, 0.92);
+  background: var(--surface-glass);
+  box-shadow: var(--shadow-soft);
 }
 
 .eyebrow {
@@ -105,19 +106,19 @@ h1 {
 .ai-icon-button {
   border: 1px solid var(--color-border);
   border-radius: 999px;
-  background: rgba(17, 24, 39, 0.72);
+  background: var(--color-panel);
 }
 
 .clock {
   padding: 6px 10px;
-  color: #cbd5e1;
+  color: var(--color-text);
   font-variant-numeric: tabular-nums;
 }
 
 .user-button {
   min-height: 32px;
   padding: 0 13px;
-  color: #e0f2fe;
+  color: var(--color-text);
   cursor: pointer;
 }
 
@@ -136,8 +137,8 @@ h1 {
   padding: 12px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: rgba(8, 17, 31, 0.98);
-  box-shadow: 0 20px 50px rgba(2, 6, 23, 0.34);
+  background: var(--color-panel);
+  box-shadow: var(--shadow-soft);
 }
 
 .user-popover strong {
@@ -154,7 +155,7 @@ h1 {
   border: 1px solid rgba(14, 165, 233, 0.42);
   border-radius: 8px;
   color: var(--color-text);
-  background: rgba(14, 165, 233, 0.14);
+  background: color-mix(in srgb, var(--color-primary) 12%, transparent);
   cursor: pointer;
 }
 

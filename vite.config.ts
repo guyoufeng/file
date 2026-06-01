@@ -11,12 +11,14 @@ import {
   buildAgentReadonlySnapshot,
   filterAgentAlerts,
   filterAgentAuditLogs,
+  filterAgentAccessRecords,
   filterAgentDevices,
   filterAgentRacks,
   type AgentReadonlySnapshot,
   type AgentQuery,
 } from "./src/services/agent/readonlyApi";
 import type { ProjectJson } from "./src/services/backend/data";
+import type { Alert } from "./src/types/domain";
 
 async function readBody(req: IncomingMessage) {
   const chunks: Uint8Array[] = [];
@@ -110,6 +112,11 @@ async function loadAgentSnapshot(): Promise<AgentReadonlySnapshot> {
   }
 }
 
+async function saveAgentSnapshot(snapshot: AgentReadonlySnapshot): Promise<void> {
+  await mkdir(path.dirname(agentSnapshotPath), { recursive: true });
+  await writeFile(agentSnapshotPath, JSON.stringify(snapshot, null, 2), "utf8");
+}
+
 function aiProxyPlugin() {
   return {
     name: "ai-proxy",
@@ -142,8 +149,7 @@ function aiProxyPlugin() {
         try {
           const project = (await readBody(req)) as ProjectJson;
           const snapshot = buildAgentReadonlySnapshot(project);
-          await mkdir(path.dirname(agentSnapshotPath), { recursive: true });
-          await writeFile(agentSnapshotPath, JSON.stringify(snapshot, null, 2), "utf8");
+          await saveAgentSnapshot(snapshot);
           sendJson(res, {
             message: "只读 Agent API 快照已更新",
             generatedAt: snapshot.generatedAt,
@@ -210,6 +216,7 @@ function aiProxyPlugin() {
             "/api/agent/v1/devices",
             "/api/agent/v1/alerts",
             "/api/agent/v1/audit-logs",
+            "/api/agent/v1/access-records",
           ],
         });
       });
@@ -258,6 +265,72 @@ function aiProxyPlugin() {
         if (!(await ensureAgentAuthorized(req, res))) return;
         const snapshot = await loadAgentSnapshot();
         sendJson(res, { data: filterAgentAuditLogs(snapshot.data, getQuery(req)) });
+      });
+
+      server.middlewares.use("/api/agent/v1/access-records", async (req, res) => {
+        if (!(await ensureAgentAuthorized(req, res))) return;
+        const snapshot = await loadAgentSnapshot();
+        sendJson(res, { data: filterAgentAccessRecords(snapshot.data, getQuery(req)) });
+      });
+
+      server.middlewares.use("/api/webhooks/alerts", async (req, res) => {
+        if (req.method !== "POST") {
+          res.statusCode = 405;
+          res.end("Method Not Allowed");
+          return;
+        }
+
+        try {
+          const token = (req.url ?? "").split("/").filter(Boolean).at(-1);
+          const body = (await readBody(req)) as {
+            hostname?: string;
+            ip?: string;
+            title?: string;
+            message?: string;
+            severity?: string;
+            source?: "manual" | "prometheus" | "zoho" | "custom";
+          };
+          const snapshot = await loadAgentSnapshot();
+          const device = snapshot.data.devices.find(
+            (item) =>
+              item.computerName === body.hostname ||
+              item.name === body.hostname ||
+              item.businessIp === body.ip ||
+              item.managementIp === body.ip ||
+              item.ips.includes(body.ip ?? ""),
+          );
+
+          if (!token || !device) {
+            sendJson(res, { message: "Webhook Token 或设备匹配失败" }, 400);
+            return;
+          }
+
+          const severity = body.severity?.toLowerCase() ?? "";
+          const alert: Alert = {
+            id: `webhook-${Date.now()}`,
+            deviceId: device.id,
+            source: body.source ?? "zoho",
+            level: /critical|严重|fatal|high/.test(severity)
+              ? "critical"
+              : /warning|warn|告警|中/.test(severity)
+                ? "warning"
+                : "info",
+            status: "unconfirmed",
+            title: body.title || body.message || "Webhook 告警",
+            description: body.message,
+            startedAt: new Date().toISOString(),
+          };
+          snapshot.data.alerts = [alert, ...snapshot.data.alerts];
+          snapshot.generatedAt = new Date().toISOString();
+          await saveAgentSnapshot(snapshot);
+          sendJson(res, { message: "Webhook 告警已接收", alert });
+        } catch (error) {
+          sendJson(
+            res,
+            { message: error instanceof Error ? error.message : "Webhook 告警接收失败" },
+            500,
+          );
+        }
       });
 
       server.middlewares.use("/__ai_proxy/models", async (req, res) => {

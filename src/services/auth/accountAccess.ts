@@ -4,6 +4,7 @@ export type AppModuleKey =
   | "rack-overview"
   | "assets"
   | "virtual-servers"
+  | "access-records"
   | "connections"
   | "alerts"
   | "reports"
@@ -48,6 +49,7 @@ export const appModules: Array<{ key: AppModuleKey; label: string; path: string 
   { key: "rack-overview", label: "机柜总览", path: "/rack-overview" },
   { key: "assets", label: "资产管理", path: "/assets" },
   { key: "virtual-servers", label: "虚拟服务器", path: "/virtual-servers" },
+  { key: "access-records", label: "进出管理", path: "/access-records" },
   { key: "connections", label: "连线管理", path: "/connections" },
   { key: "alerts", label: "告警中心", path: "/alerts" },
   { key: "reports", label: "报表中心", path: "/reports" },
@@ -76,6 +78,7 @@ export function defaultAccountPermissions(role: AccountRole): AccountPermissions
     "rack-overview": level,
     assets: level,
     "virtual-servers": level,
+    "access-records": level,
     connections: level,
     alerts: level,
     reports: level,

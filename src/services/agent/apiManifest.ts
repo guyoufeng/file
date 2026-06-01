@@ -132,6 +132,17 @@ export function getAgentReadonlyTools(baseUrl: string): AgentReadonlyTool[] {
         status: "success 或 failed，可选。",
       },
     },
+    {
+      name: "agent_search_access_records",
+      description: "查询数据中心进出、访客、维修和故障处理记录。",
+      method: "GET",
+      path: "/access-records",
+      url: joinUrl(baseUrl, "/access-records"),
+      readonly: true,
+      query: {
+        q: "日期、单位、人员、服务器名、故障或处理结果关键字，可选。",
+      },
+    },
   ];
 }
 

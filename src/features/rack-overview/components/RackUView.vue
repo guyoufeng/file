@@ -7,6 +7,7 @@ import {
   getRackTypeColor,
   getRackTypeLabel,
 } from "../../../services/rack/rackTypePresentation";
+import { computeDeviceCenterScrollTop } from "../rackFocus";
 
 const props = defineProps<{
   rack: Rack | null;
@@ -61,14 +62,15 @@ watch(
     const scrollContainer = rackElement.closest(".rack-u-scroll");
     if (!(scrollContainer instanceof HTMLElement)) return;
 
-    const unitHeight = Math.max(10, 14 * zoom.value);
-    const rackHeight = props.rack.heightU * unitHeight;
-    const deviceMiddleFromTop =
-      (props.rack.heightU - device.endU + device.heightU / 2) * unitHeight;
-    scrollContainer.scrollTop =
-      scrollContainer.scrollTop +
-      deviceMiddleFromTop -
-      rackHeight / 2;
+    const unitHeight = Math.round(13 * zoom.value);
+    scrollContainer.scrollTop = computeDeviceCenterScrollTop({
+      rackHeightU: props.rack.heightU,
+      deviceStartU: device.startU,
+      deviceEndU: device.endU,
+      deviceHeightU: device.heightU,
+      unitHeight,
+      containerHeight: scrollContainer.clientHeight,
+    });
   },
   { flush: "post" },
 );

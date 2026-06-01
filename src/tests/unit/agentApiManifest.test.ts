@@ -16,6 +16,7 @@ describe("agent api manifest", () => {
       "agent_search_devices",
       "agent_list_alerts",
       "agent_search_audit_logs",
+      "agent_search_access_records",
     ]);
     expect(tools.find((tool) => tool.name === "agent_search_devices")).toMatchObject({
       method: "GET",

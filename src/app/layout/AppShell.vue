@@ -5,18 +5,24 @@ import SideNav from './SideNav.vue'
 import TopBar from './TopBar.vue'
 
 const aiOpen = ref(false)
+const aiRestoreToken = ref(0)
+
+function openAiAssistant() {
+  aiOpen.value = true
+  aiRestoreToken.value += 1
+}
 </script>
 
 <template>
   <div class="app-shell">
     <SideNav />
     <div class="workspace">
-      <TopBar @open-ai="aiOpen = true" />
+      <TopBar @open-ai="openAiAssistant" />
       <main class="content">
         <RouterView />
       </main>
     </div>
-    <AiAssistantDrawer :open="aiOpen" @close="aiOpen = false" />
+    <AiAssistantDrawer :open="aiOpen" :restore-token="aiRestoreToken" @close="aiOpen = false" />
   </div>
 </template>
 
@@ -40,7 +46,7 @@ const aiOpen = ref(false)
   overflow: auto;
   padding: 20px;
   background:
-    linear-gradient(180deg, rgba(14, 165, 233, 0.08), transparent 280px),
+    linear-gradient(180deg, color-mix(in srgb, var(--color-primary) 8%, transparent), transparent 280px),
     var(--color-bg);
 }
 

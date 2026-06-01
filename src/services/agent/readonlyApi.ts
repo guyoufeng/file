@@ -1,4 +1,5 @@
 import type { AiModelConfig, Alert, AuditLog, DataCenter, Device, MicroModule, Rack, Room } from "../../types/domain";
+import type { AccessRecord } from "../../features/access-management/accessRecords";
 import type { ProjectJson } from "../backend/data";
 
 export interface AgentReadonlyData {
@@ -9,6 +10,7 @@ export interface AgentReadonlyData {
   devices: Device[];
   alerts: Alert[];
   auditLogs?: AuditLog[];
+  accessRecords?: AccessRecord[];
   aiModelConfigs?: Omit<AiModelConfig, "apiKeyRef">[];
 }
 
@@ -61,9 +63,34 @@ export function buildAgentReadonlySnapshot(project: ProjectJson): AgentReadonlyS
       devices: project.data.devices ?? [],
       alerts: project.data.alerts ?? [],
       auditLogs: project.data.auditLogs,
+      accessRecords: project.data.accessRecords,
       aiModelConfigs: project.data.aiModelConfigs?.map(({ apiKeyRef: _apiKeyRef, ...config }) => config),
     },
   };
+}
+
+export function filterAgentAccessRecords(
+  data: Pick<AgentReadonlyData, "accessRecords">,
+  query: AgentQuery,
+): AccessRecord[] {
+  return (data.accessRecords ?? []).filter((record) =>
+    matchesKeyword(
+      [
+        record.date,
+        record.unit,
+        record.visitorName,
+        record.enterTime,
+        record.leaveTime,
+        record.reason,
+        record.deviceId,
+        record.deviceName,
+        record.faultDescription,
+        record.result,
+        record.attachments,
+      ],
+      query.q,
+    ),
+  );
 }
 
 export function filterAgentRacks(

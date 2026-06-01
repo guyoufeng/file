@@ -1,4 +1,5 @@
 import { defaultDeviceCategories } from "../../constants/categories";
+import type { AccessRecord } from "../../features/access-management/accessRecords";
 import type { AiModelConfig, Alert, DataCenter, Device, MicroModule, Rack, Room } from "../../types/domain";
 import { writeSystemAuditLog } from "./ai";
 import { invokeCommand } from "./invoke";
@@ -11,6 +12,7 @@ export interface SampleProject {
   racks: Rack[];
   devices: Device[];
   alerts: Alert[];
+  accessRecords?: AccessRecord[];
   aiModelConfigs?: AiModelConfig[];
 }
 
@@ -379,6 +381,10 @@ export function buildProjectJson(data: SampleProject): ProjectJson {
       racks: readLocalJson<Rack[]>("qf-ai-dcim.racks", data.racks),
       devices: readLocalJson<Device[]>("qf-ai-dcim.devices", data.devices),
       alerts: readLocalJson<Alert[]>("qf-ai-dcim.alerts", data.alerts),
+      accessRecords: readLocalJson<AccessRecord[]>(
+        "qf-ai-dcim.accessRecords",
+        data.accessRecords ?? [],
+      ),
       aiModelConfigs: readLocalJson<AiModelConfig[]>(
         "qf-ai-dcim.aiModelConfigs",
         data.aiModelConfigs ?? [],
@@ -450,6 +456,7 @@ export async function importProjectJson(project: ProjectJson): Promise<void> {
     writeLocalJson("qf-ai-dcim.racks", racks);
     writeLocalJson("qf-ai-dcim.devices", project.data.devices ?? []);
     writeLocalJson("qf-ai-dcim.alerts", project.data.alerts ?? []);
+    writeLocalJson("qf-ai-dcim.accessRecords", project.data.accessRecords ?? []);
     writeLocalJson("qf-ai-dcim.aiModelConfigs", project.data.aiModelConfigs ?? []);
   }
 
@@ -472,6 +479,7 @@ export async function restoreSampleProject(): Promise<void> {
     writeLocalJson("qf-ai-dcim.racks", sampleProject.racks);
     writeLocalJson("qf-ai-dcim.devices", sampleProject.devices);
     writeLocalJson("qf-ai-dcim.alerts", sampleProject.alerts);
+    writeLocalJson("qf-ai-dcim.accessRecords", []);
     writeLocalJson("qf-ai-dcim.aiModelConfigs", []);
   }
 

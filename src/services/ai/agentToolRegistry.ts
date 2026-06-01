@@ -73,6 +73,15 @@ export const qfAgentTools: QfAgentToolDefinition[] = [
     },
   },
   {
+    name: "search_access_records",
+    label: "进出管理查询",
+    description: "查询数据中心进出、维修入场、故障处理记录和附件说明。",
+    readonly: true,
+    inputSchema: {
+      query: "日期、单位、人员、服务器、故障、维修或自然语言问题。",
+    },
+  },
+  {
     name: "summarize_room_status",
     label: "运行概览",
     description: "汇总当前机房、机柜、设备和活动告警数量。",

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import { useAlertStore } from "../../stores/alertStore";
 import { useAiStore } from "../../stores/aiStore";
@@ -8,8 +8,9 @@ import { useRoomStore } from "../../stores/roomStore";
 import type { AiNavigationTarget } from "../../types/aiNavigation";
 import AiChatPanel from "./components/AiChatPanel.vue";
 
-defineProps<{
+const props = defineProps<{
   open: boolean;
+  restoreToken?: number;
 }>();
 
 const emit = defineEmits<{
@@ -22,6 +23,8 @@ const alertStore = useAlertStore();
 const aiStore = useAiStore();
 const router = useRouter();
 const mode = ref<"default" | "expanded" | "fullscreen">("default");
+const minimized = ref(false);
+const panelRef = ref<HTMLElement | null>(null);
 const drawerClass = computed(() => `drawer-panel ${mode.value}`);
 const currentModelLabel = computed(() => {
   const config =
@@ -64,11 +67,27 @@ onMounted(async () => {
     aiStore.loadConfigs(),
   ]);
   clampWindow();
+  window.addEventListener("pointerdown", handleOutsidePointerDown);
 });
 
 onBeforeUnmount(() => {
   stopPointerTracking();
+  window.removeEventListener("pointerdown", handleOutsidePointerDown);
 });
+
+watch(
+  () => props.restoreToken,
+  () => {
+    minimized.value = false;
+  },
+);
+
+watch(
+  () => props.open,
+  (open) => {
+    if (open) minimized.value = false;
+  },
+);
 
 function setMode(nextMode: "default" | "expanded" | "fullscreen") {
   mode.value = nextMode;
@@ -161,14 +180,32 @@ async function locateTarget(target: AiNavigationTarget) {
       ...(target.rackId ? { rackId: target.rackId } : {}),
       ...(target.deviceId ? { deviceId: target.deviceId } : {}),
       focus: Date.now().toString(),
+      view: "u-view",
     },
   });
+}
+
+function handleOutsidePointerDown(event: PointerEvent) {
+  if (!props.open || minimized.value) return;
+  const target = event.target as HTMLElement;
+  if (panelRef.value?.contains(target)) return;
+  if (target.closest(".ai-icon-button")) return;
+  minimized.value = true;
 }
 </script>
 
 <template>
+  <button
+    v-if="open && minimized"
+    type="button"
+    class="ai-minimized-pill"
+    @click="minimized = false"
+  >
+    AI助手{{ currentModelLabel ? " · 已最小化" : "" }}
+  </button>
   <aside
-    v-if="open"
+    v-if="open && !minimized"
+    ref="panelRef"
     :class="drawerClass"
     :style="windowStyle"
     data-testid="ai-floating-window"
@@ -282,6 +319,23 @@ button {
 button.active {
   border-color: rgba(56, 189, 248, 0.72);
   background: rgba(14, 165, 233, 0.16);
+}
+
+.ai-minimized-pill {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  z-index: 60;
+  min-height: 40px;
+  padding: 0 16px;
+  border: 1px solid rgba(56, 189, 248, 0.42);
+  border-radius: 999px;
+  color: #e0f2fe;
+  background:
+    radial-gradient(circle at 30% 18%, rgba(125, 211, 252, 0.52), transparent 34%),
+    linear-gradient(135deg, rgba(14, 165, 233, 0.9), rgba(37, 99, 235, 0.84));
+  box-shadow: 0 18px 38px rgba(14, 165, 233, 0.24);
+  cursor: pointer;
 }
 
 .resize-handle {

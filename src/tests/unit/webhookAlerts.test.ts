@@ -1,8 +1,10 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   createAlertWebhook,
+  getAlertWebhookPublicBaseUrl,
   getAlertWebhooks,
   ingestWebhookAlert,
+  setAlertWebhookPublicBaseUrl,
   testAlertWebhookPayload,
 } from "../../services/alerts/alertWebhooks";
 import type { Device } from "../../types/domain";
@@ -67,5 +69,19 @@ describe("alert webhooks", () => {
     expect(alert?.source).toBe("zoho");
     expect(alert?.level).toBe("critical");
     expect(alert?.title).toContain("硬盘故障");
+  });
+
+  it("uses a configured public base url instead of loopback for webhook addresses", () => {
+    setAlertWebhookPublicBaseUrl("http://192.168.31.50:5173");
+
+    const webhook = createAlertWebhook({
+      name: "卓豪推送",
+      source: "zoho",
+      enabled: true,
+    });
+
+    expect(getAlertWebhookPublicBaseUrl()).toBe("http://192.168.31.50:5173");
+    expect(webhook.url).toBe(`http://192.168.31.50:5173/api/webhooks/alerts/${webhook.token}`);
+    expect(webhook.url).not.toContain("127.0.0.1");
   });
 });

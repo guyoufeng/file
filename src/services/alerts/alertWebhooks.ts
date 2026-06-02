@@ -29,6 +29,7 @@ export interface IncomingAlertPayload {
 
 const WEBHOOK_KEY = "qf-ai-dcim.alertWebhooks";
 const ALERT_KEY = "qf-ai-dcim.alerts";
+const PUBLIC_BASE_URL_KEY = "qf-ai-dcim.alertWebhookPublicBaseUrl";
 
 function storage() {
   return typeof localStorage === "undefined" ? undefined : localStorage;
@@ -59,9 +60,47 @@ function createToken() {
   return Math.random().toString(36).slice(2, 12) + Date.now().toString(36);
 }
 
-function webhookUrl(token: string) {
-  const origin = typeof location === "undefined" ? "http://127.0.0.1:5173" : location.origin;
-  return `${origin}/api/webhooks/alerts/${token}`;
+function normalizeBaseUrl(url: string) {
+  return url.trim().replace(/\/+$/, "");
+}
+
+function inferCurrentOrigin() {
+  if (typeof location === "undefined") return "http://127.0.0.1:5173";
+  return normalizeBaseUrl(location.origin);
+}
+
+export function getAlertWebhookPublicBaseUrl(): string {
+  const stored = storage()?.getItem(PUBLIC_BASE_URL_KEY);
+  return stored ? normalizeBaseUrl(stored) : inferCurrentOrigin();
+}
+
+export function setAlertWebhookPublicBaseUrl(baseUrl: string): string {
+  const normalized = normalizeBaseUrl(baseUrl);
+  if (!normalized) {
+    storage()?.removeItem(PUBLIC_BASE_URL_KEY);
+    return inferCurrentOrigin();
+  }
+  storage()?.setItem(PUBLIC_BASE_URL_KEY, normalized);
+  const webhooks = getAlertWebhooks().map((webhook) => ({
+    ...webhook,
+    url: webhookUrl(webhook.token, normalized),
+  }));
+  writeJson(WEBHOOK_KEY, webhooks);
+  return normalized;
+}
+
+export function refreshAlertWebhookUrls(baseUrl = getAlertWebhookPublicBaseUrl()): AlertWebhook[] {
+  const normalized = normalizeBaseUrl(baseUrl);
+  const webhooks = getAlertWebhooks().map((webhook) => ({
+    ...webhook,
+    url: webhookUrl(webhook.token, normalized),
+  }));
+  writeJson(WEBHOOK_KEY, webhooks);
+  return webhooks;
+}
+
+function webhookUrl(token: string, baseUrl = getAlertWebhookPublicBaseUrl()) {
+  return `${normalizeBaseUrl(baseUrl)}/api/webhooks/alerts/${token}`;
 }
 
 function normalizeLevel(severity?: string): AlertLevel {

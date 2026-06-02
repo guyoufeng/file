@@ -25,6 +25,7 @@ import {
   addAgentMemory,
   clearAgentMemories,
   getAgentMemories,
+  updateAgentMemory,
   type AgentMemory,
 } from "../../../services/ai/agentMemory";
 import {
@@ -60,6 +61,8 @@ const tokenMessage = ref("令牌只用于只读查询，外部 Agent 不能通�
 const roleDefinition = ref(getAgentRoleDefinition());
 const memoryInput = ref("");
 const memories = ref<AgentMemory[]>(getAgentMemories());
+const editingMemoryId = ref("");
+const editingMemoryContent = ref("");
 const skillInput = ref("");
 const customSkills = ref<AiSkillDefinition[]>(getCustomAgentSkills());
 const knowledgeEntries = ref<KnowledgeEntry[]>(getKnowledgeEntries());
@@ -126,6 +129,24 @@ function clearMemoryList() {
   clearAgentMemories();
   memories.value = [];
   message.value = "长期记忆已清空。";
+}
+
+function startEditMemory(memory: AgentMemory) {
+  editingMemoryId.value = memory.id;
+  editingMemoryContent.value = memory.content;
+}
+
+function cancelEditMemory() {
+  editingMemoryId.value = "";
+  editingMemoryContent.value = "";
+}
+
+function saveEditedMemory() {
+  if (!editingMemoryId.value || !editingMemoryContent.value.trim()) return;
+  updateAgentMemory(editingMemoryId.value, editingMemoryContent.value);
+  memories.value = getAgentMemories();
+  cancelEditMemory();
+  message.value = "长期记忆已更新。";
 }
 
 function addSkill() {
@@ -358,7 +379,24 @@ async function saveTokenSettings(enabled: boolean) {
           <button type="button" @click="addMemory">写入记忆</button>
         </div>
         <ul class="compact-list">
-          <li v-for="memory in memories" :key="memory.id">{{ memory.content }}</li>
+          <li v-for="memory in memories" :key="memory.id" class="memory-row">
+            <template v-if="editingMemoryId === memory.id">
+              <input
+                v-model="editingMemoryContent"
+                class="memory-edit-input"
+                aria-label="编辑长期记忆"
+                @keydown.enter.prevent="saveEditedMemory"
+              />
+              <div class="memory-actions">
+                <button type="button" @click="saveEditedMemory">保存</button>
+                <button type="button" @click="cancelEditMemory">取消</button>
+              </div>
+            </template>
+            <template v-else>
+              <span>{{ memory.content }}</span>
+              <button type="button" @click="startEditMemory(memory)">修改</button>
+            </template>
+          </li>
           <li v-if="memories.length === 0">暂无长期记忆。</li>
         </ul>
       </article>
@@ -786,6 +824,20 @@ article.disabled {
   color: var(--color-text-muted);
   background: rgba(2, 6, 23, 0.45);
   font-size: 12px;
+}
+
+.compact-list li.memory-row {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+}
+
+.memory-edit-input {
+  min-height: 30px !important;
+}
+
+.memory-actions {
+  display: flex !important;
+  gap: 6px !important;
 }
 
 .compact-list li strong,

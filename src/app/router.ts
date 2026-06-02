@@ -39,6 +39,12 @@ export const routes = [
     meta: { module: 'access-records' },
   },
   {
+    path: '/changes',
+    name: '变更管理',
+    component: () => import('../features/change-management/ChangeManagementPage.vue'),
+    meta: { module: 'change-management' },
+  },
+  {
     path: '/connections',
     name: '连线管理',
     component: () => import('../features/connection-manager/ConnectionManagerPage.vue'),

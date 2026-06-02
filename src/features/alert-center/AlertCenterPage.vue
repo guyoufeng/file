@@ -16,7 +16,10 @@ import { paginate, sortByStartedAtDesc } from '../../services/pagination'
 import {
   createAlertWebhook,
   deleteAlertWebhook,
+  getAlertWebhookPublicBaseUrl,
   getAlertWebhooks,
+  refreshAlertWebhookUrls,
+  setAlertWebhookPublicBaseUrl,
   type AlertWebhook,
 } from '../../services/alerts/alertWebhooks'
 
@@ -33,6 +36,7 @@ const page = ref(1)
 const pageSize = ref(20)
 const webhookName = ref('卓豪监控告警')
 const webhookSource = ref<AlertWebhook['source']>('zoho')
+const webhookBaseUrl = ref('')
 const webhooks = ref<AlertWebhook[]>([])
 const webhookWindowOpen = ref(false)
 const webhookCopyMessage = ref('')
@@ -56,7 +60,9 @@ watch([filters, pageSize], () => {
 
 onMounted(async () => {
   await Promise.all([alertStore.loadAlerts(), assetStore.loadDevices(), roomStore.loadRooms()])
-  webhooks.value = getAlertWebhooks()
+  webhookBaseUrl.value = getAlertWebhookPublicBaseUrl()
+  await detectPublicWebhookBaseUrl()
+  webhooks.value = refreshAlertWebhookUrls(webhookBaseUrl.value)
 })
 
 onBeforeUnmount(() => {
@@ -109,6 +115,7 @@ function locateAlert(alert: Alert) {
 }
 
 function addWebhook() {
+  webhookBaseUrl.value = setAlertWebhookPublicBaseUrl(webhookBaseUrl.value)
   createAlertWebhook({
     name: webhookName.value,
     source: webhookSource.value,
@@ -116,6 +123,26 @@ function addWebhook() {
   })
   webhooks.value = getAlertWebhooks()
   webhookCopyMessage.value = ''
+}
+
+function saveWebhookBaseUrl() {
+  webhookBaseUrl.value = setAlertWebhookPublicBaseUrl(webhookBaseUrl.value)
+  webhooks.value = getAlertWebhooks()
+  webhookCopyMessage.value = '对外访问地址已更新'
+}
+
+async function detectPublicWebhookBaseUrl() {
+  if (!/^https?:\/\/(127\.0\.0\.1|localhost)(:|\/|$)/i.test(webhookBaseUrl.value)) return
+  try {
+    const response = await fetch('/api/runtime/public-base-url')
+    if (!response.ok) return
+    const data = (await response.json()) as { baseUrl?: string }
+    if (data.baseUrl && !/127\.0\.0\.1|localhost/i.test(data.baseUrl)) {
+      webhookBaseUrl.value = setAlertWebhookPublicBaseUrl(data.baseUrl)
+    }
+  } catch {
+    // 保留用户手动填写能力。
+  }
 }
 
 function removeWebhook(id: string) {
@@ -212,6 +239,15 @@ function stopWebhookDrag() {
         <button type="button" @click="webhookWindowOpen = false">关闭</button>
       </header>
       <div class="webhook-form">
+        <label class="webhook-base-url">
+          <span>对外访问地址</span>
+          <input
+            v-model="webhookBaseUrl"
+            aria-label="Webhook对外访问地址"
+            placeholder="例如：http://192.168.31.50:5173"
+            @blur="saveWebhookBaseUrl"
+          />
+        </label>
         <input v-model="webhookName" aria-label="Webhook名称" placeholder="Webhook名称" />
         <select v-model="webhookSource" aria-label="Webhook来源">
           <option value="zoho">卓豪监控</option>
@@ -310,6 +346,17 @@ function stopWebhookDrag() {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 138px auto;
   gap: 8px;
+}
+
+.webhook-base-url {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: 5px;
+}
+
+.webhook-base-url span {
+  color: var(--color-text-muted);
+  font-size: 12px;
 }
 
 .webhook-window {

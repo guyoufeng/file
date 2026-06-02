@@ -1,6 +1,7 @@
 import type { IncomingMessage } from "node:http";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { networkInterfaces } from "node:os";
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 import {
@@ -12,6 +13,8 @@ import {
   filterAgentAlerts,
   filterAgentAuditLogs,
   filterAgentAccessRecords,
+  filterAgentChangeEvents,
+  filterAgentConnections,
   filterAgentDevices,
   filterAgentRacks,
   type AgentReadonlySnapshot,
@@ -43,6 +46,20 @@ function getAgentApiBaseUrl(req: IncomingMessage): string {
   const protocol = req.headers["x-forwarded-proto"] ?? "http";
   const host = req.headers.host ?? "127.0.0.1:5200";
   return `${protocol}://${host}/api/agent/v1`;
+}
+
+function getRuntimePublicBaseUrl(req: IncomingMessage): string {
+  const protocol = req.headers["x-forwarded-proto"] ?? "http";
+  const port = (req.headers.host ?? "127.0.0.1:5200").split(":").at(-1) ?? "5200";
+  const interfaces = networkInterfaces();
+  for (const entries of Object.values(interfaces)) {
+    for (const entry of entries ?? []) {
+      if (entry.family === "IPv4" && !entry.internal) {
+        return `${protocol}://${entry.address}:${port}`;
+      }
+    }
+  }
+  return `${protocol}://${req.headers.host ?? "127.0.0.1:5200"}`;
 }
 
 function sendJson(res: Parameters<import("connect").NextHandleFunction>[1], value: unknown, statusCode = 200) {
@@ -133,6 +150,10 @@ function aiProxyPlugin() {
         }
       });
 
+      server.middlewares.use("/api/runtime/public-base-url", async (req, res) => {
+        sendJson(res, { baseUrl: getRuntimePublicBaseUrl(req) });
+      });
+
       server.middlewares.use("/api/agent/v1/snapshot", async (req, res) => {
         if (!(await ensureAgentAuthorized(req, res))) return;
         if (req.method === "GET") {
@@ -159,6 +180,9 @@ function aiProxyPlugin() {
               devices: snapshot.data.devices.length,
               alerts: snapshot.data.alerts.length,
               auditLogs: snapshot.data.auditLogs?.length ?? 0,
+              accessRecords: snapshot.data.accessRecords?.length ?? 0,
+              changeEvents: snapshot.data.changeEvents?.length ?? 0,
+              connectionRecords: snapshot.data.connectionRecords?.length ?? 0,
             },
           });
         } catch (error) {
@@ -217,6 +241,8 @@ function aiProxyPlugin() {
             "/api/agent/v1/alerts",
             "/api/agent/v1/audit-logs",
             "/api/agent/v1/access-records",
+            "/api/agent/v1/change-events",
+            "/api/agent/v1/connections",
           ],
         });
       });
@@ -271,6 +297,18 @@ function aiProxyPlugin() {
         if (!(await ensureAgentAuthorized(req, res))) return;
         const snapshot = await loadAgentSnapshot();
         sendJson(res, { data: filterAgentAccessRecords(snapshot.data, getQuery(req)) });
+      });
+
+      server.middlewares.use("/api/agent/v1/change-events", async (req, res) => {
+        if (!(await ensureAgentAuthorized(req, res))) return;
+        const snapshot = await loadAgentSnapshot();
+        sendJson(res, { data: filterAgentChangeEvents(snapshot.data, getQuery(req)) });
+      });
+
+      server.middlewares.use("/api/agent/v1/connections", async (req, res) => {
+        if (!(await ensureAgentAuthorized(req, res))) return;
+        const snapshot = await loadAgentSnapshot();
+        sendJson(res, { data: filterAgentConnections(snapshot.data, getQuery(req)) });
       });
 
       server.middlewares.use("/api/webhooks/alerts", async (req, res) => {

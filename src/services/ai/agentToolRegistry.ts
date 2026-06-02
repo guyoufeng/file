@@ -82,6 +82,24 @@ export const qfAgentTools: QfAgentToolDefinition[] = [
     },
   },
   {
+    name: "search_change_events",
+    label: "变更查询",
+    description: "查询物理机上架、下架、接线、维修、安装和配置调整等变更记录。",
+    readonly: true,
+    inputSchema: {
+      query: "服务器、业务 IP、机柜、变更类型、操作人或自然语言问题。",
+    },
+  },
+  {
+    name: "search_connections",
+    label: "连线查询",
+    description: "查询服务器、交换机、端口、线缆编号和对端关系。",
+    readonly: true,
+    inputSchema: {
+      query: "服务器名、交换机名、端口、线缆编号或自然语言问题。",
+    },
+  },
+  {
     name: "summarize_room_status",
     label: "运行概览",
     description: "汇总当前机房、机柜、设备和活动告警数量。",

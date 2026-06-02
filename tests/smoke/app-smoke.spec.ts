@@ -424,6 +424,35 @@ test("readonly agent api snapshot exposes current asset data", async ({ page }) 
   expect(openapi.ok()).toBe(true);
   const openapiPayload = (await openapi.json()) as { paths: Record<string, unknown> };
   expect(openapiPayload.paths).toHaveProperty("/devices");
+  expect(openapiPayload.paths).toHaveProperty("/change-events");
+  expect(openapiPayload.paths).toHaveProperty("/connections");
+});
+
+test("change management creates a device linked change record", async ({ page }) => {
+  await loginAsAdmin(page);
+  await page.goto("/#/changes");
+  await page.getByLabel("变更标题").fill("自动化检查：QF-SRV-001 接线复核");
+  await page.getByLabel("关联物理设备").selectOption({ index: 1 });
+  await page.getByLabel("变更内容").fill("检查生产网接线并完成复核。");
+  await page.getByRole("button", { name: "新增变更" }).click();
+
+  await expect(page.getByText("自动化检查：QF-SRV-001 接线复核")).toBeVisible();
+  await expect(page.getByText("QF-SRV-001").last()).toBeVisible();
+});
+
+test("connection management creates and displays a server to switch cable", async ({ page }) => {
+  await loginAsAdmin(page);
+  await page.goto("/#/connections");
+  await page.getByLabel("源设备").selectOption({ index: 1 });
+  await page.getByLabel("目标设备").selectOption({ index: 2 });
+  await page.getByLabel("线缆编号").fill("AUTO-CAB-001");
+  await page.getByLabel("说明").fill("自动化检查生产网链路。");
+  await page.getByRole("button", { name: "新增连线" }).click();
+
+  await expect(page.getByText("AUTO-CAB-001", { exact: true }).first()).toBeVisible();
+  await expect(page.getByRole("button", { name: "表格视图" })).toBeVisible();
+  await page.getByRole("button", { name: "端口视图" }).click();
+  await expect(page.getByText("已用端口").first()).toBeVisible();
 });
 
 test("project import shows a review preview before confirmation", async ({

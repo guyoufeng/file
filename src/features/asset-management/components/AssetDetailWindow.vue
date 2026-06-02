@@ -7,6 +7,12 @@ import {
   getDeviceChangeRecords,
 } from "../assetChangeRecords";
 import { getAccessRecords, type AccessRecord } from "../../access-management/accessRecords";
+import {
+  createChangeEvent,
+  getDeviceChangeEvents,
+  type ChangeEvent,
+} from "../../change-management/changeEvents";
+import { getConnectionRecords, type ManagedConnection } from "../../connection-manager/connections";
 
 type DetailTab = "detail" | "relation" | "changes" | "qr";
 type TopologyTab = "default" | "custom";
@@ -28,7 +34,9 @@ const topologyTab = ref<TopologyTab>("default");
 const position = ref({ x: 0, y: 0 });
 const windowRef = ref<HTMLElement | null>(null);
 const changeRecords = ref<ChangeRecord[]>([]);
+const managedChangeEvents = ref<ChangeEvent[]>([]);
 const accessRecords = ref<AccessRecord[]>([]);
+const connectionRecords = ref<ManagedConnection[]>([]);
 const changeForm = ref({
   title: "",
   content: "",
@@ -63,6 +71,21 @@ const sameRackDevices = computed(() =>
       )
     : [],
 );
+const deviceConnections = computed(() => {
+  if (!props.device) return [];
+  const names = [props.device.id, props.device.computerName, props.device.name]
+    .filter(Boolean)
+    .map(String);
+  return connectionRecords.value.filter((connection) => {
+    if (connection.sourceDeviceId === props.device?.id || connection.targetDeviceId === props.device?.id) return true;
+    return names.some(
+      (name) =>
+        connection.sourceDeviceName.includes(name) ||
+        connection.targetDeviceName.includes(name),
+    );
+  });
+});
+const latestManagedChanges = computed(() => managedChangeEvents.value.slice(0, 3));
 const qrCells = computed(() => buildQrCells(JSON.stringify({
   id: props.device?.id,
   name: deviceName.value,
@@ -104,7 +127,9 @@ onBeforeUnmount(() => {
 function loadRecords() {
   if (!props.device) return;
   changeRecords.value = getDeviceChangeRecords(props.device.id);
+  managedChangeEvents.value = getDeviceChangeEvents(props.device.id);
   accessRecords.value = getAccessRecords();
+  connectionRecords.value = getConnectionRecords();
 }
 
 function startDrag(event: PointerEvent) {
@@ -149,6 +174,24 @@ function saveChangeRecord() {
     operator: changeForm.value.operator.trim() || "admin",
     changedAt: new Date().toISOString(),
     source: "manual",
+  });
+  createChangeEvent({
+    title: changeForm.value.title.trim(),
+    type: "maintenance",
+    status: "completed",
+    roomId: props.room?.id,
+    roomName: props.room?.name,
+    rackId: props.rack?.id,
+    rackName: props.rack?.name,
+    deviceId: props.device.id,
+    deviceName: props.device.computerName || props.device.name,
+    businessIp: props.device.businessIp,
+    operator: changeForm.value.operator.trim() || "admin",
+    changedAt: new Date().toISOString(),
+    content: changeForm.value.content.trim() || "未填写详细内容",
+    impact: "资产详情录入",
+    result: "已记录",
+    attachments: [],
   });
   changeForm.value = { title: "", content: "", operator: "admin" };
   loadRecords();
@@ -249,9 +292,55 @@ function buildQrCells(value: string) {
       </div>
       <div class="topology-panel">
         <template v-if="topologyTab === 'default'">
-          <span>{{ room?.name || "机房" }}</span>
-          <strong>{{ rack?.name || "机柜" }}</strong>
-          <em>{{ deviceName }}</em>
+          <div class="asset-topology-graph" aria-label="资产实例关系拓扑">
+            <div class="topology-node root">
+              <small>物理机</small>
+              <strong>{{ deviceName }}</strong>
+              <span>{{ device.businessIp || "无业务IP" }}</span>
+            </div>
+            <div class="topology-branches">
+              <article class="topology-node">
+                <small>属于机房</small>
+                <strong>{{ room?.name || "-" }}</strong>
+                <span>{{ room?.layoutType || "未配置布局" }}</span>
+              </article>
+              <article class="topology-node">
+                <small>属于机柜</small>
+                <strong>{{ rack?.name || "-" }}</strong>
+                <span>{{ rack ? getRackTypeLabel(rack.type) : "-" }} / {{ device.startU }}U-{{ device.endU }}U</span>
+              </article>
+              <article class="topology-node">
+                <small>关联人员</small>
+                <strong>{{ device.owner || "未填写" }}</strong>
+                <span>{{ device.purpose || "未填写用途" }}</span>
+              </article>
+              <article class="topology-node">
+                <small>网络标识</small>
+                <strong>{{ device.businessIp || "-" }}</strong>
+                <span>带外 {{ device.managementIp || "-" }}</span>
+              </article>
+              <article class="topology-node">
+                <small>同柜设备</small>
+                <strong>{{ sameRackDevices.length }} 台</strong>
+                <span>{{ sameRackDevices.slice(0, 2).map((item) => item.computerName || item.name).join("、") || "无" }}</span>
+              </article>
+              <article class="topology-node">
+                <small>连线对端</small>
+                <strong>{{ deviceConnections.length }} 条</strong>
+                <span>{{ deviceConnections[0] ? `${deviceConnections[0].targetDeviceName} ${deviceConnections[0].targetPortName}` : "暂无连线" }}</span>
+              </article>
+              <article class="topology-node">
+                <small>维修进出</small>
+                <strong>{{ deviceAccessRecords.length }} 条</strong>
+                <span>{{ deviceAccessRecords[0]?.reason || "暂无记录" }}</span>
+              </article>
+              <article class="topology-node">
+                <small>变更记录</small>
+                <strong>{{ managedChangeEvents.length + changeRecords.length }} 条</strong>
+                <span>{{ latestManagedChanges[0]?.title || changeRecords[0]?.title || "暂无变更" }}</span>
+              </article>
+            </div>
+          </div>
         </template>
         <template v-else>
           <p>可按业务系统、虚拟化集群、交换机链路或维修流程创建新的实例拓扑。</p>
@@ -405,21 +494,10 @@ button {
 }
 
 .topology-panel {
-  grid-template-columns: repeat(3, 1fr);
-  align-items: center;
-  min-height: 118px;
+  grid-template-columns: 1fr;
+  align-items: stretch;
+  min-height: 260px;
   text-align: center;
-}
-
-.topology-panel span,
-.topology-panel strong,
-.topology-panel em {
-  padding: 12px;
-  border: 1px solid rgba(14, 165, 233, 0.24);
-  border-radius: 8px;
-  background: color-mix(in srgb, var(--color-primary) 8%, var(--color-panel));
-  font-style: normal;
-  font-weight: 700;
 }
 
 .topology-panel p {
@@ -430,6 +508,65 @@ button {
 .topology-panel button {
   grid-column: 1 / -1;
   justify-self: center;
+}
+
+.asset-topology-graph {
+  position: relative;
+  display: grid;
+  gap: 22px;
+  padding: 10px;
+}
+
+.asset-topology-graph::before {
+  content: "";
+  position: absolute;
+  top: 92px;
+  left: 12%;
+  right: 12%;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(14, 165, 233, 0.36), transparent);
+}
+
+.topology-branches {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.topology-node {
+  position: relative;
+  display: grid;
+  gap: 5px;
+  min-height: 86px;
+  padding: 12px;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 24%, var(--color-border));
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--color-primary) 7%, var(--color-panel));
+  box-shadow: 0 12px 24px rgba(14, 165, 233, 0.08);
+}
+
+.topology-node.root {
+  justify-self: center;
+  width: min(260px, 100%);
+  border-color: rgba(14, 165, 233, 0.58);
+  background: linear-gradient(135deg, rgba(14, 165, 233, 0.16), rgba(16, 185, 129, 0.08));
+}
+
+.topology-node small {
+  color: var(--color-text-muted);
+  font-size: 11px;
+}
+
+.topology-node strong,
+.topology-node span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.topology-node span {
+  color: var(--color-text-muted);
+  font-size: 12px;
 }
 
 .change-form input,

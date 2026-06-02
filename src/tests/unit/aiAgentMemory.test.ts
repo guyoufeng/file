@@ -4,6 +4,7 @@ import {
   clearAgentMemories,
   formatAgentMemoryPrompt,
   getAgentMemories,
+  updateAgentMemory,
 } from "../../services/ai/agentMemory";
 
 function installLocalStorage() {
@@ -42,5 +43,15 @@ describe("AI agent memory", () => {
 
     expect(getAgentMemories()).toHaveLength(0);
     expect(formatAgentMemoryPrompt()).toContain("暂无长期记忆");
+  });
+
+  it("updates an existing memory while keeping it in the long term prompt", () => {
+    const memory = addAgentMemory("默认回答偏简短。");
+
+    const updated = updateAgentMemory(memory.id, "默认回答要专业，并结合数据中心运维经验。");
+
+    expect(updated?.content).toBe("默认回答要专业，并结合数据中心运维经验。");
+    expect(getAgentMemories()).toHaveLength(1);
+    expect(formatAgentMemoryPrompt()).toContain("数据中心运维经验");
   });
 });

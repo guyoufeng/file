@@ -143,6 +143,28 @@ export function getAgentReadonlyTools(baseUrl: string): AgentReadonlyTool[] {
         q: "日期、单位、人员、服务器名、故障或处理结果关键字，可选。",
       },
     },
+    {
+      name: "agent_search_change_events",
+      description: "查询物理机上架、下架、接线、维修、安装和配置调整等变更记录。",
+      method: "GET",
+      path: "/change-events",
+      url: joinUrl(baseUrl, "/change-events"),
+      readonly: true,
+      query: {
+        q: "服务器名、业务IP、机柜、变更类型、操作人、接线或处理结果关键字，可选。",
+      },
+    },
+    {
+      name: "agent_search_connections",
+      description: "查询服务器、交换机、端口和线缆编号之间的连线关系。",
+      method: "GET",
+      path: "/connections",
+      url: joinUrl(baseUrl, "/connections"),
+      readonly: true,
+      query: {
+        q: "服务器名、交换机名、端口、线缆编号或链路说明关键字，可选。",
+      },
+    },
   ];
 }
 

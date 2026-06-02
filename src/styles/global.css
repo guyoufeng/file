@@ -300,3 +300,35 @@ button {
 :root[data-theme="light"] .locate-button {
   color: var(--color-text) !important;
 }
+
+:root[data-theme="light"] .question-bubble {
+  color: #0f172a !important;
+  border-color: rgba(14, 165, 233, 0.36) !important;
+  background:
+    linear-gradient(135deg, rgba(186, 230, 253, 0.86), rgba(219, 234, 254, 0.82)) !important;
+  box-shadow: 0 10px 24px rgba(14, 165, 233, 0.12) !important;
+}
+
+:root[data-theme="light"] .agent-events summary,
+:root[data-theme="light"] .agent-events li,
+:root[data-theme="light"] .agent-events li strong,
+:root[data-theme="light"] .agent-events li em {
+  color: var(--color-text) !important;
+}
+
+:root[data-theme="light"] .agent-events li.warning {
+  color: #92400e !important;
+}
+
+:root[data-theme="light"] .location-focus-banner {
+  color: #102a1d !important;
+  border-color: rgba(16, 185, 129, 0.34) !important;
+  background:
+    radial-gradient(circle at 8% 0%, rgba(16, 185, 129, 0.18), transparent 34%),
+    linear-gradient(135deg, rgba(240, 253, 244, 0.98), rgba(224, 242, 254, 0.92)) !important;
+  box-shadow: 0 14px 30px rgba(15, 118, 110, 0.1) !important;
+}
+
+:root[data-theme="light"] .location-focus-banner strong {
+  color: #047857 !important;
+}

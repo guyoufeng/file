@@ -3,6 +3,8 @@ import {
   buildAgentReadonlySnapshot,
   filterAgentAlerts,
   filterAgentAuditLogs,
+  filterAgentChangeEvents,
+  filterAgentConnections,
   filterAgentDevices,
   filterAgentRacks,
 } from "../../services/agent/readonlyApi";
@@ -121,5 +123,46 @@ describe("agent readonly api helpers", () => {
     expect(filterAgentRacks({ racks }, { roomId: "room-529" })).toHaveLength(1);
     expect(filterAgentAlerts({ alerts }, { status: "unconfirmed" })).toHaveLength(1);
     expect(filterAgentAuditLogs({ auditLogs }, { q: "cnsmffluxdb1" })).toHaveLength(1);
+  });
+
+  it("filters change events and connection records for agent queries", () => {
+    const changeEvents = [
+      {
+        id: "change-1",
+        title: "cnsmffluxdb1 更换内存",
+        type: "maintenance" as const,
+        status: "completed" as const,
+        deviceId: "device-cnsmffluxdb1",
+        deviceName: "cnsmffluxdb1",
+        businessIp: "192.168.129.200",
+        operator: "admin",
+        changedAt: "2026-06-02T10:00:00+08:00",
+        content: "更换 ECC 内存并验证完成。",
+        attachments: [],
+        createdAt: "2026-06-02T10:00:00+08:00",
+        updatedAt: "2026-06-02T10:00:00+08:00",
+      },
+    ];
+    const connectionRecords = [
+      {
+        id: "conn-1",
+        sourceDeviceId: "device-cnsmffluxdb1",
+        sourceDeviceName: "cnsmffluxdb1",
+        sourcePortName: "eth0",
+        targetDeviceId: "switch-1",
+        targetDeviceName: "SW-529-A1",
+        targetPortName: "GE1/0/11",
+        cableNo: "CAB-001",
+        cableType: "万兆光纤",
+        direction: "front_to_rear" as const,
+        status: "active" as const,
+        notes: "生产网",
+        createdAt: "2026-06-02T10:00:00+08:00",
+        updatedAt: "2026-06-02T10:00:00+08:00",
+      },
+    ];
+
+    expect(filterAgentChangeEvents({ changeEvents }, { q: "ECC" })).toHaveLength(1);
+    expect(filterAgentConnections({ connectionRecords }, { q: "GE1/0/11" })).toHaveLength(1);
   });
 });

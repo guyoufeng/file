@@ -17,6 +17,8 @@ describe("agent api manifest", () => {
       "agent_list_alerts",
       "agent_search_audit_logs",
       "agent_search_access_records",
+      "agent_search_change_events",
+      "agent_search_connections",
     ]);
     expect(tools.find((tool) => tool.name === "agent_search_devices")).toMatchObject({
       method: "GET",
@@ -31,6 +33,8 @@ describe("agent api manifest", () => {
     expect(doc.openapi).toBe("3.1.0");
     expect(doc.servers[0].url).toBe("http://127.0.0.1:5200/api/agent/v1");
     expect(Object.keys(doc.paths)).toContain("/devices");
+    expect(Object.keys(doc.paths)).toContain("/change-events");
+    expect(Object.keys(doc.paths)).toContain("/connections");
     expect(Object.values(doc.paths).every((pathItem) => !("post" in pathItem))).toBe(true);
   });
 

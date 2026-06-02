@@ -5,6 +5,7 @@ export type AppModuleKey =
   | "assets"
   | "virtual-servers"
   | "access-records"
+  | "change-management"
   | "connections"
   | "alerts"
   | "reports"
@@ -50,6 +51,7 @@ export const appModules: Array<{ key: AppModuleKey; label: string; path: string 
   { key: "assets", label: "资产管理", path: "/assets" },
   { key: "virtual-servers", label: "虚拟服务器", path: "/virtual-servers" },
   { key: "access-records", label: "进出管理", path: "/access-records" },
+  { key: "change-management", label: "变更管理", path: "/changes" },
   { key: "connections", label: "连线管理", path: "/connections" },
   { key: "alerts", label: "告警中心", path: "/alerts" },
   { key: "reports", label: "报表中心", path: "/reports" },
@@ -79,6 +81,7 @@ export function defaultAccountPermissions(role: AccountRole): AccountPermissions
     assets: level,
     "virtual-servers": level,
     "access-records": level,
+    "change-management": level,
     connections: level,
     alerts: level,
     reports: level,
@@ -123,7 +126,15 @@ function readAccounts(): UserAccount[] {
   }
   try {
     const parsed = JSON.parse(raw) as UserAccount[];
-    return Array.isArray(parsed) && parsed.length > 0 ? parsed : defaultAccounts();
+    return Array.isArray(parsed) && parsed.length > 0
+      ? parsed.map((account) => ({
+          ...account,
+          permissions: {
+            ...defaultAccountPermissions(account.role),
+            ...account.permissions,
+          },
+        }))
+      : defaultAccounts();
   } catch {
     return defaultAccounts();
   }
@@ -223,7 +234,14 @@ export function getCurrentSession(): AuthSession | null {
   const raw = storage()?.getItem(SESSION_KEY);
   if (!raw) return null;
   try {
-    return JSON.parse(raw) as AuthSession;
+    const session = JSON.parse(raw) as AuthSession;
+    return {
+      ...session,
+      permissions: {
+        ...defaultAccountPermissions(session.role),
+        ...session.permissions,
+      },
+    };
   } catch {
     storage()?.removeItem(SESSION_KEY);
     return null;

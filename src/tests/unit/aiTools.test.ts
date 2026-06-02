@@ -526,4 +526,75 @@ describe("ai tools", () => {
     expect(result.answer).toContain("156 台设备");
     expect(result.answer).toContain("数据来源");
   });
+
+  it("searches change records and connection records for operational traceability", () => {
+    const device = sampleProject.devices[0];
+    const changeResult = runDeterministicAiQuery(
+      `${device.computerName} 最近做过哪些变更？`,
+      sampleProject.rooms,
+      sampleProject.racks,
+      sampleProject.devices,
+      sampleProject.alerts,
+      [],
+      [],
+      [],
+      [
+        {
+          id: "change-1",
+          title: "更换内存并调整接线",
+          type: "maintenance",
+          status: "completed",
+          roomId: "room-nj-529",
+          roomName: "529数据中心",
+          rackId: device.rackId,
+          rackName: "529-A1",
+          deviceId: device.id,
+          deviceName: device.computerName!,
+          businessIp: device.businessIp,
+          operator: "admin",
+          changedAt: "2026-06-02T20:00:00+08:00",
+          content: "更换 ECC 内存。",
+          impact: "无业务中断",
+          result: "完成验证",
+          attachments: [],
+        },
+      ],
+      [],
+    );
+    const connectionResult = runDeterministicAiQuery(
+      `${device.computerName} 接在哪个交换机端口？`,
+      sampleProject.rooms,
+      sampleProject.racks,
+      sampleProject.devices,
+      sampleProject.alerts,
+      [],
+      [],
+      [],
+      [],
+      [
+        {
+          id: "conn-1",
+          sourceDeviceId: device.id,
+          sourceDeviceName: device.computerName!,
+          sourcePortName: "eth0",
+          targetDeviceId: "switch-1",
+          targetDeviceName: "SW-529-A1",
+          targetPortName: "GE1/0/11",
+          cableNo: "CAB-001",
+          cableType: "万兆光纤",
+          direction: "front_to_rear",
+          status: "active",
+          notes: "生产网",
+          createdAt: "2026-06-02T20:00:00+08:00",
+          updatedAt: "2026-06-02T20:00:00+08:00",
+        },
+      ],
+    );
+
+    expect(changeResult.toolName).toBe("search_change_events");
+    expect(changeResult.answer).toContain("更换内存");
+    expect(connectionResult.toolName).toBe("search_connections");
+    expect(connectionResult.answer).toContain("SW-529-A1");
+    expect(connectionResult.answer).toContain("GE1/0/11");
+  });
 });

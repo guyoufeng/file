@@ -25,6 +25,8 @@ import {
 } from "../../../services/ai/agentRunStore";
 import AiAnswerCard from "./AiAnswerCard.vue";
 import { getAccessRecords } from "../../access-management/accessRecords";
+import { getChangeEvents } from "../../change-management/changeEvents";
+import { getConnectionRecords } from "../../connection-manager/connections";
 
 const props = defineProps<{
   rooms: Room[];
@@ -192,6 +194,8 @@ async function processQuestion(currentQuestion: string, currentAttachments: Chat
       alerts: agentContext.alerts,
       auditLogs: agentContext.auditLogs,
       accessRecords: agentContext.accessRecords,
+      changeEvents: agentContext.changeEvents,
+      connectionRecords: agentContext.connectionRecords,
       dataSource: agentContext.dataSource,
       memories: [
         ...getAgentMemories().map((memory) => memory.content),
@@ -321,7 +325,16 @@ function updateActiveSession(titleSeed: string) {
 
 async function loadContextForAgent() {
   try {
-    await syncAgentReadonlySnapshot(await exportProjectJson());
+    const project = await exportProjectJson();
+    const snapshotProject = {
+      ...project,
+      data: {
+        ...project.data,
+        changeEvents: getChangeEvents(),
+        connectionRecords: getConnectionRecords(),
+      },
+    };
+    await syncAgentReadonlySnapshot(snapshotProject);
     return await loadAgentReadonlyContext();
   } catch (error) {
     const reason = error instanceof Error ? error.message : "API 不可用";
@@ -332,6 +345,8 @@ async function loadContextForAgent() {
       alerts: props.alerts,
       auditLogs: [],
       accessRecords: getAccessRecords(),
+      changeEvents: getChangeEvents(),
+      connectionRecords: getConnectionRecords(),
       dataSource: `页面状态（${reason}）`,
     };
   }

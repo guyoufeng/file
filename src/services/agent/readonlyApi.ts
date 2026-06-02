@@ -1,5 +1,7 @@
 import type { AiModelConfig, Alert, AuditLog, DataCenter, Device, MicroModule, Rack, Room } from "../../types/domain";
 import type { AccessRecord } from "../../features/access-management/accessRecords";
+import type { ChangeEvent } from "../../features/change-management/changeEvents";
+import type { ManagedConnection } from "../../features/connection-manager/connections";
 import type { ProjectJson } from "../backend/data";
 
 export interface AgentReadonlyData {
@@ -11,6 +13,8 @@ export interface AgentReadonlyData {
   alerts: Alert[];
   auditLogs?: AuditLog[];
   accessRecords?: AccessRecord[];
+  changeEvents?: ChangeEvent[];
+  connectionRecords?: ManagedConnection[];
   aiModelConfigs?: Omit<AiModelConfig, "apiKeyRef">[];
 }
 
@@ -51,20 +55,26 @@ function matchesKeyword(values: unknown[], query?: string): boolean {
 }
 
 export function buildAgentReadonlySnapshot(project: ProjectJson): AgentReadonlySnapshot {
+  const data = project.data as ProjectJson["data"] & {
+    changeEvents?: ChangeEvent[];
+    connectionRecords?: ManagedConnection[];
+  };
   return {
     schemaVersion: project.schemaVersion,
     generatedAt: new Date().toISOString(),
     readonly: true,
     data: {
-      dataCenters: project.data.dataCenters,
-      rooms: project.data.rooms ?? [],
-      microModules: project.data.microModules,
-      racks: project.data.racks ?? [],
-      devices: project.data.devices ?? [],
-      alerts: project.data.alerts ?? [],
-      auditLogs: project.data.auditLogs,
-      accessRecords: project.data.accessRecords,
-      aiModelConfigs: project.data.aiModelConfigs?.map(({ apiKeyRef: _apiKeyRef, ...config }) => config),
+      dataCenters: data.dataCenters,
+      rooms: data.rooms ?? [],
+      microModules: data.microModules,
+      racks: data.racks ?? [],
+      devices: data.devices ?? [],
+      alerts: data.alerts ?? [],
+      auditLogs: data.auditLogs,
+      accessRecords: data.accessRecords,
+      changeEvents: data.changeEvents,
+      connectionRecords: data.connectionRecords,
+      aiModelConfigs: data.aiModelConfigs?.map(({ apiKeyRef: _apiKeyRef, ...config }) => config),
     },
   };
 }
@@ -87,6 +97,53 @@ export function filterAgentAccessRecords(
         record.faultDescription,
         record.result,
         record.attachments,
+      ],
+      query.q,
+    ),
+  );
+}
+
+export function filterAgentChangeEvents(
+  data: Pick<AgentReadonlyData, "changeEvents">,
+  query: AgentQuery,
+): ChangeEvent[] {
+  return (data.changeEvents ?? []).filter((record) =>
+    matchesKeyword(
+      [
+        record.title,
+        record.type,
+        record.status,
+        record.roomName,
+        record.rackName,
+        record.deviceName,
+        record.businessIp,
+        record.operator,
+        record.content,
+        record.impact,
+        record.result,
+        record.attachments,
+      ],
+      query.q,
+    ),
+  );
+}
+
+export function filterAgentConnections(
+  data: Pick<AgentReadonlyData, "connectionRecords">,
+  query: AgentQuery,
+): ManagedConnection[] {
+  return (data.connectionRecords ?? []).filter((record) =>
+    matchesKeyword(
+      [
+        record.sourceDeviceName,
+        record.sourcePortName,
+        record.targetDeviceName,
+        record.targetPortName,
+        record.cableNo,
+        record.cableType,
+        record.direction,
+        record.status,
+        record.notes,
       ],
       query.q,
     ),

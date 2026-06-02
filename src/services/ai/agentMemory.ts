@@ -39,6 +39,20 @@ export function addAgentMemory(content: string): AgentMemory {
   return memory;
 }
 
+export function updateAgentMemory(id: string, content: string): AgentMemory | undefined {
+  const trimmed = content.trim();
+  if (!trimmed) return undefined;
+  const memories = readMemories();
+  const existing = memories.find((item) => item.id === id);
+  if (!existing) return undefined;
+  const updated: AgentMemory = {
+    ...existing,
+    content: trimmed,
+  };
+  writeMemories(memories.map((item) => (item.id === id ? updated : item)));
+  return updated;
+}
+
 export function clearAgentMemories(): void {
   writeMemories([]);
 }

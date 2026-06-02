@@ -6,6 +6,14 @@ import { useAiStore } from "../../../stores/aiStore";
 type NoticeTone = "success" | "error" | "info";
 
 const aiStore = useAiStore();
+const providerDefaultBaseUrls: Partial<Record<AiModelConfig["provider"], string>> = {
+  openai_compatible: "https://api.openai.com/v1/",
+  deepseek: "https://api.deepseek.com/v1/",
+  gemini: "https://generativelanguage.googleapis.com/v1beta/openai/",
+  vllm: "http://localhost:8000/v1",
+  ollama: "http://localhost:11434/v1",
+  gpustack: "http://192.168.127.8/v1",
+};
 
 const form = reactive<AiModelConfig>({
   id: `ai-config-${Date.now()}`,
@@ -21,6 +29,10 @@ const discoveredModels = ref<string[]>([]);
 const discovering = ref(false);
 const saving = ref(false);
 const notice = ref<{ tone: NoticeTone; text: string } | null>(null);
+
+function createConfigId() {
+  return `ai-config-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`;
+}
 
 function providerLabel(provider: AiModelConfig["provider"]) {
   switch (provider) {
@@ -53,6 +65,29 @@ function applyConfig(config: AiModelConfig) {
 function resetDiscovery() {
   discoveredModels.value = [];
   form.model = "";
+}
+
+function startNewConfig(provider: AiModelConfig["provider"] = form.provider) {
+  form.id = createConfigId();
+  form.provider = provider;
+  form.name = "";
+  form.baseUrl = providerDefaultBaseUrls[provider] ?? "";
+  form.model = "";
+  form.apiKeyRef = "";
+  form.enabled = true;
+  discoveredModels.value = [];
+  notice.value = {
+    tone: "info",
+    text: "已进入新建模型配置模式，原有模型配置会继续保留。",
+  };
+}
+
+function handleProviderChange() {
+  const defaultUrl = providerDefaultBaseUrls[form.provider];
+  if (defaultUrl) {
+    form.baseUrl = defaultUrl;
+  }
+  resetDiscovery();
 }
 
 function autoNameConfig() {
@@ -136,6 +171,26 @@ async function saveConfig() {
     saving.value = false;
   }
 }
+
+async function enableExistingConfig(config: AiModelConfig) {
+  notice.value = null;
+  saving.value = true;
+  try {
+    const saved = await aiStore.saveConfig({ ...config, enabled: true });
+    applyConfig(saved);
+    notice.value = {
+      tone: "success",
+      text: `已切换当前模型为 ${saved.model}。`,
+    };
+  } catch (error) {
+    notice.value = {
+      tone: "error",
+      text: error instanceof Error ? error.message : "切换模型失败",
+    };
+  } finally {
+    saving.value = false;
+  }
+}
 </script>
 
 <template>
@@ -146,6 +201,7 @@ async function saveConfig() {
           <p class="eyebrow">AI Gateway</p>
           <h3>模型配置</h3>
         </div>
+        <button class="new-config" type="button" @click="startNewConfig()">新建模型配置</button>
         <span class="warning"
           >建议优先使用公司内网模型。`GPUStack` 按 `OpenAI Compatible`
           协议自动发现模型。</span
@@ -157,7 +213,7 @@ async function saveConfig() {
           供应商/协议类型
           <select
             v-model="form.provider"
-            @change="resetDiscovery"
+            @change="handleProviderChange"
           >
             <option value="gpustack">GPUStack（OpenAI Compatible）</option>
             <option value="openai_compatible">OpenAI Compatible</option>
@@ -234,7 +290,12 @@ async function saveConfig() {
       >
         <strong>{{ config.name }}</strong>
         <span>{{ providerLabel(config.provider) }} / {{ config.model }}</span>
-        <small>{{ config.enabled ? "当前启用" : "未启用" }}</small>
+        <div class="config-list-footer">
+          <small>{{ config.enabled ? "当前启用" : "未启用" }}</small>
+          <button type="button" :disabled="config.enabled || saving" @click.stop="enableExistingConfig(config)">
+            {{ config.enabled ? "已启用" : "切换启用" }}
+          </button>
+        </div>
       </article>
       <p v-if="aiStore.configs.length === 0" class="empty">
         暂无保存的模型配置，先填写地址和 API Key，系统会自动发现模型。
@@ -260,8 +321,13 @@ async function saveConfig() {
 
 header {
   display: grid;
-  gap: 8px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 8px 12px;
   margin-bottom: 14px;
+}
+
+header .warning {
+  grid-column: 1 / -1;
 }
 
 .eyebrow {
@@ -352,6 +418,10 @@ button {
   cursor: pointer;
 }
 
+.new-config {
+  min-height: 34px;
+}
+
 button:disabled {
   cursor: not-allowed;
   opacity: 0.55;
@@ -382,5 +452,18 @@ span,
 small,
 .empty {
   color: var(--color-text-muted);
+}
+
+.config-list-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.config-list-footer button {
+  min-height: 28px;
+  padding: 0 9px;
+  font-size: 12px;
 }
 </style>

@@ -164,8 +164,8 @@ function clampWindow() {
   border-radius: 8px;
   background:
     linear-gradient(180deg, rgba(14, 165, 233, 0.08), transparent 180px),
-    rgba(8, 17, 31, 0.94);
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.38), 0 0 0 1px rgba(56, 189, 248, 0.08);
+    var(--surface-glass);
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.16), 0 0 0 1px rgba(56, 189, 248, 0.08);
   backdrop-filter: blur(14px);
 }
 
@@ -201,7 +201,7 @@ h3 {
   border: 1px solid var(--color-border);
   border-radius: 8px;
   color: var(--color-text);
-  background: rgba(17, 24, 39, 0.92);
+  background: var(--control-bg);
   cursor: pointer;
 }
 

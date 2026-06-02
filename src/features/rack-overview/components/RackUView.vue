@@ -190,10 +190,8 @@ watch(
   border: 1px solid var(--viz-border);
   border-radius: 8px;
   color: var(--viz-text);
-  background:
-    radial-gradient(circle at 10% 0%, rgba(14, 165, 233, 0.14), transparent 28%),
-    linear-gradient(180deg, rgba(11, 23, 40, 0.98), rgba(6, 17, 31, 0.99));
-  box-shadow: 0 18px 44px rgba(2, 6, 23, 0.2);
+  background: var(--viz-workspace-bg);
+  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.08);
 }
 
 header {
@@ -222,7 +220,7 @@ header {
   border: 1px solid var(--color-border);
   border-radius: 8px;
   color: var(--viz-muted);
-  background: rgba(8, 17, 31, 0.88);
+  background: var(--viz-panel);
   cursor: pointer;
 }
 
@@ -279,10 +277,10 @@ h3 {
   align-content: center;
   gap: 3px;
   padding: 8px 6px;
-  border: 1px solid rgba(38, 50, 71, 0.92);
+  border: 1px solid var(--viz-border);
   border-radius: 8px;
-  background: rgba(5, 10, 22, 0.96);
-  box-shadow: 8px 0 16px rgba(5, 10, 22, 0.34);
+  background: var(--viz-panel-strong);
+  box-shadow: 8px 0 16px rgba(15, 23, 42, 0.08);
 }
 
 .rack-u-row-label strong {
@@ -319,8 +317,8 @@ h3 {
   background:
     linear-gradient(
       135deg,
-      color-mix(in srgb, var(--rack-type-color) 22%, transparent),
-      rgba(8, 17, 31, 0.92)
+      color-mix(in srgb, var(--rack-type-color) 16%, var(--viz-panel-strong)),
+      var(--viz-panel)
     );
   box-shadow: inset 4px 0 0 color-mix(in srgb, var(--rack-type-color) 86%, #ffffff 0%);
   cursor: pointer;
@@ -342,7 +340,7 @@ h3 {
   color: #fef3c7;
   background:
     linear-gradient(135deg, rgba(245, 158, 11, 0.2), rgba(14, 165, 233, 0.12)),
-    rgba(8, 17, 31, 0.96);
+    var(--viz-panel-strong);
   box-shadow:
     0 0 0 2px rgba(253, 230, 138, 0.22),
     0 10px 24px rgba(245, 158, 11, 0.12);

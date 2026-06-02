@@ -66,7 +66,7 @@ defineProps<{
   padding: 10px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: rgba(17, 24, 39, 0.72);
+  background: var(--surface-raised);
 }
 
 .summary strong {
@@ -101,7 +101,7 @@ td {
 
 th {
   color: var(--color-text-muted);
-  background: rgba(8, 17, 31, 0.72);
+  background: var(--table-header-bg);
 }
 
 tr.error td {

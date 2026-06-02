@@ -35,9 +35,41 @@ let animationFrame = 0
 
 const sceneModel = computed(() => buildRackSceneModel(props.room, props.racks, props.devices, props.alerts))
 const activeAlertCount = computed(() => props.alerts.filter((alert) => alert.status !== 'recovered' && alert.status !== 'closed').length)
+const themeName = ref<'light' | 'dark'>('light')
+const sceneColors = computed(() =>
+  themeName.value === 'dark'
+    ? {
+        background: '#050a16',
+        floor: '#0f172a',
+        gridPrimary: '#1d4ed8',
+        gridSecondary: '#1e293b',
+        modulePad: '#0b1220',
+        moduleEmissive: '#082f49',
+        labelBackground: 'rgba(2, 6, 23, 0.78)',
+        labelBorder: 'rgba(56, 189, 248, 0.38)',
+        labelText: '#f8fafc',
+        moduleLabelText: '#bae6fd',
+        edge: '#93c5fd',
+      }
+    : {
+        background: '#eef9f1',
+        floor: '#dceee2',
+        gridPrimary: '#7db98f',
+        gridSecondary: '#c7dfcf',
+        modulePad: '#d7eadc',
+        moduleEmissive: '#e7f8ec',
+        labelBackground: 'rgba(255, 255, 255, 0.88)',
+        labelBorder: 'rgba(34, 197, 94, 0.34)',
+        labelText: '#102a1d',
+        moduleLabelText: '#166534',
+        edge: '#1d4ed8',
+      },
+)
 
 onMounted(async () => {
   await nextTick()
+  syncTheme()
+  window.addEventListener('qf-theme-change', syncTheme)
   setupScene()
   rebuildScene()
   fitCamera()
@@ -46,10 +78,18 @@ onMounted(async () => {
 
 onBeforeUnmount(() => {
   cancelAnimationFrame(animationFrame)
+  window.removeEventListener('qf-theme-change', syncTheme)
   resizeObserver?.disconnect()
   controls?.dispose()
   renderer?.dispose()
   rackMeshes.clear()
+})
+
+watch(themeName, () => {
+  if (scene) {
+    scene.background = new THREE.Color(sceneColors.value.background)
+  }
+  rebuildScene()
 })
 
 watch(sceneModel, () => {
@@ -69,7 +109,7 @@ function setupScene() {
   if (!canvasRef.value || !containerRef.value) return
 
   scene = new THREE.Scene()
-  scene.background = new THREE.Color('#050a16')
+  scene.background = new THREE.Color(sceneColors.value.background)
   camera = new THREE.PerspectiveCamera(45, 1, 0.1, 1000)
   try {
     renderer = new THREE.WebGLRenderer({ canvas: canvasRef.value, antialias: true, alpha: false })
@@ -103,6 +143,10 @@ function setupScene() {
   resizeScene()
 }
 
+function syncTheme() {
+  themeName.value = document.documentElement.dataset.theme === 'dark' ? 'dark' : 'light'
+}
+
 function rebuildScene() {
   if (!scene || !rackGroup) return
 
@@ -115,14 +159,14 @@ function rebuildScene() {
 
   for (const module of model.modules) {
     rackGroup.add(createModulePad(module.position.x, module.position.z, module.size.x, module.size.z))
-    rackGroup.add(createTextSprite(module.name, '#bae6fd', 0.78, module.position.x, 0.08, module.position.z - module.size.z / 2 + 0.26))
+    rackGroup.add(createTextSprite(module.name, sceneColors.value.moduleLabelText, 0.78, module.position.x, 0.08, module.position.z - module.size.z / 2 + 0.26))
   }
 
   for (const item of model.items) {
     const mesh = createRackMesh(item)
     rackMeshes.set(item.rackId, mesh)
     rackGroup.add(mesh)
-    rackGroup.add(createTextSprite(item.displayName, '#f8fafc', 0.48, item.position.x, item.size.y + 0.56, item.position.z))
+    rackGroup.add(createTextSprite(item.displayName, sceneColors.value.labelText, 0.48, item.position.x, item.size.y + 0.56, item.position.z))
   }
 
   highlightSelectedRack(props.selectedRackId)
@@ -132,13 +176,13 @@ function createFloor(width: number, depth: number) {
   const group = new THREE.Group()
   const floor = new THREE.Mesh(
     new THREE.PlaneGeometry(Math.max(width + 5, 12), Math.max(depth + 6, 8)),
-    new THREE.MeshStandardMaterial({ color: '#0f172a', roughness: 0.86, metalness: 0.08 }),
+    new THREE.MeshStandardMaterial({ color: sceneColors.value.floor, roughness: 0.86, metalness: 0.08 }),
   )
   floor.rotation.x = -Math.PI / 2
   floor.position.set(width / 2 - 0.7, -0.02, depth / 2 - 1.1)
   floor.receiveShadow = true
 
-  const grid = new THREE.GridHelper(Math.max(width + 5, 12), 24, '#1d4ed8', '#1e293b')
+  const grid = new THREE.GridHelper(Math.max(width + 5, 12), 24, sceneColors.value.gridPrimary, sceneColors.value.gridSecondary)
   grid.position.copy(floor.position)
   grid.position.y = 0
   group.add(floor, grid)
@@ -148,7 +192,7 @@ function createFloor(width: number, depth: number) {
 function createModulePad(x: number, z: number, width: number, depth: number) {
   const pad = new THREE.Mesh(
     new THREE.BoxGeometry(width, 0.04, depth),
-    new THREE.MeshStandardMaterial({ color: '#0b1220', emissive: '#082f49', roughness: 0.72 }),
+    new THREE.MeshStandardMaterial({ color: sceneColors.value.modulePad, emissive: sceneColors.value.moduleEmissive, roughness: 0.72 }),
   )
   pad.position.set(x, 0, z)
   return pad
@@ -171,7 +215,7 @@ function createRackMesh(item: ReturnType<typeof buildRackSceneModel>['items'][nu
 
   const edge = new THREE.LineSegments(
     new THREE.EdgesGeometry(mesh.geometry),
-    new THREE.LineBasicMaterial({ color: item.visual.alertLevel ? '#fef2f2' : '#93c5fd', transparent: true, opacity: 0.56 }),
+    new THREE.LineBasicMaterial({ color: item.visual.alertLevel ? '#fef2f2' : sceneColors.value.edge, transparent: true, opacity: 0.56 }),
   )
   mesh.add(edge)
 
@@ -184,9 +228,9 @@ function createTextSprite(text: string, color: string, scale: number, x: number,
   canvas.height = 96
   const context = canvas.getContext('2d')
   if (context) {
-    context.fillStyle = 'rgba(2, 6, 23, 0.78)'
+    context.fillStyle = sceneColors.value.labelBackground
     context.fillRect(0, 18, 256, 58)
-    context.strokeStyle = 'rgba(56, 189, 248, 0.38)'
+    context.strokeStyle = sceneColors.value.labelBorder
     context.strokeRect(1, 19, 254, 56)
     context.font = '600 28px Microsoft YaHei, Arial'
     context.fillStyle = color
@@ -284,8 +328,8 @@ function startAnimation() {
   overflow: hidden;
   border: 1px solid var(--viz-border);
   border-radius: 8px;
-  background: var(--viz-bg);
-  box-shadow: 0 18px 44px rgba(2, 6, 23, 0.2);
+  background: var(--viz-workspace-bg);
+  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.08);
 }
 
 .rack-3d-view.leadership {
@@ -334,7 +378,7 @@ canvas:active {
   padding: 12px 14px;
   border: 1px solid rgba(56, 189, 248, 0.28);
   border-radius: 8px;
-  background: rgba(2, 6, 23, 0.76);
+  background: var(--viz-panel);
   backdrop-filter: blur(10px);
 }
 

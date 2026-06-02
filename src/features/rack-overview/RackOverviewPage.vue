@@ -957,13 +957,12 @@ async function restoreRackItem(itemId: string) {
   z-index: 81;
   width: 248px;
   padding: 6px;
-  border: 1px solid rgba(148, 163, 184, 0.24);
+  border: 1px solid var(--color-border);
   border-radius: 8px;
   color: var(--color-text);
-  background:
-    linear-gradient(180deg, rgba(17, 24, 39, 0.98), rgba(8, 13, 24, 0.98));
+  background: var(--context-menu-bg);
   box-shadow:
-    0 18px 48px rgba(0, 0, 0, 0.42),
+    0 18px 48px rgba(15, 23, 42, 0.16),
     inset 0 1px 0 rgba(255, 255, 255, 0.04);
 }
 
@@ -983,7 +982,7 @@ async function restoreRackItem(itemId: string) {
 }
 
 .room-context-menu button:hover {
-  background: rgba(14, 165, 233, 0.14);
+  background: var(--context-menu-hover);
 }
 
 .room-context-menu button.danger {
@@ -1018,10 +1017,10 @@ async function restoreRackItem(itemId: string) {
   width: 100%;
   min-height: 30px;
   padding: 0 8px;
-  border: 1px solid rgba(148, 163, 184, 0.24);
+  border: 1px solid var(--color-border);
   border-radius: 6px;
   color: var(--color-text);
-  background: rgba(2, 6, 23, 0.82);
+  background: var(--control-bg);
 }
 
 .delete-hint {
@@ -1083,7 +1082,7 @@ async function restoreRackItem(itemId: string) {
 .room-context-menu .ghost {
   justify-content: center;
   border: 1px solid rgba(148, 163, 184, 0.22);
-  background: rgba(15, 23, 42, 0.74);
+  background: var(--control-bg-muted);
 }
 
 .room-context-menu .danger-button {

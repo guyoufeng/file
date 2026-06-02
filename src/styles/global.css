@@ -152,3 +152,151 @@ button {
 :root[data-theme="light"] .rack-3d-view {
   color: var(--viz-text);
 }
+
+:root[data-theme="light"] .asset-toolbar button,
+:root[data-theme="light"] .virtual-toolbar button,
+:root[data-theme="light"] .header-actions button,
+:root[data-theme="light"] .batch-toolbar button,
+:root[data-theme="light"] .form-actions button,
+:root[data-theme="light"] .dialog-actions button,
+:root[data-theme="light"] footer button,
+:root[data-theme="light"] .sync-dialog button,
+:root[data-theme="light"] .drawer-panel button,
+:root[data-theme="light"] .settings-page button,
+:root[data-theme="light"] .report-actions button {
+  color: var(--color-text) !important;
+  background: color-mix(in srgb, var(--color-primary) 12%, #ffffff) !important;
+}
+
+:root[data-theme="light"] .drawer-panel,
+:root[data-theme="light"] .panel,
+:root[data-theme="light"] .sync-dialog,
+:root[data-theme="light"] .virtual-dialog,
+:root[data-theme="light"] .webhook-window,
+:root[data-theme="light"] .record-window,
+:root[data-theme="light"] .user-popover {
+  color: var(--color-text) !important;
+  background: var(--surface-glass) !important;
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.16) !important;
+}
+
+:root[data-theme="light"] .drawer,
+:root[data-theme="light"] .dialog,
+:root[data-theme="light"] .modal-mask,
+:root[data-theme="light"] .sync-backdrop {
+  background: rgba(226, 238, 247, 0.62) !important;
+}
+
+:root[data-theme="light"] fieldset,
+:root[data-theme="light"] .module-section,
+:root[data-theme="light"] .simple-layout,
+:root[data-theme="light"] .connection-empty .hero-panel,
+:root[data-theme="light"] .connection-empty .roadmap-panel,
+:root[data-theme="light"] .connection-empty .reserved-grid article {
+  color: var(--color-text) !important;
+  background: var(--surface-raised) !important;
+}
+
+:root[data-theme="light"] .room-context-menu {
+  color: var(--color-text) !important;
+  background: var(--context-menu-bg) !important;
+  box-shadow: 0 18px 48px rgba(15, 23, 42, 0.14) !important;
+}
+
+:root[data-theme="light"] .room-context-menu button {
+  color: var(--color-text) !important;
+}
+
+:root[data-theme="light"] .room-context-menu button:hover {
+  background: var(--context-menu-hover) !important;
+}
+
+:root[data-theme="light"] input,
+:root[data-theme="light"] select,
+:root[data-theme="light"] textarea {
+  color: var(--color-text) !important;
+  background: var(--control-bg) !important;
+}
+
+:root[data-theme="light"] code {
+  color: var(--color-primary) !important;
+  background: var(--control-bg-muted) !important;
+}
+
+:root[data-theme="light"] button:not(.ai-icon-button):not(.rack-tile):not(.rack-u-title):not(.asset-link) {
+  color: var(--color-text) !important;
+  background: color-mix(in srgb, var(--color-primary) 10%, #ffffff) !important;
+}
+
+:root[data-theme="light"] .settings-panel,
+:root[data-theme="light"] .account-panel,
+:root[data-theme="light"] .agent-run-panel,
+:root[data-theme="light"] .tool-panel,
+:root[data-theme="light"] .agent-panel,
+:root[data-theme="light"] .workbench-panel,
+:root[data-theme="light"] .agent-api-panel,
+:root[data-theme="light"] .config-panel,
+:root[data-theme="light"] .audit-panel,
+:root[data-theme="light"] .recycle-center,
+:root[data-theme="light"] .import-preview,
+:root[data-theme="light"] .run-detail,
+:root[data-theme="light"] .run-list,
+:root[data-theme="light"] .token-box,
+:root[data-theme="light"] .agent-example,
+:root[data-theme="light"] .api-tool-list,
+:root[data-theme="light"] .api-tool-list article,
+:root[data-theme="light"] .endpoint-list,
+:root[data-theme="light"] .recycle-item,
+:root[data-theme="light"] .notice-grid article,
+:root[data-theme="light"] .capability-grid article,
+:root[data-theme="light"] .config-list,
+:root[data-theme="light"] .config-list article,
+:root[data-theme="light"] .compact-list li,
+:root[data-theme="light"] .compact-list article,
+:root[data-theme="light"] .permission-editor,
+:root[data-theme="light"] .permission-row,
+:root[data-theme="light"] .create-box,
+:root[data-theme="light"] .about-grid article,
+:root[data-theme="light"] .about-grid > div,
+:root[data-theme="light"] .notice-grid > div {
+  color: var(--color-text) !important;
+  background: var(--surface-raised) !important;
+  box-shadow: var(--shadow-soft) !important;
+}
+
+:root[data-theme="light"] .audit-table,
+:root[data-theme="light"] .table-head,
+:root[data-theme="light"] .table-row,
+:root[data-theme="light"] .api-base,
+:root[data-theme="light"] .preview-stats div,
+:root[data-theme="light"] .security-summary,
+:root[data-theme="light"] .run-search,
+:root[data-theme="light"] .tool-list article,
+:root[data-theme="light"] .event-list article,
+:root[data-theme="light"] table {
+  color: var(--color-text) !important;
+  background: var(--color-panel) !important;
+}
+
+:root[data-theme="light"] .settings-tabs,
+:root[data-theme="light"] .segments,
+:root[data-theme="light"] .theme-options {
+  background: var(--surface-raised) !important;
+}
+
+:root[data-theme="light"] .chat-panel,
+:root[data-theme="light"] .session-bar button,
+:root[data-theme="light"] .welcome-message,
+:root[data-theme="light"] .agent-events,
+:root[data-theme="light"] .composer,
+:root[data-theme="light"] .pending-choice,
+:root[data-theme="light"] .answer-card {
+  color: var(--color-text) !important;
+  background: var(--color-panel) !important;
+}
+
+:root[data-theme="light"] .tool-button,
+:root[data-theme="light"] .send-button,
+:root[data-theme="light"] .locate-button {
+  color: var(--color-text) !important;
+}

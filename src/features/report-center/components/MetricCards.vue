@@ -33,7 +33,8 @@ article {
   padding: 0 16px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: rgba(17, 24, 39, 0.82);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-soft);
 }
 
 strong {

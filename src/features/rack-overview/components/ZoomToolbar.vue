@@ -36,7 +36,7 @@ button {
   border: 1px solid var(--color-border);
   border-radius: 8px;
   color: var(--color-text-muted);
-  background: rgba(8, 17, 31, 0.88);
+  background: var(--viz-panel);
   cursor: pointer;
 }
 

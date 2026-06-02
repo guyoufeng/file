@@ -7,6 +7,7 @@ defineProps<{
 }>()
 
 const emit = defineEmits<{
+  view: [device: Device]
   edit: [device: Device]
   delete: [device: Device]
 }>()
@@ -36,7 +37,16 @@ function rackName(racks: Rack[], rackId: string): string {
       </thead>
       <tbody>
         <tr v-for="device in devices" :key="device.id">
-          <td>{{ device.computerName }}</td>
+          <td>
+            <button
+              type="button"
+              class="asset-link"
+              :aria-label="`查看 ${device.computerName || device.name} 资产详情`"
+              @click="emit('view', device)"
+            >
+              {{ device.computerName || device.name }}
+            </button>
+          </td>
           <td>{{ device.businessIp }}</td>
           <td>{{ device.managementIp }}</td>
           <td>{{ device.purpose }}</td>
@@ -91,6 +101,12 @@ button {
   color: #7dd3fc;
   background: transparent;
   cursor: pointer;
+}
+
+.asset-link {
+  margin: 0;
+  padding: 0;
+  font-weight: 700;
 }
 
 .danger {

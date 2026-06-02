@@ -24,6 +24,7 @@ import AssetToolbar from "./components/AssetToolbar.vue";
 import DeviceFormDrawer from "./components/DeviceFormDrawer.vue";
 import ExcelImportDialog from "./components/ExcelImportDialog.vue";
 import AssetSyncDialog from "./components/AssetSyncDialog.vue";
+import AssetDetailWindow from "./components/AssetDetailWindow.vue";
 
 const assetStore = useAssetStore();
 const roomStore = useRoomStore();
@@ -36,6 +37,8 @@ const syncOpen = ref(false);
 const syncType = ref<AssetSyncType>("cmdb");
 const importSummary = ref<DeviceImportSummary | null>(null);
 const editingDevice = ref<Device | null>(null);
+const detailDevice = ref<Device | null>(null);
+const detailOpen = ref(false);
 const operationNotice = ref<AssetOperationNotice | null>(null);
 const page = ref(1);
 const pageSize = ref(20);
@@ -76,6 +79,11 @@ function openEditDrawer(device: Device) {
   operationNotice.value = null;
   editingDevice.value = device;
   drawerOpen.value = true;
+}
+
+function openAssetDetail(device: Device) {
+  detailDevice.value = device;
+  detailOpen.value = true;
 }
 
 function openImportDialog() {
@@ -209,6 +217,7 @@ function confirmSync(config: AssetSyncConfig) {
     <AssetTable
       :devices="pagedDevices.items"
       :racks="roomStore.racks"
+      @view="openAssetDetail"
       @edit="openEditDrawer"
       @delete="deleteDevice"
     />
@@ -242,6 +251,21 @@ function confirmSync(config: AssetSyncConfig) {
       @close="syncOpen = false"
       @confirm="confirmSync"
     />
+    <AssetDetailWindow
+      :open="detailOpen"
+      :device="detailDevice"
+      :rack="roomStore.racks.find((rack) => rack.id === detailDevice?.rackId) ?? null"
+      :room="
+        roomStore.rooms.find(
+          (room) =>
+            room.id ===
+            roomStore.racks.find((rack) => rack.id === detailDevice?.rackId)
+              ?.roomId,
+        ) ?? null
+      "
+      :devices="assetStore.devices"
+      @close="detailOpen = false"
+    />
   </section>
 </template>
 
@@ -255,11 +279,11 @@ function confirmSync(config: AssetSyncConfig) {
   padding: 10px 12px;
   border: 1px solid rgba(239, 68, 68, 0.42);
   border-radius: 8px;
-  background: rgba(127, 29, 29, 0.28);
+  background: color-mix(in srgb, var(--color-critical) 10%, var(--color-panel));
 }
 
 .operation-notice strong {
-  color: #fecaca;
+  color: var(--color-critical);
 }
 
 .operation-notice span {
@@ -273,7 +297,7 @@ function confirmSync(config: AssetSyncConfig) {
   border: 1px solid rgba(239, 68, 68, 0.34);
   border-radius: 8px;
   color: var(--color-text);
-  background: rgba(17, 24, 39, 0.66);
+  background: var(--control-bg);
   cursor: pointer;
 }
 </style>

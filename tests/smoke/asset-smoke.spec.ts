@@ -25,3 +25,27 @@ test("shows asset table and locates a server from rack overview search", async (
   await expect(page.getByText("设备详情")).toBeVisible();
   await expect(page.getByText("端口 / 连线")).toBeVisible();
 });
+
+test("opens a movable asset detail window with relations changes qr and topology", async ({
+  page,
+}) => {
+  await loginAsAdmin(page);
+  await page.goto("/#/assets");
+
+  await page.getByRole("button", { name: "查看 QF-SRV-001 资产详情" }).click();
+  const detailWindow = page.getByRole("dialog", { name: "资产详情 QF-SRV-001" });
+  await expect(detailWindow).toBeVisible();
+  await expect(detailWindow).toContainText("详细信息");
+  await expect(detailWindow).toContainText("实例关系");
+  await expect(detailWindow).toContainText("变更记录");
+  await expect(detailWindow).toContainText("二维码");
+  await expect(detailWindow).toContainText("默认拓扑");
+  await expect(detailWindow).toContainText("新建拓扑");
+
+  await detailWindow.getByRole("button", { name: "实例关系" }).click();
+  await expect(detailWindow).toContainText("所属机柜");
+  await detailWindow.getByRole("button", { name: "变更记录" }).click();
+  await expect(detailWindow).toContainText("新增变更记录");
+  await detailWindow.getByRole("button", { name: "二维码" }).click();
+  await expect(detailWindow.getByTestId("asset-qr-code")).toBeVisible();
+});

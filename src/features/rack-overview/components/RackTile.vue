@@ -73,14 +73,14 @@ const hasWarningAlert = computed(() =>
   align-content: start;
   gap: 6px;
   padding: 9px;
-  border: 1px solid rgba(38, 50, 71, 0.96);
+  border: 1px solid var(--viz-border);
   border-radius: 8px;
   text-align: left;
-  color: var(--color-text);
+  color: var(--viz-text);
   background: linear-gradient(
     180deg,
-    color-mix(in srgb, var(--rack-type-color) 24%, rgba(21, 28, 46, 0.96)),
-    rgba(10, 18, 32, 0.96)
+    color-mix(in srgb, var(--rack-type-color) 18%, var(--viz-panel-strong)),
+    var(--viz-panel)
   );
   box-shadow: inset 4px 0 0 color-mix(in srgb, var(--rack-type-color) 84%, #ffffff 0%);
   cursor: pointer;
@@ -115,7 +115,7 @@ const hasWarningAlert = computed(() =>
   border-color: rgba(253, 230, 138, 0.96);
   background:
     linear-gradient(180deg, rgba(245, 158, 11, 0.2), rgba(14, 165, 233, 0.12)),
-    rgba(10, 18, 32, 0.98);
+    var(--viz-panel-strong);
   box-shadow:
     0 0 0 2px rgba(253, 230, 138, 0.36),
     0 0 24px rgba(245, 158, 11, 0.22);
@@ -129,7 +129,7 @@ const hasWarningAlert = computed(() =>
 
 .rack-type,
 .rack-meta {
-  color: var(--color-text-muted);
+  color: var(--viz-muted);
   font-size: 11px;
 }
 

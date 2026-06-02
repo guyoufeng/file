@@ -127,7 +127,7 @@ function confirmImport() {
   display: grid;
   place-items: center;
   padding: 24px;
-  background: rgba(0, 0, 0, 0.46);
+  background: var(--modal-backdrop);
 }
 
 .panel {
@@ -139,7 +139,8 @@ function confirmImport() {
   padding: 18px;
   border: 1px solid var(--color-border);
   border-radius: 8px;
-  background: #08111f;
+  background: var(--surface-glass);
+  box-shadow: 0 24px 80px rgba(15, 23, 42, 0.16);
 }
 
 header,
@@ -165,7 +166,7 @@ button {
   border: 1px solid var(--color-border);
   border-radius: 8px;
   color: var(--color-text);
-  background: rgba(17, 24, 39, 0.92);
+  background: var(--control-bg);
   cursor: pointer;
 }
 

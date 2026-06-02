@@ -111,7 +111,7 @@ function submit() {
   z-index: 45;
   display: flex;
   justify-content: flex-end;
-  background: rgba(0, 0, 0, 0.38);
+  background: var(--modal-backdrop);
 }
 
 aside {
@@ -120,7 +120,8 @@ aside {
   overflow: auto;
   padding: 18px;
   border-left: 1px solid var(--color-border);
-  background: #08111f;
+  background: var(--surface-glass);
+  box-shadow: -18px 0 60px rgba(15, 23, 42, 0.14);
 }
 
 header {
@@ -157,7 +158,7 @@ textarea {
   border: 1px solid var(--color-border);
   border-radius: 8px;
   color: var(--color-text);
-  background: rgba(17, 24, 39, 0.92);
+  background: var(--control-bg);
 }
 
 .file-list {
@@ -170,7 +171,7 @@ button {
   border: 1px solid var(--color-border);
   border-radius: 8px;
   color: var(--color-text);
-  background: rgba(17, 24, 39, 0.92);
+  background: var(--control-bg);
   cursor: pointer;
 }
 

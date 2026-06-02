@@ -166,7 +166,7 @@ function submit() {
   z-index: 40;
   display: flex;
   justify-content: flex-end;
-  background: rgba(0, 0, 0, 0.38);
+  background: var(--modal-backdrop);
 }
 
 .drawer-panel {
@@ -175,7 +175,8 @@ function submit() {
   overflow: auto;
   padding: 18px;
   border-left: 1px solid var(--color-border);
-  background: #08111f;
+  background: var(--surface-glass);
+  box-shadow: -18px 0 60px rgba(15, 23, 42, 0.14);
 }
 
 header {
@@ -218,14 +219,14 @@ select {
   border: 1px solid var(--color-border);
   border-radius: 8px;
   color: var(--color-text);
-  background: rgba(17, 24, 39, 0.92);
+  background: var(--control-bg);
 }
 
 button {
   border: 1px solid var(--color-border);
   border-radius: 8px;
   color: var(--color-text);
-  background: rgba(17, 24, 39, 0.92);
+  background: var(--control-bg);
   cursor: pointer;
 }
 

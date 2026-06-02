@@ -115,7 +115,7 @@ async function confirm() {
   display: flex;
   justify-content: flex-end;
   padding: 92px 28px 28px;
-  background: rgba(2, 6, 23, 0.36);
+  background: var(--modal-backdrop);
 }
 
 .sync-dialog {
@@ -126,8 +126,8 @@ async function confirm() {
   padding: 16px;
   border: 1px solid rgba(56, 189, 248, 0.36);
   border-radius: 8px;
-  background: rgba(8, 17, 31, 0.96);
-  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.38);
+  background: var(--surface-glass);
+  box-shadow: 0 24px 70px rgba(15, 23, 42, 0.16);
 }
 
 header,
@@ -169,7 +169,7 @@ input {
   border: 1px solid var(--color-border);
   border-radius: 8px;
   color: var(--color-text);
-  background: rgba(15, 23, 42, 0.88);
+  background: var(--control-bg);
 }
 
 button {

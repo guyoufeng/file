@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref } from "vue";
 import type { Alert, Device, DeviceSide, Rack } from "../../../types/domain";
 import { categoryColors } from "../../../constants/colors";
 import {
@@ -24,6 +24,7 @@ const emit = defineEmits<{
 }>();
 
 const rackPadding = 8;
+const themeName = ref<"light" | "dark">("light");
 
 const rackWidth = computed(() => (props.compact ? 186 : 300));
 const labelWidth = computed(() => (props.compact ? 30 : 44));
@@ -36,6 +37,42 @@ const rackBodyWidth = computed(
 const rackDevices = computed(() =>
   filterRackSideDevices(props.devices, props.rack.id, props.side ?? "front"),
 );
+const palette = computed(() =>
+  themeName.value === "dark"
+    ? {
+        rowEven: "#0B1220",
+        rowOdd: "#101827",
+        gridStroke: "#263247",
+        label: "#94A3B8",
+        deviceText: "#F8FAFC",
+        deviceStroke: "#E5EEFB",
+      }
+    : {
+        rowEven: "#F9FFFB",
+        rowOdd: "#EEF8F1",
+        gridStroke: "#C9DFD0",
+        label: "#466253",
+        deviceText: "#111827",
+        deviceStroke: "rgba(15, 23, 42, 0.28)",
+      },
+);
+
+function readTheme() {
+  return document.documentElement.dataset.theme === "dark" ? "dark" : "light";
+}
+
+function syncTheme() {
+  themeName.value = readTheme();
+}
+
+onMounted(() => {
+  syncTheme();
+  window.addEventListener("qf-theme-change", syncTheme);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener("qf-theme-change", syncTheme);
+});
 
 function deviceColor(device: Device): string {
   const activeAlert = props.alerts?.find(
@@ -102,8 +139,8 @@ function selectDevice(device: Device) {
               y: (rack.heightU - u) * rowHeight,
               width: rackBodyWidth,
               height: rowHeight,
-              fill: u % 2 === 0 ? '#0B1220' : '#101827',
-              stroke: '#263247',
+              fill: u % 2 === 0 ? palette.rowEven : palette.rowOdd,
+              stroke: palette.gridStroke,
               strokeWidth: 0.5,
             }"
           />
@@ -115,7 +152,7 @@ function selectDevice(device: Device) {
               text: `${u}U`,
               align: 'right',
               fontSize: Math.max(9, rowHeight * 0.45),
-              fill: '#94A3B8',
+              fill: palette.label,
             }"
           />
         </template>
@@ -132,7 +169,7 @@ function selectDevice(device: Device) {
               fill: deviceColor(device),
               opacity: 0.86,
               cornerRadius: 4,
-              stroke: device.id === highlightDeviceId ? '#FDE68A' : '#E5EEFB',
+              stroke: device.id === highlightDeviceId ? '#FDE68A' : palette.deviceStroke,
               strokeWidth:
                 device.id === highlightDeviceId
                   ? 4
@@ -164,7 +201,7 @@ function selectDevice(device: Device) {
               align: deviceTextLayout(device).align,
               verticalAlign: deviceTextLayout(device).verticalAlign,
               padding: deviceTextLayout(device).padding,
-              fill: '#F8FAFC',
+              fill: palette.deviceText,
               ellipsis: true,
               cursor: 'pointer',
             }"
@@ -178,18 +215,18 @@ function selectDevice(device: Device) {
 <style scoped>
 .rack-canvas {
   padding: 10px;
-  border: 1px solid rgba(71, 85, 105, 0.78);
+  border: 1px solid var(--viz-border);
   border-radius: 8px;
   background:
     linear-gradient(
       90deg,
-      rgba(148, 163, 184, 0.1),
+      color-mix(in srgb, var(--viz-grid-line) 34%, transparent),
       transparent 8%,
       transparent 92%,
-      rgba(148, 163, 184, 0.1)
+      color-mix(in srgb, var(--viz-grid-line) 34%, transparent)
     ),
-    rgba(8, 17, 31, 0.92);
-  box-shadow: inset 0 0 0 1px rgba(15, 23, 42, 0.9);
+    var(--viz-panel-strong);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--viz-border) 60%, transparent);
 }
 
 .rack-canvas.compact {

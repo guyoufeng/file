@@ -267,6 +267,47 @@ test("alert locate opens rack u view and highlights the related device", async (
   await expect(page.getByTestId("rack-u-overview")).toBeVisible();
 });
 
+test("light theme keeps rack visualization and context menus on pale surfaces", async ({
+  page,
+}) => {
+  await loginAsAdmin(page);
+  await page.evaluate(() => localStorage.setItem("qf-ai-dcim.theme", "light"));
+  await page.goto("/#/rack-overview");
+
+  await expect(page.getByRole("heading", { name: "机柜总览" })).toBeVisible();
+  const backgroundSignature = async (selector: string) =>
+    page
+      .locator(selector)
+      .first()
+      .evaluate((element) => {
+        const style = window.getComputedStyle(element);
+        return `${style.backgroundColor} ${style.backgroundImage}`;
+      });
+  const darkSurfacePattern =
+    /rgba?\((5, 10, 22|8, 17, 31|17, 24, 39|2, 6, 23|10, 18, 32|11, 23, 40|6, 17, 31)/;
+
+  await expect.poll(() => backgroundSignature(".rack-u-view")).not.toMatch(darkSurfacePattern);
+
+  await page.getByRole("button", { name: "布局总览" }).click();
+  await expect.poll(() => backgroundSignature(".module-section")).not.toMatch(darkSurfacePattern);
+
+  await page.getByRole("button", { name: "3D轻量视图" }).click();
+  await expect.poll(() => backgroundSignature(".rack-3d-view")).not.toMatch(darkSurfacePattern);
+
+  await page.locator(".overview-metrics div", { hasText: "总机房" }).click({
+    button: "right",
+  });
+  await expect
+    .poll(async () => {
+      const style = await page.getByRole("menu").evaluate((element) => {
+        const computed = window.getComputedStyle(element);
+        return `${computed.backgroundColor} ${computed.backgroundImage}`;
+      });
+      return style;
+    })
+    .not.toMatch(darkSurfacePattern);
+});
+
 test("alert webhook is managed from a compact floating window", async ({
   page,
 }) => {

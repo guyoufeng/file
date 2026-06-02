@@ -20,10 +20,21 @@
   --table-row-bg: #ffffff;
   --table-row-hover: #f6f9fd;
   --viz-bg: #06111f;
-  --viz-panel: #0b1728;
-  --viz-border: #263247;
-  --viz-text: #e5eefb;
-  --viz-muted: #94a3b8;
+  --viz-workspace-bg:
+    radial-gradient(circle at 8% 0%, rgba(34, 197, 94, 0.16), transparent 34%),
+    linear-gradient(180deg, #f7fff9 0%, #edf9f0 100%);
+  --viz-panel: rgba(255, 255, 255, 0.82);
+  --viz-panel-strong: #ffffff;
+  --viz-border: #b9dccc;
+  --viz-grid-even: #f9fffb;
+  --viz-grid-odd: #eef8f1;
+  --viz-grid-line: #c9dfd0;
+  --viz-text: #102a1d;
+  --viz-muted: #557064;
+  --viz-device-text: #111827;
+  --context-menu-bg: rgba(255, 255, 255, 0.96);
+  --context-menu-hover: rgba(14, 165, 233, 0.11);
+  --modal-backdrop: rgba(226, 238, 247, 0.62);
   --font-sans: Inter, "Microsoft YaHei", "PingFang SC", "Segoe UI", Arial, sans-serif;
 }
 
@@ -48,9 +59,21 @@
   --table-row-bg: rgba(17, 24, 39, 0.64);
   --table-row-hover: rgba(14, 165, 233, 0.08);
   --viz-bg: #050a16;
+  --viz-workspace-bg:
+    radial-gradient(circle at 10% 0%, rgba(14, 165, 233, 0.14), transparent 28%),
+    linear-gradient(180deg, rgba(11, 23, 40, 0.98), rgba(6, 17, 31, 0.99));
   --viz-panel: #0b1220;
+  --viz-panel-strong: rgba(8, 17, 31, 0.92);
   --viz-border: #263247;
+  --viz-grid-even: #0b1220;
+  --viz-grid-odd: #101827;
+  --viz-grid-line: #263247;
   --viz-text: #e5eefb;
   --viz-muted: #94a3b8;
+  --viz-device-text: #f8fafc;
+  --context-menu-bg:
+    linear-gradient(180deg, rgba(17, 24, 39, 0.98), rgba(8, 13, 24, 0.98));
+  --context-menu-hover: rgba(14, 165, 233, 0.14);
+  --modal-backdrop: rgba(0, 0, 0, 0.38);
   --font-sans: Inter, "Microsoft YaHei", "PingFang SC", "Segoe UI", Arial, sans-serif;
 }

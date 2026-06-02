@@ -66,9 +66,11 @@ const modules = computed(() => {
 
 .module-section {
   padding: 14px;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--viz-border);
   border-radius: 8px;
-  background: rgba(17, 24, 39, 0.72);
+  color: var(--viz-text);
+  background: var(--viz-workspace-bg);
+  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.08);
 }
 
 header {
@@ -85,7 +87,7 @@ h3 {
 
 header span,
 .module-row strong {
-  color: var(--color-text-muted);
+  color: var(--viz-muted);
   font-size: 12px;
 }
 

@@ -34,8 +34,9 @@ const emit = defineEmits<{
   grid-template-columns: repeat(auto-fit, minmax(120px, 160px));
   gap: 10px;
   padding: 16px;
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--viz-border);
   border-radius: 8px;
-  background: rgba(17, 24, 39, 0.72);
+  background: var(--viz-workspace-bg);
+  box-shadow: 0 18px 44px rgba(15, 23, 42, 0.08);
 }
 </style>

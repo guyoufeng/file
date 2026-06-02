@@ -321,6 +321,9 @@ test("alert webhook is managed from a compact floating window", async ({
   await page.getByRole("button", { name: "创建Webhook" }).click();
 
   await expect(page.getByRole("dialog", { name: "告警 Webhook 接入" })).toContainText("卓豪硬件告警");
+  await expect(page.getByRole("button", { name: "复制Webhook地址" }).first()).toBeVisible();
+  await page.getByRole("button", { name: "复制Webhook地址" }).first().click();
+  await expect(page.getByText("Webhook地址已复制")).toBeVisible();
 });
 
 test("access records are created from a compact floating window", async ({
@@ -331,11 +334,25 @@ test("access records are created from a compact floating window", async ({
 
   await page.getByRole("button", { name: "新增进出记录" }).click();
   await expect(page.getByRole("dialog", { name: "新增进出记录" })).toBeVisible();
+  await page.locator(".page-header").click({ position: { x: 8, y: 8 } });
+  await expect(page.getByRole("dialog", { name: "新增进出记录" })).toHaveCount(0);
+
+  await page.getByRole("button", { name: "新增进出记录" }).click();
   await page.getByLabel("单位").fill("维保厂家");
   await page.getByLabel("人员").fill("李工");
   await page.getByRole("button", { name: "新增", exact: true }).click();
 
   await expect(page.getByRole("cell", { name: /维保厂家/ })).toBeVisible();
+});
+
+test("alert manual drawer closes when clicking outside", async ({ page }) => {
+  await loginAsAdmin(page);
+  await page.goto("/#/alerts");
+
+  await page.getByRole("button", { name: "新增告警" }).click();
+  await expect(page.getByRole("heading", { name: "新增手工告警" })).toBeVisible();
+  await page.locator(".drawer").click({ position: { x: 20, y: 20 } });
+  await expect(page.getByRole("heading", { name: "新增手工告警" })).toHaveCount(0);
 });
 
 test("AI Agent settings shows readonly Agent API status and tools", async ({

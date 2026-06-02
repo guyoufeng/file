@@ -35,6 +35,7 @@ const webhookName = ref('卓豪监控告警')
 const webhookSource = ref<AlertWebhook['source']>('zoho')
 const webhooks = ref<AlertWebhook[]>([])
 const webhookWindowOpen = ref(false)
+const webhookCopyMessage = ref('')
 const webhookWindow = ref({ x: 0, y: 0 })
 let webhookDrag:
   | { startX: number; startY: number; originX: number; originY: number }
@@ -114,6 +115,7 @@ function addWebhook() {
     enabled: true,
   })
   webhooks.value = getAlertWebhooks()
+  webhookCopyMessage.value = ''
 }
 
 function removeWebhook(id: string) {
@@ -128,6 +130,23 @@ function openWebhookWindow() {
     y: 142,
   }
   webhookWindowOpen.value = true
+}
+
+async function copyWebhookUrl(url: string) {
+  try {
+    await navigator.clipboard?.writeText(url)
+  } catch {
+    const textarea = document.createElement('textarea')
+    textarea.value = url
+    textarea.setAttribute('readonly', 'true')
+    textarea.style.position = 'fixed'
+    textarea.style.left = '-9999px'
+    document.body.appendChild(textarea)
+    textarea.select()
+    document.execCommand('copy')
+    textarea.remove()
+  }
+  webhookCopyMessage.value = 'Webhook地址已复制'
 }
 
 function startWebhookDrag(event: PointerEvent) {
@@ -207,9 +226,11 @@ function stopWebhookDrag() {
             <strong>{{ webhook.name }}</strong>
             <code>{{ webhook.url }}</code>
           </div>
+          <button type="button" aria-label="复制Webhook地址" @click="copyWebhookUrl(webhook.url)">复制</button>
           <button type="button" @click="removeWebhook(webhook.id)">删除</button>
         </article>
         <p v-if="webhooks.length === 0">暂无 Webhook 配置。</p>
+        <p v-if="webhookCopyMessage" class="copy-message">{{ webhookCopyMessage }}</p>
       </div>
     </aside>
     <div class="batch-toolbar">
@@ -313,6 +334,16 @@ function stopWebhookDrag() {
   cursor: move;
 }
 
+.webhook-window header button {
+  min-height: 32px;
+  padding: 0 12px;
+  border: 1px solid rgba(14, 165, 233, 0.48);
+  border-radius: 8px;
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--color-primary) 16%, var(--control-bg));
+  cursor: pointer;
+}
+
 .webhook-window header div {
   display: grid;
   gap: 4px;
@@ -358,6 +389,10 @@ function stopWebhookDrag() {
   border: 1px solid var(--color-border);
   border-radius: 8px;
   background: var(--color-panel);
+}
+
+.copy-message {
+  color: var(--color-success) !important;
 }
 
 .webhook-list article > div {

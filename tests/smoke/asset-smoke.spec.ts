@@ -48,4 +48,7 @@ test("opens a movable asset detail window with relations changes qr and topology
   await expect(detailWindow).toContainText("新增变更记录");
   await detailWindow.getByRole("button", { name: "二维码" }).click();
   await expect(detailWindow.getByTestId("asset-qr-code")).toBeVisible();
+
+  await page.locator(".page-header").click({ position: { x: 8, y: 8 } });
+  await expect(detailWindow).toHaveCount(0);
 });

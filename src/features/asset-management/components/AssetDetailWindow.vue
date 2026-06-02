@@ -26,6 +26,7 @@ const emit = defineEmits<{
 const activeTab = ref<DetailTab>("detail");
 const topologyTab = ref<TopologyTab>("default");
 const position = ref({ x: 0, y: 0 });
+const windowRef = ref<HTMLElement | null>(null);
 const changeRecords = ref<ChangeRecord[]>([]);
 const accessRecords = ref<AccessRecord[]>([]);
 const changeForm = ref({
@@ -72,7 +73,10 @@ const qrCells = computed(() => buildQrCells(JSON.stringify({
 watch(
   () => props.open,
   (open) => {
-    if (!open) return;
+    if (!open) {
+      document.removeEventListener("pointerdown", closeWhenClickOutside, true);
+      return;
+    }
     activeTab.value = "detail";
     topologyTab.value = "default";
     position.value = {
@@ -80,6 +84,7 @@ watch(
       y: 118,
     };
     loadRecords();
+    document.addEventListener("pointerdown", closeWhenClickOutside, true);
   },
 );
 
@@ -93,6 +98,7 @@ watch(
 onBeforeUnmount(() => {
   window.removeEventListener("pointermove", moveWindow);
   window.removeEventListener("pointerup", stopDrag);
+  document.removeEventListener("pointerdown", closeWhenClickOutside, true);
 });
 
 function loadRecords() {
@@ -126,6 +132,12 @@ function stopDrag() {
   dragState = null;
   window.removeEventListener("pointermove", moveWindow);
   window.removeEventListener("pointerup", stopDrag);
+}
+
+function closeWhenClickOutside(event: PointerEvent) {
+  const target = event.target as Node | null;
+  if (!target || windowRef.value?.contains(target)) return;
+  emit("close");
 }
 
 function saveChangeRecord() {
@@ -171,6 +183,7 @@ function buildQrCells(value: string) {
 <template>
   <aside
     v-if="open && device"
+    ref="windowRef"
     class="asset-detail-window"
     :style="windowStyle"
     role="dialog"

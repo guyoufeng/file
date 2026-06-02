@@ -79,7 +79,7 @@ function submit() {
 </script>
 
 <template>
-  <div v-if="open" class="drawer">
+  <div v-if="open" class="drawer" @click.self="emit('close')">
     <aside>
       <header>
         <h3>{{ alert ? '编辑告警' : '新增手工告警' }}</h3>

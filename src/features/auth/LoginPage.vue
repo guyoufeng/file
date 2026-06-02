@@ -1,7 +1,6 @@
 <script setup lang="ts">
-import { onMounted, ref } from "vue";
+import { onBeforeUnmount, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
-import ChervonLogo from "../../components/ChervonLogo.vue";
 import { getFirstAccessiblePath } from "../../services/auth/accountAccess";
 import {
   clearRememberedLogin,
@@ -19,11 +18,16 @@ const showPassword = ref(false);
 const tip = ref("");
 
 onMounted(() => {
+  document.body.classList.add("login-active");
   const remembered = getRememberedLogin();
   if (!remembered) return;
   username.value = remembered.username;
   password.value = remembered.password;
   rememberPassword.value = true;
+});
+
+onBeforeUnmount(() => {
+  document.body.classList.remove("login-active");
 });
 
 async function login() {
@@ -48,7 +52,6 @@ function forgotPassword() {
 <template>
   <main class="login-page">
     <section class="login-card" aria-label="账号登录">
-      <ChervonLogo dark />
       <div class="login-title">
         <h1>泉峰AI数据中心管理平台</h1>
         <p>账号登录</p>
@@ -89,13 +92,24 @@ function forgotPassword() {
 
 <style scoped>
 .login-page {
+  width: 100vw;
+  min-width: 0;
   min-height: 100vh;
   display: grid;
   place-items: center;
   padding: 40px;
+  overflow: hidden;
   background:
-    linear-gradient(90deg, rgba(114, 208, 95, 0.12), rgba(13, 148, 136, 0.05)),
-    url("/brand/login-bg.jpg") center / cover no-repeat;
+    radial-gradient(circle at 18% 54%, rgba(27, 174, 118, 0.28) 0 13%, transparent 13.5%),
+    radial-gradient(circle at 18% 54%, transparent 0 20%, rgba(27, 174, 118, 0.22) 20.5% 32%, transparent 32.5%),
+    radial-gradient(circle at 72% 18%, rgba(172, 214, 70, 0.42), transparent 34%),
+    linear-gradient(135deg, #c7f0e9 0%, #e7f7db 46%, #f6f9fd 100%);
+}
+
+:global(body.login-active),
+:global(body.login-active #app) {
+  min-width: 0;
+  overflow: hidden;
 }
 
 .login-card {

@@ -204,7 +204,7 @@ describe("QF AI agent runtime", () => {
     expect(chat).not.toHaveBeenCalled();
   });
 
-  it("reports model call failure when generic chat has an enabled config", async () => {
+  it("falls back to a useful operations answer when generic model chat is unavailable", async () => {
     const { runQfAiAgent } = await import("../../services/ai/agentRuntime");
     chat.mockRejectedValueOnce(new Error("401 Unauthorized"));
 
@@ -219,7 +219,8 @@ describe("QF AI agent runtime", () => {
     });
 
     expect(result.toolName).toBe("general_chat");
-    expect(result.answer).toContain("模型调用失败");
+    expect(result.answer).not.toContain("模型调用失败");
+    expect(result.answer).toContain("数据中心日常维护");
     expect(result.answer).toContain("qwen3.6-35b-a3b-awq");
     expect(result.fallbackReason).toBe("401 Unauthorized");
     expect(result.answer).not.toContain("当前未配置启用模型");

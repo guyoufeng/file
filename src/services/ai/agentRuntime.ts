@@ -144,11 +144,41 @@ function buildModelIdentityAnswer(config: AiModelConfig | undefined) {
   ].join("\n");
 }
 
-function buildModelFailureAnswer(config: AiModelConfig, reason: string) {
+function buildModelFailureAnswer(config: AiModelConfig, question: string) {
+  const normalized = question.toLowerCase();
+  const advice = (() => {
+    if (/温度|几度|多少度|湿度/.test(question)) {
+      return [
+        "机房温度建议优先控制在 22-26 摄氏度，常见可接受范围可参考 18-27 摄氏度。",
+        "相对湿度建议保持在 40%-60% 左右，避免过低导致静电风险，过高导致凝露和腐蚀风险。",
+        "实际值还要结合冷热通道、机柜进风口温度、设备厂商要求和动环监控告警阈值一起确认。",
+      ];
+    }
+    if (/ecc|内存|dimm|memory/.test(normalized)) {
+      return [
+        "先确认告警来源、DIMM 槽位、错误计数和是否持续增长，保留 BMC/系统日志截图。",
+        "如果是可纠正 ECC 偶发告警，建议观察趋势并安排巡检；如果频繁增长或出现不可纠正错误，应优先迁移业务并窗口期更换同规格内存。",
+        "更换后复查硬件日志、系统日志和监控曲线，确认告警恢复并补录维修记录。",
+      ];
+    }
+    if (/能.*做|帮忙|功能|事情/.test(question)) {
+      return [
+        "我可以帮助查询服务器位置、业务 IP、带外 IP、用途、责任人、机柜、告警、审计记录、虚拟服务器和进出维修记录。",
+        "也可以围绕数据中心运维给出巡检、硬件故障排查、告警处理、变更记录整理和报告草稿建议。",
+        "涉及平台真实数据时，我会优先调用只读工具查询，不编造资产、位置和告警事实。",
+      ];
+    }
+    return [
+      "数据中心日常维护建议先关注环境、供电、制冷、硬件健康、容量和变更记录六类事项。",
+      "环境侧重点看温湿度、漏水、烟感和冷热通道；供电侧重点看 UPS、PDU、电流和冗余；硬件侧重点看磁盘、内存、风扇、电源和带外日志。",
+      "处理问题时建议保留告警来源、时间线、影响范围、处理步骤和恢复验证结果，方便后续审计和 AI 复盘。",
+    ];
+  })();
+
   return [
-    `当前已选择模型 ${config.model}，但本次模型调用失败：${reason}`,
-    "平台事实类问题仍可使用本地只读工具返回真实数据；通用问题需要模型服务可用后才能给出完整回答。",
-    "请检查 AI 模型配置、GPUStack 服务地址、API Key、模型名称和网络连通性。",
+    `当前已选择模型 ${config.model}，模型服务暂时不可用，我先按本地运维知识给出参考建议。`,
+    ...advice,
+    "平台资产、机柜、告警等事实类问题仍会继续使用本地只读工具返回真实数据。",
   ].join("\n");
 }
 
@@ -309,7 +339,7 @@ export async function runQfAiAgent(request: QfAgentRequest): Promise<QfAgentRunR
       };
     } catch (error) {
       const fallbackReason = error instanceof Error ? error.message : "模型调用失败";
-      const answer = buildModelFailureAnswer(config, fallbackReason);
+      const answer = buildModelFailureAnswer(config, request.question);
       return {
         toolName: "general_chat",
         answer,

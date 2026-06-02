@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from "vue";
+import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import * as XLSX from "xlsx";
 import {
   createAccessRecord,
@@ -20,6 +20,7 @@ const keyword = ref("");
 const editingId = ref<string | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const recordWindowOpen = ref(false);
+const recordWindowRef = ref<HTMLElement | null>(null);
 const recordWindow = ref({ x: 0, y: 0 });
 let recordDrag:
   | { startX: number; startY: number; originX: number; originY: number }
@@ -52,9 +53,18 @@ onMounted(async () => {
   records.value = getAccessRecords();
 });
 
+watch(recordWindowOpen, (open) => {
+  if (open) {
+    document.addEventListener("pointerdown", closeRecordWhenClickOutside, true);
+  } else {
+    document.removeEventListener("pointerdown", closeRecordWhenClickOutside, true);
+  }
+});
+
 onBeforeUnmount(() => {
   window.removeEventListener("pointermove", moveRecordWindow);
   window.removeEventListener("pointerup", stopRecordDrag);
+  document.removeEventListener("pointerdown", closeRecordWhenClickOutside, true);
 });
 
 function resetForm() {
@@ -185,6 +195,12 @@ function stopRecordDrag() {
   window.removeEventListener("pointerup", stopRecordDrag);
 }
 
+function closeRecordWhenClickOutside(event: PointerEvent) {
+  const target = event.target as Node | null;
+  if (!target || recordWindowRef.value?.contains(target)) return;
+  closeRecordWindow();
+}
+
 async function importExcel(event: Event) {
   const input = event.target as HTMLInputElement;
   const file = input.files?.[0];
@@ -236,6 +252,7 @@ async function importExcel(event: Event) {
 
     <aside
       v-if="recordWindowOpen"
+      ref="recordWindowRef"
       class="record-window"
       :style="recordWindowStyle"
       role="dialog"

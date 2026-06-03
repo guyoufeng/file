@@ -6,6 +6,7 @@ import type {
   Rack,
   Room,
 } from "../../types/domain";
+import type { AiMessageInput } from "../../types/ai";
 import {
   loadVirtualServers,
   type VirtualServer,
@@ -43,6 +44,15 @@ import { getAgentRoleDefinition } from "./agentIdentity";
 import { formatCredentialCatalogForAgent } from "./agentCredentials";
 import { formatKnowledgePrompt } from "./agentKnowledgeBase";
 import { formatAgentToolIntegrationPrompt } from "./agentToolIntegrations";
+import {
+  formatAttachmentsForAgentPrompt,
+  type AgentAttachmentSummary,
+} from "./agentAttachments";
+import {
+  executeWithAgentRetry,
+  getAgentReliabilitySettings,
+  shouldRequireHumanApproval,
+} from "./agentReliability";
 
 export interface QfAgentRequest {
   question: string;
@@ -59,11 +69,7 @@ export interface QfAgentRequest {
   capabilities?: AiAgentCapabilitySettings;
   dataSource: string;
   memories?: string[];
-  attachments?: Array<{
-    name: string;
-    type: string;
-    size: number;
-  }>;
+  attachments?: AgentAttachmentSummary[];
 }
 
 export interface QfAgentPlan {
@@ -81,6 +87,36 @@ export interface QfAgentRunResult extends AiToolResult {
 
 function getEnabledConfig(configs: AiModelConfig[]) {
   return configs.find((config) => config.enabled) ?? configs[0];
+}
+
+async function chatWithReliability(
+  configs: AiModelConfig[],
+  primaryConfig: AiModelConfig,
+  messages: AiMessageInput[],
+) {
+  const settings = getAgentReliabilitySettings();
+  const candidates = [
+    primaryConfig,
+    ...configs.filter((config) => config.id !== primaryConfig.id),
+  ]
+    .filter((config) => config.enabled || config.id === primaryConfig.id)
+    .map((config) => ({
+      label: config.model,
+      run: async () => {
+        const answer = await getProviderAdapter(config).chat(config, messages);
+        if (!answer?.trim()) throw new Error("模型返回为空");
+        return answer;
+      },
+    }));
+  const result = await executeWithAgentRetry(candidates, settings);
+  return {
+    answer: result.value,
+    usedModel: result.usedCandidate,
+    retrySummary: result.attempts
+      .filter((attempt) => attempt.status === "failed")
+      .map((attempt) => `${attempt.candidate} 第${attempt.attempt}次失败：${attempt.message}`)
+      .join("；"),
+  };
 }
 
 function extractJsonObject(text: string): unknown {
@@ -193,15 +229,7 @@ function buildModelFailureAnswer(config: AiModelConfig, question: string) {
 }
 
 function formatAttachmentPrompt(attachments: QfAgentRequest["attachments"]) {
-  if (!attachments || attachments.length === 0) return "附件：无。";
-  return [
-    "附件：",
-    ...attachments.map(
-      (item, index) =>
-        `${index + 1}. ${item.name}（${item.type || "未知类型"}，${Math.ceil(item.size / 1024)} KB）`,
-    ),
-    "当前第一版只记录附件元数据，后续会接入文件解析和知识库检索。",
-  ].join("\n");
+  return formatAttachmentsForAgentPrompt(attachments);
 }
 
 function buildGeneralAgentPrompt(
@@ -275,6 +303,35 @@ export async function runQfAiAgent(request: QfAgentRequest): Promise<QfAgentRunR
   const changeEvents = request.changeEvents ?? getChangeEvents();
   const connectionRecords = request.connectionRecords ?? getConnectionRecords();
   const auditLogs = request.auditLogs ?? getLocalAiAuditLogs();
+  const reliabilitySettings = getAgentReliabilitySettings();
+
+  if (reliabilitySettings.highRiskGuardEnabled && shouldRequireHumanApproval(request.question)) {
+    const answer = [
+      "这条指令涉及新增、修改、删除、下架、停机或敏感信息等高风险动作。",
+      "当前 AI Agent 处于安全只读阶段，我可以先帮你查询影响范围、整理操作步骤和生成变更草稿，但不会直接执行高风险动作。",
+      "后续开放写入能力时，会进入人工确认流程，并完整记录执行轨迹和证据链。",
+    ].join("\n");
+    const plan: QfAgentPlan = {
+      toolName: "general_chat",
+      reason: "AgentScope 风格高风险操作拦截，需要人工确认后才能执行。",
+      planner: "deterministic",
+    };
+    return {
+      toolName: "general_chat",
+      answer,
+      usedModel: config?.model,
+      fallbackReason: "高风险操作已拦截",
+      plan,
+      events: buildAiAgentEvents({
+        question: request.question,
+        toolName: "general_chat",
+        answer,
+        usedModel: config?.model,
+        fallbackReason: "高风险操作已拦截",
+        dataSource: "Agent 安全策略",
+      }),
+    };
+  }
 
   if (isModelIdentityQuestion(request.question)) {
     const answer = buildModelIdentityAnswer(config);
@@ -326,7 +383,7 @@ export async function runQfAiAgent(request: QfAgentRequest): Promise<QfAgentRunR
     }
 
     try {
-      const answer = await getProviderAdapter(config).chat(config, [
+      const modelResult = await chatWithReliability(request.configs, config, [
         { role: "system", content: getAgentRoleDefinition() },
         { role: "system", content: buildSkillPrompt() },
         { role: "system", content: formatCustomAgentSkillPrompt() },
@@ -336,16 +393,19 @@ export async function runQfAiAgent(request: QfAgentRequest): Promise<QfAgentRunR
         { role: "system", content: formatAgentMemoryPrompt(request.memories) },
         { role: "user", content: buildGeneralAgentPrompt(request.question, capabilities, request.memories, request.attachments) },
       ]);
+      const answer = modelResult.answer;
       return {
         toolName: "general_chat",
         answer: answer.trim() || fallbackAnswer,
-        usedModel: config.model,
+        usedModel: modelResult.usedModel,
+        fallbackReason: modelResult.retrySummary || undefined,
         plan,
         events: buildAiAgentEvents({
           question: request.question,
           toolName: "general_chat",
           answer: answer.trim() || fallbackAnswer,
-          usedModel: config.model,
+          usedModel: modelResult.usedModel,
+          fallbackReason: modelResult.retrySummary || undefined,
           dataSource: "当前模型",
         }),
       };
@@ -422,7 +482,7 @@ export async function runQfAiAgent(request: QfAgentRequest): Promise<QfAgentRunR
   }
 
   try {
-    const answer = await getProviderAdapter(config).chat(config, [
+    const modelResult = await chatWithReliability(request.configs, config, [
       { role: "system", content: getAgentRoleDefinition() },
       { role: "system", content: buildSkillPrompt() },
       { role: "system", content: formatCustomAgentSkillPrompt() },
@@ -431,19 +491,20 @@ export async function runQfAiAgent(request: QfAgentRequest): Promise<QfAgentRunR
       { role: "system", content: buildCapabilityPrompt(capabilities) },
       { role: "user", content: buildSummaryPrompt(request.question, toolResult) },
     ]);
+    const answer = modelResult.answer;
 
     return {
       ...toolResult,
       answer: answer.trim() || toolResult.answer,
-      usedModel: config.model,
-      fallbackReason: plannerFailure,
+      usedModel: modelResult.usedModel,
+      fallbackReason: plannerFailure || modelResult.retrySummary || undefined,
       plan,
       events: buildAiAgentEvents({
         question: request.question,
         toolName: toolResult.toolName,
         answer: answer.trim() || toolResult.answer,
-        usedModel: config.model,
-        fallbackReason: plannerFailure,
+        usedModel: modelResult.usedModel,
+        fallbackReason: plannerFailure || modelResult.retrySummary || undefined,
         dataSource: request.dataSource,
         relatedDeviceId: toolResult.relatedDeviceId,
         relatedRackId: toolResult.relatedRackId,

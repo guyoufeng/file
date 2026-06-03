@@ -36,6 +36,7 @@ async function readBody(req: IncomingMessage) {
 const agentSnapshotPath = path.resolve(".local/agent-api-snapshot.json");
 const agentAuthPath = path.resolve(".local/agent-api-auth.json");
 const demoSeedPath = path.resolve(".local/demo-seed.json");
+const gatewayInboxPath = path.resolve(".local/agent-gateway-inbox.json");
 
 function getQuery(req: IncomingMessage): AgentQuery {
   const url = new URL(req.url ?? "/", "http://localhost");
@@ -132,6 +133,20 @@ async function loadAgentSnapshot(): Promise<AgentReadonlySnapshot> {
 async function saveAgentSnapshot(snapshot: AgentReadonlySnapshot): Promise<void> {
   await mkdir(path.dirname(agentSnapshotPath), { recursive: true });
   await writeFile(agentSnapshotPath, JSON.stringify(snapshot, null, 2), "utf8");
+}
+
+async function appendGatewayInbox(message: unknown): Promise<number> {
+  let records: unknown[] = [];
+  try {
+    const parsed = JSON.parse(await readFile(gatewayInboxPath, "utf8")) as unknown[];
+    records = Array.isArray(parsed) ? parsed : [];
+  } catch {
+    records = [];
+  }
+  records.unshift(message);
+  await mkdir(path.dirname(gatewayInboxPath), { recursive: true });
+  await writeFile(gatewayInboxPath, JSON.stringify(records.slice(0, 500), null, 2), "utf8");
+  return records.length;
 }
 
 function aiProxyPlugin() {
@@ -309,6 +324,39 @@ function aiProxyPlugin() {
         if (!(await ensureAgentAuthorized(req, res))) return;
         const snapshot = await loadAgentSnapshot();
         sendJson(res, { data: filterAgentConnections(snapshot.data, getQuery(req)) });
+      });
+
+      server.middlewares.use("/api/agent/v1/gateway", async (req, res) => {
+        if (req.method !== "POST") {
+          res.statusCode = 405;
+          res.end("Method Not Allowed");
+          return;
+        }
+        const provider = (req.url ?? "").split("/").filter(Boolean).at(-1) ?? "wechat";
+        const body = (await readBody(req)) as {
+          externalUserId?: string;
+          displayName?: string;
+          content?: string;
+          attachments?: unknown[];
+        };
+        const record = {
+          id: `gateway-message-${Date.now()}`,
+          provider,
+          externalUserId: body.externalUserId || "external-user",
+          displayName: body.displayName || "外部用户",
+          content: body.content || "",
+          attachments: body.attachments ?? [],
+          receivedAt: new Date().toISOString(),
+          status: "received",
+        };
+        const total = await appendGatewayInbox(record);
+        sendJson(res, {
+          message: "Agent 消息网关已接收",
+          readonly: true,
+          sessionId: `${provider}-${record.externalUserId}`,
+          total,
+          record,
+        });
       });
 
       server.middlewares.use("/api/webhooks/alerts", async (req, res) => {

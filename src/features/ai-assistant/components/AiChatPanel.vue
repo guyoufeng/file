@@ -19,6 +19,10 @@ import { useAiStore } from "../../../stores/aiStore";
 import { qfDcimSkills } from "../../../services/ai/agentProfile";
 import { getAgentMemories } from "../../../services/ai/agentMemory";
 import {
+  summarizeAgentAttachment,
+  type AgentAttachmentSummary,
+} from "../../../services/ai/agentAttachments";
+import {
   buildLiveAgentTimeline,
   saveAgentRunRecord,
   type TimedAiAgentEvent,
@@ -52,11 +56,7 @@ interface ChatAnswer {
   attachments?: ChatAttachment[];
 }
 
-interface ChatAttachment {
-  name: string;
-  type: string;
-  size: number;
-}
+type ChatAttachment = AgentAttachmentSummary;
 
 interface ChatSession {
   id: string;
@@ -152,7 +152,7 @@ async function processQuestion(currentQuestion: string, currentAttachments: Chat
         startedAt: startedAt.toISOString(),
         endedAt: endedAt.toISOString(),
         events: buildAiAgentEvents(eventInput),
-        attachments: currentAttachments,
+        attachments: compactAttachmentsForStorage(currentAttachments),
       });
       answers.value.push({
         id: `${Date.now()}-${answers.value.length}`,
@@ -161,7 +161,7 @@ async function processQuestion(currentQuestion: string, currentAttachments: Chat
         toolName: commandAnswer.toolName,
         dataSource: "只读 Agent API 工具清单",
         events: runRecord.events,
-        attachments: currentAttachments,
+        attachments: compactAttachmentsForStorage(currentAttachments),
       });
       updateActiveSession(currentQuestion);
       question.value = "";
@@ -201,7 +201,7 @@ async function processQuestion(currentQuestion: string, currentAttachments: Chat
         ...getAgentMemories().map((memory) => memory.content),
         ...guidanceNotes.value.map((note) => `会话引导：${note}`),
       ],
-      attachments: currentAttachments,
+      attachments: compactAttachmentsForStorage(currentAttachments),
     });
     const endedAt = new Date();
     const target = buildNavigationTarget(result);
@@ -217,7 +217,7 @@ async function processQuestion(currentQuestion: string, currentAttachments: Chat
       endedAt: endedAt.toISOString(),
       events: result.events,
       target,
-      attachments: currentAttachments,
+      attachments: compactAttachmentsForStorage(currentAttachments),
     });
     answers.value.push({
       id: `${Date.now()}-${answers.value.length}`,
@@ -296,17 +296,11 @@ function pickFiles() {
   fileInputRef.value?.click();
 }
 
-function handleAttachmentChange(event: Event) {
+async function handleAttachmentChange(event: Event) {
   const input = event.target as HTMLInputElement;
   const files = Array.from(input.files ?? []);
-  pendingAttachments.value = [
-    ...pendingAttachments.value,
-    ...files.map((file) => ({
-      name: file.name,
-      type: file.type || "未知类型",
-      size: file.size,
-    })),
-  ].slice(0, 8);
+  const summaries = await Promise.all(files.map((file) => summarizeAgentAttachment(file)));
+  pendingAttachments.value = [...pendingAttachments.value, ...summaries].slice(0, 8);
   input.value = "";
 }
 
@@ -436,6 +430,14 @@ function buildNavigationTarget(result: {
     deviceId: result.relatedDeviceId,
   };
 }
+
+function compactAttachmentsForStorage(attachments: ChatAttachment[]): ChatAttachment[] {
+  return attachments.map((attachment) => ({
+    ...attachment,
+    imagePreviewDataUrl: undefined,
+    extractedText: attachment.extractedText?.slice(0, 1600),
+  }));
+}
 </script>
 
 <template>
@@ -535,7 +537,7 @@ function buildNavigationTarget(result: {
       </div>
       <div v-if="pendingAttachments.length" class="attachment-list pending">
         <small v-for="(item, index) in pendingAttachments" :key="`${item.name}-${index}`">
-          {{ item.name }}
+          {{ item.name }} · {{ item.status === "ready" ? item.sizeLabel : item.error }}
           <button type="button" aria-label="移除附件" @click="removeAttachment(index)">×</button>
         </small>
       </div>

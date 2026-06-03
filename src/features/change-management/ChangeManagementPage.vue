@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from "vue";
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
+import * as XLSX from "xlsx";
 import { useRouter } from "vue-router";
 import { useAssetStore } from "../../stores/assetStore";
 import { useRoomStore } from "../../stores/roomStore";
@@ -7,6 +8,7 @@ import {
   createChangeEvent,
   deleteChangeEvent,
   getChangeEvents,
+  importChangeEventsFromRows,
   searchChangeEvents,
   updateChangeEvent,
   type ChangeEvent,
@@ -20,6 +22,12 @@ const roomStore = useRoomStore();
 const keyword = ref("");
 const records = ref<ChangeEvent[]>([]);
 const editingId = ref("");
+const formWindowOpen = ref(false);
+const excelWindowOpen = ref(false);
+const formWindowRef = ref<HTMLElement | null>(null);
+const excelWindowRef = ref<HTMLElement | null>(null);
+const windowPosition = ref({ x: 360, y: 130 });
+const excelMessage = ref("请选择变更记录 Excel，系统会按标题、类型、设备、IP、机房、机柜、时间、内容等字段导入。");
 const form = reactive({
   title: "",
   type: "maintenance" as ChangeEventType,
@@ -32,6 +40,9 @@ const form = reactive({
   result: "",
   attachments: "",
 });
+let dragState:
+  | { startX: number; startY: number; originX: number; originY: number }
+  | null = null;
 
 const typeOptions: Array<{ value: ChangeEventType; label: string }> = [
   { value: "rack_mount", label: "物理机上架" },
@@ -78,6 +89,13 @@ watch(
 onMounted(async () => {
   await Promise.all([assetStore.loadDevices(), roomStore.loadRooms()]);
   refreshRecords();
+  document.addEventListener("pointerdown", closeFloatingWhenOutside, true);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener("pointerdown", closeFloatingWhenOutside, true);
+  window.removeEventListener("pointermove", moveWindow);
+  window.removeEventListener("pointerup", stopDrag);
 });
 
 function refreshRecords() {
@@ -96,6 +114,26 @@ function resetForm() {
   form.impact = "";
   form.result = "";
   form.attachments = "";
+}
+
+function openManualForm() {
+  resetForm();
+  formWindowOpen.value = true;
+  excelWindowOpen.value = false;
+  windowPosition.value = {
+    x: Math.max(16, window.innerWidth - 620),
+    y: 126,
+  };
+}
+
+function openExcelImport() {
+  excelWindowOpen.value = true;
+  formWindowOpen.value = false;
+  excelMessage.value = "请选择变更记录 Excel，系统会按标题、类型、设备、IP、机房、机柜、时间、内容等字段导入。";
+  windowPosition.value = {
+    x: Math.max(16, window.innerWidth - 560),
+    y: 150,
+  };
 }
 
 function submitChange() {
@@ -132,6 +170,7 @@ function submitChange() {
   }
   refreshRecords();
   resetForm();
+  formWindowOpen.value = false;
 }
 
 function editChange(record: ChangeEvent) {
@@ -146,6 +185,12 @@ function editChange(record: ChangeEvent) {
   form.impact = record.impact || "";
   form.result = record.result || "";
   form.attachments = record.attachments.join("，");
+  formWindowOpen.value = true;
+  excelWindowOpen.value = false;
+  windowPosition.value = {
+    x: Math.max(16, window.innerWidth - 620),
+    y: 126,
+  };
 }
 
 function removeChange(id: string) {
@@ -167,6 +212,55 @@ function locateChange(record: ChangeEvent) {
     },
   });
 }
+
+function startDrag(event: PointerEvent) {
+  const target = event.target as HTMLElement;
+  if (target.closest("button,input,select,textarea,label")) return;
+  dragState = {
+    startX: event.clientX,
+    startY: event.clientY,
+    originX: windowPosition.value.x,
+    originY: windowPosition.value.y,
+  };
+  window.addEventListener("pointermove", moveWindow);
+  window.addEventListener("pointerup", stopDrag);
+}
+
+function moveWindow(event: PointerEvent) {
+  if (!dragState) return;
+  windowPosition.value = {
+    x: Math.max(8, Math.min(window.innerWidth - 520, dragState.originX + event.clientX - dragState.startX)),
+    y: Math.max(8, Math.min(window.innerHeight - 420, dragState.originY + event.clientY - dragState.startY)),
+  };
+}
+
+function stopDrag() {
+  dragState = null;
+  window.removeEventListener("pointermove", moveWindow);
+  window.removeEventListener("pointerup", stopDrag);
+}
+
+function closeFloatingWhenOutside(event: PointerEvent) {
+  const target = event.target as Node | null;
+  if (!target) return;
+  if (formWindowOpen.value && formWindowRef.value?.contains(target)) return;
+  if (excelWindowOpen.value && excelWindowRef.value?.contains(target)) return;
+  formWindowOpen.value = false;
+  excelWindowOpen.value = false;
+}
+
+async function handleChangeExcel(event: Event) {
+  const input = event.target as HTMLInputElement;
+  const file = input.files?.[0];
+  if (!file) return;
+  const workbook = XLSX.read(await file.arrayBuffer(), { type: "array" });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
+  const imported = importChangeEventsFromRows(rows);
+  refreshRecords();
+  excelMessage.value = `已导入 ${imported.length} 条变更记录。`;
+  input.value = "";
+}
 </script>
 
 <template>
@@ -176,16 +270,32 @@ function locateChange(record: ChangeEvent) {
         <h2 class="page-title">变更管理</h2>
         <p class="page-subtitle">记录物理机上架、下架、接线、维修、安装和配置调整，并联动资产、机柜与 AI 查询。</p>
       </div>
+      <div class="header-actions">
+        <button type="button" @click.stop="openManualForm">手动录入</button>
+        <button type="button" @click.stop="openExcelImport">Excel录入</button>
+      </div>
     </div>
 
     <div class="change-layout">
-      <form class="change-form-panel" @submit.prevent="submitChange">
-        <header>
+      <form
+        v-if="formWindowOpen"
+        ref="formWindowRef"
+        class="change-form-panel floating-panel"
+        :style="{ left: `${windowPosition.x}px`, top: `${windowPosition.y}px` }"
+        role="dialog"
+        aria-label="变更记录录入"
+        @submit.prevent="submitChange"
+        @pointerdown.stop
+      >
+        <header @pointerdown="startDrag">
           <div>
             <p class="eyebrow">{{ editingId ? "Edit Change" : "New Change" }}</p>
             <h3>{{ editingId ? "编辑变更记录" : "新增变更记录" }}</h3>
           </div>
-          <button type="button" @click="resetForm">清空</button>
+          <div class="inline-actions">
+            <button type="button" @click="resetForm">清空</button>
+            <button type="button" @click="formWindowOpen = false">关闭</button>
+          </div>
         </header>
         <label>
           变更标题
@@ -250,6 +360,30 @@ function locateChange(record: ChangeEvent) {
         <button class="primary-action" type="submit">{{ editingId ? "保存变更" : "新增变更" }}</button>
       </form>
 
+      <aside
+        v-if="excelWindowOpen"
+        ref="excelWindowRef"
+        class="excel-window floating-panel"
+        :style="{ left: `${windowPosition.x}px`, top: `${windowPosition.y}px` }"
+        role="dialog"
+        aria-label="Excel录入变更记录"
+        @pointerdown.stop
+      >
+        <header @pointerdown="startDrag">
+          <div>
+            <p class="eyebrow">Excel Import</p>
+            <h3>Excel录入变更记录</h3>
+          </div>
+          <button type="button" @click="excelWindowOpen = false">关闭</button>
+        </header>
+        <p>{{ excelMessage }}</p>
+        <label class="upload-box">
+          选择 Excel 文件
+          <input type="file" accept=".xlsx,.xls,.csv" @change="handleChangeExcel" />
+        </label>
+        <small>建议字段：变更标题、变更类型、状态、设备名称、业务IP、机房、机柜、操作人、变更时间、变更内容、影响范围、处理结果。</small>
+      </aside>
+
       <section class="change-list-panel">
         <header>
           <div>
@@ -259,7 +393,13 @@ function locateChange(record: ChangeEvent) {
           <input v-model="keyword" placeholder="搜索服务器、IP、机柜、接线、操作人" />
         </header>
         <div class="change-record-list">
-          <article v-for="record in filteredRecords" :key="record.id">
+          <article
+            v-for="record in filteredRecords"
+            :key="record.id"
+            tabindex="0"
+            @click="editChange(record)"
+            @keydown.enter="editChange(record)"
+          >
             <div>
               <strong>{{ record.title }}</strong>
               <span>{{ record.changedAt }} / {{ record.operator }} / {{ record.status }}</span>
@@ -268,9 +408,9 @@ function locateChange(record: ChangeEvent) {
             <footer>
               <span>{{ record.roomName || "-" }} / {{ record.rackName || "-" }} / {{ record.deviceName || "-" }}</span>
               <div>
-                <button type="button" @click="locateChange(record)">定位</button>
-                <button type="button" @click="editChange(record)">编辑</button>
-                <button type="button" @click="removeChange(record.id)">删除</button>
+                <button type="button" @click.stop="locateChange(record)">定位</button>
+                <button type="button" @click.stop="editChange(record)">编辑</button>
+                <button type="button" @click.stop="removeChange(record.id)">删除</button>
               </div>
             </footer>
           </article>
@@ -287,9 +427,15 @@ function locateChange(record: ChangeEvent) {
   gap: 16px;
 }
 
+.header-actions,
+.inline-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .change-layout {
   display: grid;
-  grid-template-columns: minmax(360px, 0.9fr) minmax(0, 1.1fr);
   gap: 16px;
 }
 
@@ -302,6 +448,14 @@ function locateChange(record: ChangeEvent) {
   border-radius: 8px;
   background: var(--surface-raised);
   box-shadow: var(--shadow-soft);
+}
+
+.floating-panel {
+  position: fixed;
+  z-index: 95;
+  width: min(560px, calc(100vw - 28px));
+  max-height: calc(100vh - 28px);
+  overflow: auto;
 }
 
 .change-form-panel header,
@@ -409,6 +563,14 @@ button {
   border: 1px solid var(--color-border);
   border-radius: 8px;
   background: var(--color-panel);
+  cursor: pointer;
+}
+
+.change-record-list article:focus,
+.change-record-list article:hover {
+  border-color: color-mix(in srgb, var(--color-primary) 48%, var(--color-border));
+  outline: none;
+  box-shadow: 0 12px 28px rgba(14, 165, 233, 0.1);
 }
 
 .change-record-list article > div {
@@ -437,6 +599,37 @@ button {
 .change-record-list footer div {
   display: flex;
   gap: 6px;
+}
+
+.excel-window {
+  display: grid;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  color: var(--color-text);
+  background: var(--surface-raised);
+  box-shadow: var(--shadow-soft);
+}
+
+.excel-window p,
+.excel-window small {
+  color: var(--color-text-muted);
+  line-height: 1.6;
+}
+
+.upload-box {
+  min-height: 92px;
+  place-items: center;
+  border: 1px dashed color-mix(in srgb, var(--color-primary) 42%, var(--color-border));
+  border-radius: 8px;
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 8%, var(--color-panel));
+  cursor: pointer;
+}
+
+.upload-box input {
+  width: auto;
 }
 
 @media (max-width: 980px) {

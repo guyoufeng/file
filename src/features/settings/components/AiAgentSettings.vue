@@ -48,6 +48,22 @@ import {
 } from "../../../services/ai/agentCredentials";
 import AgentRunHistory from "./AgentRunHistory.vue";
 import AgentToolIntegrations from "./AgentToolIntegrations.vue";
+import {
+  createGatewayPairing,
+  deleteGatewayConfig,
+  getGatewayConfigs,
+  getGatewaySessions,
+  saveGatewayConfig,
+  type AgentGatewayConfig,
+  type AgentGatewayProvider,
+  type GatewayPairing,
+  type GatewaySession,
+} from "../../../services/ai/agentMessageGateway";
+import {
+  getAgentReliabilitySettings,
+  saveAgentReliabilitySettings,
+  type AgentReliabilitySettings,
+} from "../../../services/ai/agentReliability";
 
 const settings = ref<AiAgentCapabilitySettings>(getAiAgentCapabilitySettings());
 const message = ref("AI Agent 第一阶段默认只读，平台事实必须来自工具，通用问题走当前模型。");
@@ -72,6 +88,11 @@ const knowledgeForm = ref({
   tags: "",
 });
 const credentials = ref<AgentCredential[]>(getAgentCredentials());
+const reliabilitySettings = ref<AgentReliabilitySettings>(getAgentReliabilitySettings());
+const gatewayConfigs = ref<AgentGatewayConfig[]>(getGatewayConfigs());
+const gatewaySessions = ref<GatewaySession[]>(getGatewaySessions());
+const gatewayPairing = ref<GatewayPairing | null>(null);
+const runtimePublicBaseUrl = ref("");
 const credentialForm = ref<{
   type: AgentCredentialType;
   name: string;
@@ -87,6 +108,21 @@ const credentialForm = ref<{
   secret: "",
   notes: "",
 });
+const gatewayForm = ref<{
+  provider: AgentGatewayProvider;
+  name: string;
+  enabled: boolean;
+  endpoint: string;
+  token: string;
+  notes: string;
+}>({
+  provider: "wechat",
+  name: "微信演示网关",
+  enabled: false,
+  endpoint: "",
+  token: "",
+  notes: "",
+});
 const apiBaseUrl = computed(() =>
   typeof window === "undefined"
     ? "/api/agent/v1"
@@ -100,11 +136,17 @@ const curlExample = computed(() => {
 onMounted(() => {
   void loadTokenSettings();
   void refreshAgentApi();
+  void loadRuntimePublicBaseUrl();
 });
 
 function save(settingsPatch: Partial<AiAgentCapabilitySettings>) {
   settings.value = saveAiAgentCapabilitySettings(settingsPatch);
   message.value = "AI Agent 能力配置已保存。";
+}
+
+function saveReliability(patch: Partial<AgentReliabilitySettings>) {
+  reliabilitySettings.value = saveAgentReliabilitySettings(patch);
+  message.value = "Agent 可靠性与安全配置已保存。";
 }
 
 function saveRoleDefinition() {
@@ -233,6 +275,46 @@ function removeCredential(id: string) {
   message.value = "账号凭据已删除。";
 }
 
+async function loadRuntimePublicBaseUrl() {
+  try {
+    const response = await fetch("/api/runtime/public-base-url");
+    const data = (await response.json()) as { baseUrl?: string };
+    runtimePublicBaseUrl.value = data.baseUrl ?? window.location.origin;
+  } catch {
+    runtimePublicBaseUrl.value = window.location.origin;
+  }
+}
+
+function saveGateway() {
+  if (!gatewayForm.value.name.trim()) return;
+  const config = saveGatewayConfig({
+    provider: gatewayForm.value.provider,
+    name: gatewayForm.value.name.trim(),
+    enabled: gatewayForm.value.enabled,
+    endpoint:
+      gatewayForm.value.endpoint.trim() ||
+      `${runtimePublicBaseUrl.value || window.location.origin}/api/agent/v1/gateway/${gatewayForm.value.provider}`,
+    token: gatewayForm.value.token.trim(),
+    notes: gatewayForm.value.notes.trim(),
+  });
+  gatewayConfigs.value = getGatewayConfigs();
+  gatewaySessions.value = getGatewaySessions();
+  gatewayPairing.value = createGatewayPairing(config.id, runtimePublicBaseUrl.value || window.location.origin);
+  message.value = "消息网关配置已保存，已生成新的扫码配对二维码。";
+}
+
+function removeGateway(id: string) {
+  deleteGatewayConfig(id);
+  gatewayConfigs.value = getGatewayConfigs();
+  if (gatewayPairing.value?.configId === id) gatewayPairing.value = null;
+  message.value = "消息网关配置已删除。";
+}
+
+function pairGateway(config: AgentGatewayConfig) {
+  gatewayPairing.value = createGatewayPairing(config.id, runtimePublicBaseUrl.value || window.location.origin);
+  message.value = `${config.name} 已生成扫码配对二维码。`;
+}
+
 function toggleSkill(key: keyof AiAgentCapabilitySettings) {
   save({ [key]: !settings.value[key] });
 }
@@ -342,6 +424,121 @@ async function saveTokenSettings(enabled: boolean) {
     </div>
 
     <section class="agent-workbench" aria-label="AI Agent 工作台">
+      <article class="workbench-panel reliability-panel">
+        <header>
+          <div>
+            <p class="eyebrow">Reliability</p>
+            <h3>Agent 可靠性与安全</h3>
+          </div>
+          <span>借鉴 AgentScope 2.0：重试、备用模型、内容分块、权限边界、上下文压缩和中间件审计。</span>
+        </header>
+        <div class="reliability-grid">
+          <label>
+            模型重试次数
+            <input
+              :value="reliabilitySettings.maxRetries"
+              type="number"
+              min="1"
+              max="5"
+              @change="saveReliability({ maxRetries: Number(($event.target as HTMLInputElement).value) })"
+            />
+          </label>
+          <label class="check-row">
+            <input
+              type="checkbox"
+              :checked="reliabilitySettings.backupModelEnabled"
+              @change="saveReliability({ backupModelEnabled: !reliabilitySettings.backupModelEnabled })"
+            />
+            允许主备模型切换
+          </label>
+          <label class="check-row">
+            <input
+              type="checkbox"
+              :checked="reliabilitySettings.contentBlocksEnabled"
+              @change="saveReliability({ contentBlocksEnabled: !reliabilitySettings.contentBlocksEnabled })"
+            />
+            启用消息分块展示
+          </label>
+          <label class="check-row">
+            <input
+              type="checkbox"
+              :checked="reliabilitySettings.highRiskGuardEnabled"
+              @change="saveReliability({ highRiskGuardEnabled: !reliabilitySettings.highRiskGuardEnabled })"
+            />
+            高风险动作人工确认
+          </label>
+          <label class="check-row">
+            <input
+              type="checkbox"
+              :checked="reliabilitySettings.contextCompressionEnabled"
+              @change="saveReliability({ contextCompressionEnabled: !reliabilitySettings.contextCompressionEnabled })"
+            />
+            长上下文摘要压缩
+          </label>
+          <label class="check-row">
+            <input
+              type="checkbox"
+              :checked="reliabilitySettings.middlewareAuditEnabled"
+              @change="saveReliability({ middlewareAuditEnabled: !reliabilitySettings.middlewareAuditEnabled })"
+            />
+            中间件审计链
+          </label>
+        </div>
+      </article>
+
+      <article class="workbench-panel gateway-panel">
+        <header>
+          <div>
+            <p class="eyebrow">Message Gateway</p>
+            <h3>消息网关</h3>
+          </div>
+          <span>对接微信、企业微信、钉钉。外部会话相互独立，Skill、知识库和只读工具共用。</span>
+        </header>
+        <div class="gateway-layout">
+          <div class="gateway-form">
+            <select v-model="gatewayForm.provider" aria-label="消息网关类型">
+              <option value="wechat">微信</option>
+              <option value="wecom">企业微信</option>
+              <option value="dingtalk">钉钉</option>
+            </select>
+            <input v-model="gatewayForm.name" type="text" placeholder="网关名称" aria-label="网关名称" />
+            <input v-model="gatewayForm.endpoint" type="text" placeholder="回调地址，可留空自动生成" aria-label="网关回调地址" />
+            <input v-model="gatewayForm.token" type="password" placeholder="Token / Secret" aria-label="网关Token" />
+            <input v-model="gatewayForm.notes" type="text" placeholder="备注" aria-label="网关备注" />
+            <label class="check-row">
+              <input v-model="gatewayForm.enabled" type="checkbox" />
+              启用这个网关
+            </label>
+            <button type="button" @click="saveGateway">保存并生成二维码</button>
+          </div>
+          <div class="gateway-qr">
+            <div v-if="gatewayPairing" class="qr-grid" aria-label="消息网关配对二维码">
+              <span v-for="(cell, index) in gatewayPairing.qrCells" :key="index" :class="{ filled: cell }" />
+            </div>
+            <p v-else>保存网关后生成扫码配对二维码。</p>
+            <small v-if="gatewayPairing">有效期至 {{ new Date(gatewayPairing.expiresAt).toLocaleString("zh-CN", { hour12: false }) }}</small>
+          </div>
+        </div>
+        <ul class="compact-list gateway-list">
+          <li v-for="config in gatewayConfigs" :key="config.id">
+            <strong>{{ config.name }}</strong>
+            <span>{{ config.provider }} / {{ config.enabled ? "已启用" : "未启用" }} / {{ config.endpoint }}</span>
+            <div class="memory-actions">
+              <button type="button" @click="pairGateway(config)">配对</button>
+              <button type="button" @click="removeGateway(config.id)">删除</button>
+            </div>
+          </li>
+          <li v-if="gatewayConfigs.length === 0">暂无消息网关配置。</li>
+        </ul>
+        <ul class="compact-list gateway-list">
+          <li v-for="session in gatewaySessions" :key="session.id">
+            <strong>{{ session.displayName }}</strong>
+            <span>{{ session.provider }} / 独立会话 / 共用 Skill / {{ session.messages.length }} 条消息</span>
+          </li>
+          <li v-if="gatewaySessions.length === 0">暂无外部会话，网关接入后会在这里显示。</li>
+        </ul>
+      </article>
+
       <article class="workbench-panel role-panel">
         <header>
           <div>
@@ -704,7 +901,9 @@ article.disabled {
 }
 
 .role-panel,
-.credential-panel {
+.credential-panel,
+.reliability-panel,
+.gateway-panel {
   grid-column: 1 / -1;
 }
 
@@ -733,7 +932,8 @@ article.disabled {
 }
 
 .knowledge-form,
-.credential-form {
+.credential-form,
+.gateway-form {
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
@@ -751,7 +951,8 @@ article.disabled {
   display: grid;
 }
 
-.credential-form button {
+.credential-form button,
+.gateway-form button {
   grid-column: 1 / -1;
 }
 
@@ -838,6 +1039,83 @@ article.disabled {
 .memory-actions {
   display: flex !important;
   gap: 6px !important;
+}
+
+.reliability-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.reliability-grid label {
+  min-height: 54px;
+  display: grid;
+  gap: 6px;
+  align-content: center;
+  padding: 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  color: var(--color-text-muted);
+  background: var(--color-panel);
+}
+
+.check-row {
+  display: flex !important;
+  align-items: center;
+  gap: 8px !important;
+}
+
+.check-row input {
+  width: auto !important;
+}
+
+.gateway-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 220px;
+  gap: 12px;
+}
+
+.gateway-form {
+  display: grid;
+  gap: 8px;
+}
+
+.gateway-qr {
+  min-height: 220px;
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  color: var(--color-text-muted);
+  background: var(--color-panel);
+  text-align: center;
+}
+
+.qr-grid {
+  width: 172px;
+  height: 172px;
+  display: grid;
+  grid-template-columns: repeat(21, 1fr);
+  grid-template-rows: repeat(21, 1fr);
+  gap: 1px;
+  padding: 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.qr-grid span {
+  border-radius: 1px;
+}
+
+.qr-grid span.filled {
+  background: #0f172a;
+}
+
+.gateway-list li {
+  grid-template-columns: minmax(0, 1fr) auto;
 }
 
 .compact-list li strong,
@@ -997,7 +1275,10 @@ article.disabled {
   .agent-workbench,
   .inline-form,
   .knowledge-form,
-  .credential-form {
+  .credential-form,
+  .gateway-layout,
+  .gateway-form,
+  .reliability-grid {
     grid-template-columns: 1fr;
   }
 

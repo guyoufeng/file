@@ -17,6 +17,13 @@ test("opens AI assistant and answers a read-only asset location question", async
   await expect(drawer.getByTestId("ai-composer")).toBeVisible();
   await expect(drawer.getByRole("button", { name: "添加图片" })).toBeVisible();
   await expect(drawer.getByRole("button", { name: "添加附件" })).toBeVisible();
+  await drawer.getByLabel("添加附件").click();
+  await drawer.locator('input[type="file"]').nth(1).setInputFiles({
+    name: "inspection.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("QF-SRV-001 ECC 告警已完成复核。", "utf-8"),
+  });
+  await expect(drawer.getByText(/inspection.txt/)).toBeVisible();
 
   const promptInput = page.getByPlaceholder(
     "输入问题，按 Enter 发送，Shift+Enter 换行",

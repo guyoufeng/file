@@ -12,7 +12,11 @@ import {
   getDeviceChangeEvents,
   type ChangeEvent,
 } from "../../change-management/changeEvents";
-import { getConnectionRecords, type ManagedConnection } from "../../connection-manager/connections";
+import {
+  ensureDemoConnectionRecords,
+  getConnectionRecords,
+  type ManagedConnection,
+} from "../../connection-manager/connections";
 
 type DetailTab = "detail" | "relation" | "changes" | "qr";
 type TopologyTab = "default" | "custom";
@@ -129,6 +133,7 @@ function loadRecords() {
   changeRecords.value = getDeviceChangeRecords(props.device.id);
   managedChangeEvents.value = getDeviceChangeEvents(props.device.id);
   accessRecords.value = getAccessRecords();
+  ensureDemoConnectionRecords(props.devices);
   connectionRecords.value = getConnectionRecords();
 }
 
@@ -347,6 +352,34 @@ function buildQrCells(value: string) {
           <button type="button">新建拓扑</button>
         </template>
       </div>
+      <div class="connection-relation">
+        <header>
+          <div>
+            <p class="eyebrow">Interface Links</p>
+            <h4>接口连线</h4>
+          </div>
+          <span>{{ deviceConnections.length }} 条</span>
+        </header>
+        <table v-if="deviceConnections.length">
+          <thead>
+            <tr>
+              <th>本端接口</th>
+              <th>对端设备</th>
+              <th>对端接口</th>
+              <th>线缆编号</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="link in deviceConnections" :key="link.id">
+              <td>{{ link.sourceDeviceId === device.id ? link.sourcePortName : link.targetPortName }}</td>
+              <td>{{ link.sourceDeviceId === device.id ? link.targetDeviceName : link.sourceDeviceName }}</td>
+              <td>{{ link.sourceDeviceId === device.id ? link.targetPortName : link.sourcePortName }}</td>
+              <td>{{ link.cableNo || "-" }}</td>
+            </tr>
+          </tbody>
+        </table>
+        <p v-else>暂无接口连线记录，后续可在资产接口关系中录入真实交换机端口。</p>
+      </div>
     </section>
 
     <section v-else-if="activeTab === 'changes'" class="change-view">
@@ -498,6 +531,36 @@ button {
   align-items: stretch;
   min-height: 260px;
   text-align: center;
+}
+
+.connection-relation {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-panel);
+}
+
+.connection-relation header {
+  cursor: default;
+}
+
+.connection-relation table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12px;
+}
+
+.connection-relation th,
+.connection-relation td {
+  padding: 8px;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+}
+
+.connection-relation th {
+  color: var(--color-text-muted);
 }
 
 .topology-panel p {

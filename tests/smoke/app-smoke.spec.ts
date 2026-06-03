@@ -80,7 +80,8 @@ test("starts the app and navigates through v0.1 core pages", async ({
     page.locator('canvas[aria-label="3D轻量机柜视图"]'),
   ).toBeVisible();
 
-  await page.getByRole("link", { name: "告警中心" }).click();
+  await page.getByRole("link", { name: "告警中心" }).click({ force: true });
+  await expect(page).toHaveURL(/alerts/);
   await expect(page.getByRole("heading", { name: "告警中心" })).toBeVisible();
 
   await page.getByRole("link", { name: "虚拟服务器" }).click();
@@ -367,6 +368,8 @@ test("AI Agent settings shows readonly Agent API status and tools", async ({
   await expect(page.getByLabel("AI Agent 工作台")).toContainText("Skill 管理");
   await expect(page.getByLabel("AI Agent 工作台")).toContainText("知识库");
   await expect(page.getByLabel("AI Agent 工作台")).toContainText("账号凭据");
+  await expect(page.getByLabel("AI Agent 工作台")).toContainText("Agent 可靠性与安全");
+  await expect(page.getByLabel("AI Agent 工作台")).toContainText("消息网关");
   await expect(page.getByRole("region", { name: "CMDB / MCP 工具接入" })).toContainText("工具接入");
   await expect(page.getByRole("region", { name: "Agent 执行记录" })).toContainText("Agent 执行记录");
   await expect(page.getByText("天气查询 Skill")).toHaveCount(0);
@@ -431,6 +434,10 @@ test("readonly agent api snapshot exposes current asset data", async ({ page }) 
 test("change management creates a device linked change record", async ({ page }) => {
   await loginAsAdmin(page);
   await page.goto("/#/changes");
+  await expect(page.getByRole("button", { name: "手动录入" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Excel录入" })).toBeVisible();
+  await page.getByRole("button", { name: "手动录入" }).click();
+  await expect(page.getByRole("dialog", { name: "变更记录录入" })).toBeVisible();
   await page.getByLabel("变更标题").fill("自动化检查：QF-SRV-001 接线复核");
   await page.getByLabel("关联物理设备").selectOption({ index: 1 });
   await page.getByLabel("变更内容").fill("检查生产网接线并完成复核。");
@@ -438,21 +445,27 @@ test("change management creates a device linked change record", async ({ page })
 
   await expect(page.getByText("自动化检查：QF-SRV-001 接线复核")).toBeVisible();
   await expect(page.getByText("QF-SRV-001").last()).toBeVisible();
+  await page.getByText("自动化检查：QF-SRV-001 接线复核").click();
+  await expect(page.getByRole("dialog", { name: "变更记录录入" })).toBeVisible();
 });
 
-test("connection management creates and displays a server to switch cable", async ({ page }) => {
+test("connection management displays saved server to switch topology views", async ({ page }) => {
   await loginAsAdmin(page);
   await page.goto("/#/connections");
-  await page.getByLabel("源设备").selectOption({ index: 1 });
-  await page.getByLabel("目标设备").selectOption({ index: 2 });
-  await page.getByLabel("线缆编号").fill("AUTO-CAB-001");
-  await page.getByLabel("说明").fill("自动化检查生产网链路。");
-  await page.getByRole("button", { name: "新增连线" }).click();
-
-  await expect(page.getByText("AUTO-CAB-001", { exact: true }).first()).toBeVisible();
-  await expect(page.getByRole("button", { name: "表格视图" })).toBeVisible();
-  await page.getByRole("button", { name: "端口视图" }).click();
+  await expect(page.getByRole("button", { name: "新增连线" })).toHaveCount(0);
+  await expect(page.getByLabel("连线拓扑视图")).toBeVisible();
+  await expect(page.getByText("SW-529").first()).toBeVisible();
+  await page.getByLabel("搜索连线").fill("QF-SRV-001");
+  await expect(page.getByText("QF-SRV-001").first()).toBeVisible();
+  await page.getByLabel("连线视图").getByRole("button", { name: "表格视图" }).click();
+  await expect(page.getByRole("cell", { name: "QF-SRV-001" }).first()).toBeVisible();
+  await page.getByLabel("连线视图").getByRole("button", { name: "端口视图" }).click();
   await expect(page.getByText("已用端口").first()).toBeVisible();
+  await page.getByLabel("连线视图").getByRole("button", { name: "拓扑视图" }).click();
+  await page.getByLabel("连线视图名称").fill("自动化连线视图");
+  await page.getByRole("button", { name: "保存当前视图" }).click();
+  await expect(page.getByRole("button", { name: "自动化连线视图" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "表格视图" })).toBeVisible();
 });
 
 test("project import shows a review preview before confirmation", async ({

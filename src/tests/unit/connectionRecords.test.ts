@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
+  buildConnectionNodeSummaries,
   createConnectionRecord,
   deleteConnectionRecord,
   ensureDemoConnectionRecords,
@@ -114,5 +115,42 @@ describe("connection records", () => {
       selectedDeviceIds: ["dev-qf-srv-001"],
       zoom: 1.2,
     });
+  });
+
+  it("summarizes switch nodes by link and port counts instead of a single reused port", () => {
+    const records = [
+      {
+        id: "conn-1",
+        sourceDeviceId: "server-1",
+        sourceDeviceName: "QF-SRV-001",
+        sourcePortName: "eth0",
+        targetDeviceId: "switch-core-a",
+        targetDeviceName: "SW-529-CORE-A",
+        targetPortName: "GE1/0/1",
+        direction: "uplink" as const,
+        status: "active" as const,
+        createdAt: "2026-06-03T00:00:00.000Z",
+        updatedAt: "2026-06-03T00:00:00.000Z",
+      },
+      {
+        id: "conn-2",
+        sourceDeviceId: "server-2",
+        sourceDeviceName: "QF-SRV-002",
+        sourcePortName: "eth0",
+        targetDeviceId: "switch-core-a",
+        targetDeviceName: "SW-529-CORE-A",
+        targetPortName: "GE1/0/2",
+        direction: "uplink" as const,
+        status: "active" as const,
+        createdAt: "2026-06-03T00:00:00.000Z",
+        updatedAt: "2026-06-03T00:00:00.000Z",
+      },
+    ];
+
+    const summaries = buildConnectionNodeSummaries(records);
+    const switchSummary = summaries.find((item) => item.id === "switch-core-a");
+
+    expect(switchSummary?.subtitle).toBe("2 条链路 / 2 个端口");
+    expect(switchSummary?.links.map((item) => item.localPort)).toEqual(["GE1/0/1", "GE1/0/2"]);
   });
 });

@@ -392,29 +392,42 @@ async function handleChangeExcel(event: Event) {
           </div>
           <input v-model="keyword" placeholder="搜索服务器、IP、机柜、接线、操作人" />
         </header>
-        <div class="change-record-list">
-          <article
-            v-for="record in filteredRecords"
-            :key="record.id"
-            tabindex="0"
-            @click="editChange(record)"
-            @keydown.enter="editChange(record)"
-          >
-            <div>
-              <strong>{{ record.title }}</strong>
-              <span>{{ record.changedAt }} / {{ record.operator }} / {{ record.status }}</span>
-            </div>
-            <p>{{ record.content }}</p>
-            <footer>
-              <span>{{ record.roomName || "-" }} / {{ record.rackName || "-" }} / {{ record.deviceName || "-" }}</span>
-              <div>
-                <button type="button" @click.stop="locateChange(record)">定位</button>
-                <button type="button" @click.stop="editChange(record)">编辑</button>
-                <button type="button" @click.stop="removeChange(record.id)">删除</button>
-              </div>
-            </footer>
-          </article>
-          <p v-if="filteredRecords.length === 0" class="empty">暂无变更记录。后续上架、维修、接线和配置调整都建议记录在这里。</p>
+        <div class="change-record-list table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>变更标题</th>
+                <th>类型/状态</th>
+                <th>关联设备</th>
+                <th>变更时间</th>
+                <th>内容摘要</th>
+                <th>操作</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                v-for="record in filteredRecords"
+                :key="record.id"
+                tabindex="0"
+                @click="editChange(record)"
+                @keydown.enter="editChange(record)"
+              >
+                <td><strong>{{ record.title }}</strong><small>{{ record.operator }}</small></td>
+                <td>{{ record.type }}<br /><small>{{ record.status }}</small></td>
+                <td>{{ record.roomName || "-" }} / {{ record.rackName || "-" }}<br /><small>{{ record.deviceName || "-" }}</small></td>
+                <td>{{ record.changedAt }}</td>
+                <td>{{ record.content }}</td>
+                <td class="row-actions">
+                  <button type="button" @click.stop="locateChange(record)">定位</button>
+                  <button type="button" @click.stop="editChange(record)">编辑</button>
+                  <button type="button" @click.stop="removeChange(record.id)">删除</button>
+                </td>
+              </tr>
+              <tr v-if="filteredRecords.length === 0">
+                <td colspan="6" class="empty">暂无变更记录。后续上架、维修、接线和配置调整都建议记录在这里。</td>
+              </tr>
+            </tbody>
+          </table>
         </div>
       </section>
     </div>
@@ -549,54 +562,58 @@ button {
   max-width: 320px;
 }
 
-.change-record-list {
-  display: grid;
-  gap: 10px;
+.table-wrap {
   max-height: calc(100vh - 260px);
   overflow: auto;
 }
 
-.change-record-list article {
-  display: grid;
-  gap: 8px;
-  padding: 12px;
-  border: 1px solid var(--color-border);
-  border-radius: 8px;
-  background: var(--color-panel);
+table {
+  width: 100%;
+  min-width: 980px;
+  border-collapse: collapse;
+}
+
+th,
+td {
+  padding: 11px 10px;
+  border-bottom: 1px solid var(--color-border);
+  text-align: left;
+  vertical-align: top;
+}
+
+th {
+  color: var(--color-text-muted);
+  font-size: 12px;
+  background: color-mix(in srgb, var(--color-primary) 7%, var(--color-panel));
+}
+
+tbody tr {
   cursor: pointer;
 }
 
-.change-record-list article:focus,
-.change-record-list article:hover {
-  border-color: color-mix(in srgb, var(--color-primary) 48%, var(--color-border));
+tbody tr:hover,
+tbody tr:focus {
+  background: color-mix(in srgb, var(--color-primary) 7%, transparent);
   outline: none;
-  box-shadow: 0 12px 28px rgba(14, 165, 233, 0.1);
 }
 
-.change-record-list article > div {
-  display: grid;
-  gap: 4px;
-}
-
+td strong,
 .change-record-list strong {
+  display: block;
   color: var(--color-text);
 }
 
-.change-record-list span,
-.change-record-list p,
+td small,
 .empty {
   color: var(--color-text-muted);
   line-height: 1.6;
 }
 
-.change-record-list footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+.row-actions {
+  white-space: nowrap;
 }
 
-.change-record-list footer div {
+.row-actions {
   display: flex;
   gap: 6px;
 }

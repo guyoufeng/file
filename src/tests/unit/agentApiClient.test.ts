@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import {
+  createServerAgentApiKey,
   loadAgentReadonlyHealth,
+  loadAgentApiKeys,
   loadAgentReadonlyTokenSettings,
   loadAgentReadonlyTools,
   loadAgentReadonlyContext,
@@ -154,5 +156,38 @@ describe("agent api client", () => {
     expect(fetcher).toHaveBeenCalledWith("/api/agent/v1/tools", {
       headers: { Authorization: "Bearer qf-agent-readonly-token" },
     });
+  });
+
+  it("creates and lists scoped agent api keys from the server", async () => {
+    const fetcher = vi
+      .fn()
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          record: { id: "key-1", name: "读写集成", scopes: ["read", "write"] },
+          token: "qf_agent_secret",
+        }),
+      })
+      .mockResolvedValueOnce({
+        ok: true,
+        json: async () => ({
+          data: [{ id: "key-1", name: "读写集成", scopes: ["read", "write"] }],
+        }),
+      });
+
+    const created = await createServerAgentApiKey(
+      { name: "读写集成", scopes: ["read", "write"] },
+      fetcher,
+    );
+    const keys = await loadAgentApiKeys(fetcher);
+
+    expect(created.token).toBe("qf_agent_secret");
+    expect(keys[0].scopes).toEqual(["read", "write"]);
+    expect(fetcher).toHaveBeenNthCalledWith(1, "/api/agent/v1/auth/keys", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ name: "读写集成", scopes: ["read", "write"] }),
+    });
+    expect(fetcher).toHaveBeenNthCalledWith(2, "/api/agent/v1/auth/keys");
   });
 });

@@ -206,24 +206,10 @@ async function importExcel(event: Event) {
   const file = input.files?.[0];
   if (!file) return;
   const buffer = await file.arrayBuffer();
-  const workbook = XLSX.read(buffer);
+  const workbook = XLSX.read(buffer, { type: "array", cellDates: true });
   const sheet = workbook.Sheets[workbook.SheetNames[0]];
-  const rows = XLSX.utils.sheet_to_json<Record<string, string>>(sheet);
-  const imported = importAccessRecords(
-    rows.map((row) => ({
-      date: row["日期"] || row.date,
-      unit: row["单位"] || row.unit,
-      visitorName: row["人员"] || row["姓名"] || row.visitorName,
-      enterTime: row["进入时间"] || row.enterTime,
-      leaveTime: row["离开时间"] || row.leaveTime,
-      reason: row["事由"] || row.reason,
-      isServerRepair: /是|true|1|维修/.test(String(row["物理机维修"] || row.isServerRepair || "")),
-      deviceName: row["服务器"] || row["设备"] || row.deviceName,
-      faultDescription: row["故障"] || row.faultDescription,
-      result: row["处理结果"] || row.result,
-      attachments: row["附件"] ? String(row["附件"]).split(/[，,]/).map((item) => item.trim()) : [],
-    })),
-  );
+  const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(sheet, { defval: "" });
+  const imported = importAccessRecords(rows);
   writeSystemAuditLog({
     action: "access_record.import_excel",
     targetType: "access_record",

@@ -8,7 +8,7 @@ import {
   buildAiAgentEvents,
 } from "../../../services/ai/agentEvents";
 import { answerAgentControlMessage } from "../../../services/ai/agentNaturalLanguageCommands";
-import { writeAiAuditLog } from "../../../services/backend/ai";
+import { writeAiAuditLog, writeSystemAuditLog } from "../../../services/backend/ai";
 import { exportProjectJson } from "../../../services/backend/data";
 import {
   loadAgentReadonlyTools,
@@ -16,6 +16,8 @@ import {
   syncAgentReadonlySnapshot,
 } from "../../../services/agent/apiClient";
 import { useAiStore } from "../../../stores/aiStore";
+import { useAssetStore } from "../../../stores/assetStore";
+import { useAuthStore } from "../../../stores/authStore";
 import { qfDcimSkills } from "../../../services/ai/agentProfile";
 import { getAgentMemories } from "../../../services/ai/agentMemory";
 import {
@@ -31,6 +33,7 @@ import AiAnswerCard from "./AiAnswerCard.vue";
 import { getAccessRecords } from "../../access-management/accessRecords";
 import { getChangeEvents } from "../../change-management/changeEvents";
 import { getConnectionRecords } from "../../connection-manager/connections";
+import { executeAgentWriteCommand } from "../../../services/ai/agentWriteTools";
 
 const props = defineProps<{
   rooms: Room[];
@@ -68,6 +71,8 @@ interface ChatSession {
 const storageKey = "qf-ai-assistant-sessions";
 
 const aiStore = useAiStore();
+const assetStore = useAssetStore();
+const authStore = useAuthStore();
 const question = ref("");
 const sessions = ref<ChatSession[]>([]);
 const activeSessionId = ref("");
@@ -185,6 +190,68 @@ async function processQuestion(currentQuestion: string, currentAttachments: Chat
     }
 
     const agentContext = await loadContextForAgent();
+    const writeAnswer = await executeAgentWriteCommand({
+      question: currentQuestion,
+      session: authStore.session,
+      rooms: agentContext.rooms,
+      racks: agentContext.racks,
+      devices: agentContext.devices,
+      dependencies: {
+        saveDevice: async (device) => {
+          const saved = await assetStore.upsertDevice(device);
+          await assetStore.loadDevices();
+          return saved;
+        },
+        writeAuditLog: writeSystemAuditLog,
+      },
+    });
+    if (writeAnswer) {
+      const endedAt = new Date();
+      const runRecord = saveAgentRunRecord({
+        sessionId: activeSessionId.value,
+        question: currentQuestion,
+        answer: writeAnswer.answer,
+        toolName: writeAnswer.toolName === "write_asset" ? "search_devices" : "general_chat",
+        dataSource: "AI 写入工具",
+        startedAt: startedAt.toISOString(),
+        endedAt: endedAt.toISOString(),
+        events: buildAiAgentEvents({
+          question: currentQuestion,
+          toolName: writeAnswer.toolName === "write_asset" ? "search_devices" : "general_chat",
+          answer: writeAnswer.answer,
+          dataSource: "AI 写入工具",
+          fallbackReason: writeAnswer.status === "denied" ? "权限不足" : undefined,
+        }),
+        target: buildNavigationTarget(writeAnswer),
+        attachments: compactAttachmentsForStorage(currentAttachments),
+      });
+      answers.value.push({
+        id: `${Date.now()}-${answers.value.length}`,
+        question: currentQuestion,
+        content: writeAnswer.answer,
+        toolName: writeAnswer.toolName,
+        fallbackReason: writeAnswer.status === "denied" ? "权限不足" : undefined,
+        dataSource: "AI 写入工具",
+        events: runRecord.events,
+        target: buildNavigationTarget(writeAnswer),
+        attachments: compactAttachmentsForStorage(currentAttachments),
+      });
+      updateActiveSession(currentQuestion);
+      question.value = "";
+      pendingAttachments.value = [];
+      await scrollToLatestMessage();
+      writeAiAuditLog({
+        question: currentQuestion,
+        tools: [writeAnswer.toolName],
+        answerSummary: writeAnswer.answer.split("\n").slice(0, 2).join(" / "),
+        relatedDeviceId: writeAnswer.relatedDeviceId,
+        relatedRackId: writeAnswer.relatedRackId,
+        relatedRoomId: writeAnswer.relatedRoomId,
+        status: writeAnswer.status === "success" ? "success" : "failed",
+      });
+      return;
+    }
+
     const result = await runQfAiAgent({
       question: currentQuestion,
       configs: aiStore.configs,
@@ -201,7 +268,7 @@ async function processQuestion(currentQuestion: string, currentAttachments: Chat
         ...getAgentMemories().map((memory) => memory.content),
         ...guidanceNotes.value.map((note) => `会话引导：${note}`),
       ],
-      attachments: compactAttachmentsForStorage(currentAttachments),
+      attachments: currentAttachments,
     });
     const endedAt = new Date();
     const target = buildNavigationTarget(result);
@@ -435,6 +502,8 @@ function compactAttachmentsForStorage(attachments: ChatAttachment[]): ChatAttach
   return attachments.map((attachment) => ({
     ...attachment,
     imagePreviewDataUrl: undefined,
+    fullTextForAnalysis: undefined,
+    fullTextAvailable: attachment.fullTextAvailable,
     extractedText: attachment.extractedText?.slice(0, 1600),
   }));
 }

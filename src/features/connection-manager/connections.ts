@@ -46,6 +46,26 @@ export interface SavedConnectionView {
 
 export type SavedConnectionViewInput = Omit<SavedConnectionView, "id" | "createdAt" | "updatedAt">;
 
+export interface ConnectionNodeLinkSummary {
+  recordId: string;
+  localPort: string;
+  peerDeviceId: string;
+  peerDeviceName: string;
+  peerPort: string;
+  cableNo?: string;
+  cableType?: string;
+  status: ConnectionStatus;
+  notes?: string;
+}
+
+export interface ConnectionNodeSummary {
+  id: string;
+  name: string;
+  role: "server" | "switch";
+  subtitle: string;
+  links: ConnectionNodeLinkSummary[];
+}
+
 const STORAGE_KEY = "qf-ai-dcim.connectionRecords";
 const DEMO_SEEDED_KEY = "qf-ai-dcim.connectionRecords.demoSeeded";
 const VIEW_STORAGE_KEY = "qf-ai-dcim.connectionViews";
@@ -126,6 +146,62 @@ function buildDemoConnection(device: Device, index: number): ManagedConnection {
     createdAt: now,
     updatedAt: now,
   };
+}
+
+export function buildConnectionNodeSummaries(records: ManagedConnection[]): ConnectionNodeSummary[] {
+  const nodes = new Map<string, ConnectionNodeSummary>();
+
+  function ensureNode(id: string, name: string, role: "server" | "switch") {
+    const existing = nodes.get(id);
+    if (existing) return existing;
+    const next: ConnectionNodeSummary = {
+      id,
+      name,
+      role,
+      subtitle: "",
+      links: [],
+    };
+    nodes.set(id, next);
+    return next;
+  }
+
+  for (const record of records) {
+    const source = ensureNode(record.sourceDeviceId, record.sourceDeviceName, "server");
+    const target = ensureNode(record.targetDeviceId, record.targetDeviceName, "switch");
+    source.links.push({
+      recordId: record.id,
+      localPort: record.sourcePortName,
+      peerDeviceId: record.targetDeviceId,
+      peerDeviceName: record.targetDeviceName,
+      peerPort: record.targetPortName,
+      cableNo: record.cableNo,
+      cableType: record.cableType,
+      status: record.status,
+      notes: record.notes,
+    });
+    target.links.push({
+      recordId: record.id,
+      localPort: record.targetPortName,
+      peerDeviceId: record.sourceDeviceId,
+      peerDeviceName: record.sourceDeviceName,
+      peerPort: record.sourcePortName,
+      cableNo: record.cableNo,
+      cableType: record.cableType,
+      status: record.status,
+      notes: record.notes,
+    });
+  }
+
+  for (const node of nodes.values()) {
+    const portCount = new Set(node.links.map((link) => link.localPort)).size;
+    node.subtitle =
+      node.role === "switch"
+        ? `${node.links.length} 条链路 / ${portCount} 个端口`
+        : node.links[0]?.localPort ?? "未录入端口";
+    node.links.sort((first, second) => first.localPort.localeCompare(second.localPort, "zh-CN", { numeric: true }));
+  }
+
+  return [...nodes.values()].sort((first, second) => first.name.localeCompare(second.name));
 }
 
 export function ensureDemoConnectionRecords(devices: Device[] = []): ManagedConnection[] {

@@ -45,6 +45,7 @@ import { formatCredentialCatalogForAgent } from "./agentCredentials";
 import { formatKnowledgePrompt } from "./agentKnowledgeBase";
 import { formatAgentToolIntegrationPrompt } from "./agentToolIntegrations";
 import {
+  buildAttachmentAnalysisAnswer,
   formatAttachmentsForAgentPrompt,
   type AgentAttachmentSummary,
 } from "./agentAttachments";
@@ -228,8 +229,8 @@ function buildModelFailureAnswer(config: AiModelConfig, question: string) {
   ].join("\n");
 }
 
-function formatAttachmentPrompt(attachments: QfAgentRequest["attachments"]) {
-  return formatAttachmentsForAgentPrompt(attachments);
+function formatAttachmentPrompt(question: string, attachments: QfAgentRequest["attachments"]) {
+  return formatAttachmentsForAgentPrompt(attachments, question);
 }
 
 function buildGeneralAgentPrompt(
@@ -254,7 +255,7 @@ function buildGeneralAgentPrompt(
     "",
     formatAgentToolIntegrationPrompt(),
     "",
-    formatAttachmentPrompt(attachments),
+    formatAttachmentPrompt(question, attachments),
     "",
     buildCapabilityPrompt(capabilities),
   ].join("\n");
@@ -353,6 +354,31 @@ export async function runQfAiAgent(request: QfAgentRequest): Promise<QfAgentRunR
         usedModel: config?.model,
         fallbackReason: config ? undefined : "未配置启用模型",
         dataSource: "模型配置",
+      }),
+    };
+  }
+
+  const attachmentAnalysis = buildAttachmentAnalysisAnswer(request.question, request.attachments);
+  if (
+    attachmentAnalysis &&
+    /附件|文件|日志|log|分析|原因|重启|报错|错误|异常|故障|定位/.test(request.question)
+  ) {
+    const plan: QfAgentPlan = {
+      toolName: "general_chat",
+      reason: "用户问题需要分析上传附件，Agent 先对附件全文建立证据片段并给出结论。",
+      planner: "deterministic",
+    };
+    return {
+      toolName: "general_chat",
+      answer: attachmentAnalysis,
+      usedModel: config?.model,
+      plan,
+      events: buildAiAgentEvents({
+        question: request.question,
+        toolName: "general_chat",
+        answer: attachmentAnalysis,
+        usedModel: config?.model,
+        dataSource: "附件全文分析",
       }),
     };
   }

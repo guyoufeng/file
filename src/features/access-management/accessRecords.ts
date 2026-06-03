@@ -17,6 +17,7 @@ export interface AccessRecord {
 }
 
 export type AccessRecordInput = Omit<AccessRecord, "id" | "createdAt" | "updatedAt">;
+export type AccessRecordImportRow = Partial<AccessRecordInput> & Record<string, unknown>;
 
 const STORAGE_KEY = "qf-ai-dcim.accessRecords";
 
@@ -98,23 +99,116 @@ export function searchAccessRecords(keyword: string, records = getAccessRecords(
   return records.filter((record) => keywords.every((item) => includesKeyword(record, item)));
 }
 
-export function importAccessRecords(rows: Array<Partial<AccessRecordInput>>): AccessRecord[] {
+function valueText(row: AccessRecordImportRow, fields: string[]): string {
+  for (const field of fields) {
+    const value = row[field];
+    if (value !== undefined && value !== null && String(value).trim()) {
+      return String(value).trim();
+    }
+  }
+  return "";
+}
+
+function excelSerialToDate(serial: number): Date {
+  return new Date(Math.round((serial - 25569) * 86400 * 1000));
+}
+
+function normalizeDate(value: unknown): string {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(0, 10);
+  }
+  if (typeof value === "number" && Number.isFinite(value) && value > 1) {
+    return excelSerialToDate(value).toISOString().slice(0, 10);
+  }
+  const text = String(value ?? "").trim();
+  if (!text) return "";
+  const chinese = text.match(/(\d{4})[年/-](\d{1,2})[月/-](\d{1,2})/);
+  if (chinese) {
+    return `${chinese[1]}-${chinese[2].padStart(2, "0")}-${chinese[3].padStart(2, "0")}`;
+  }
+  const parsed = new Date(text);
+  if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+  const normalized = text.replace(/[./]/g, "-");
+  return /^\d{4}-\d{1,2}-\d{1,2}$/.test(normalized)
+    ? normalized
+        .split("-")
+        .map((part, index) => (index === 0 ? part : part.padStart(2, "0")))
+        .join("-")
+    : "";
+}
+
+function normalizeTime(value: unknown): string {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value.toISOString().slice(11, 16);
+  }
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const dayFraction = value > 1 ? value % 1 : value;
+    const totalMinutes = Math.round(dayFraction * 24 * 60);
+    const hours = Math.floor(totalMinutes / 60) % 24;
+    const minutes = totalMinutes % 60;
+    return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
+  }
+  const text = String(value ?? "").trim();
+  if (!text) return "";
+  const timeMatch = text.match(/(\d{1,2}):(\d{2})/);
+  if (timeMatch) return `${timeMatch[1].padStart(2, "0")}:${timeMatch[2]}`;
+  return text;
+}
+
+function splitAttachments(value: string): string[] {
+  return value
+    .split(/[，,、\s]+/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function normalizeImportRow(row: AccessRecordImportRow): AccessRecordInput | undefined {
+  const date =
+    normalizeDate(row.date) ||
+    normalizeDate(row["日期"]) ||
+    normalizeDate(row["进入日期"]);
+  const unit = valueText(row, ["unit", "单位", "公司", "施工单位", "维保单位", "地点"]) || "未填写单位";
+  const visitorName =
+    valueText(row, ["visitorName", "人员", "姓名", "进入人员", "联系人", "工程师"]) || unit;
+  const enterTime = normalizeTime(row.enterTime ?? row["进入时间"] ?? row["入场时间"]);
+  const leaveTime = normalizeTime(row.leaveTime ?? row["离开时间"] ?? row["出场时间"]);
+  if (!date || !enterTime) return undefined;
+
+  const assetNo = valueText(row, ["固定资产编号", "资产编号", "assetNo"]);
+  const assetDescription = valueText(row, ["资产说明", "服务器", "设备", "deviceName"]);
+  const ip = valueText(row, ["IP地址", "业务IP", "ip", "businessIp"]);
+  const deviceName = [assetNo, assetDescription, ip].filter(Boolean).join(" / ") || undefined;
+  const reason = valueText(row, ["reason", "事由", "进入事由", "维修事由"]);
+  const faultDescription = valueText(row, ["faultDescription", "故障", "故障描述", "事由"]);
+  const result = valueText(row, ["result", "处理结果", "结果", "用途描述"]);
+  const repairFlag = String(row.isServerRepair ?? row["物理机维修"] ?? "");
+  const isServerRepair =
+    Boolean(row.isServerRepair) ||
+    /是|true|1|维修|服务器|物理机|故障/i.test(repairFlag) ||
+    Boolean(assetNo || assetDescription || ip);
+
+  return {
+    date,
+    unit,
+    visitorName,
+    enterTime,
+    leaveTime: leaveTime || undefined,
+    reason,
+    isServerRepair,
+    deviceId: valueText(row, ["deviceId", "设备ID"]) || undefined,
+    deviceName,
+    faultDescription: faultDescription || undefined,
+    result: result || undefined,
+    attachments: row.attachments ?? splitAttachments(valueText(row, ["附件", "照片"])),
+  };
+}
+
+export function normalizeAccessRecordImportRows(rows: AccessRecordImportRow[]): AccessRecordInput[] {
   return rows
-    .filter((row) => row.date && row.unit && row.visitorName && row.enterTime)
-    .map((row) =>
-      createAccessRecord({
-        date: row.date!,
-        unit: row.unit!,
-        visitorName: row.visitorName!,
-        enterTime: row.enterTime!,
-        leaveTime: row.leaveTime,
-        reason: row.reason ?? "",
-        isServerRepair: Boolean(row.isServerRepair),
-        deviceId: row.deviceId,
-        deviceName: row.deviceName,
-        faultDescription: row.faultDescription,
-        result: row.result,
-        attachments: row.attachments ?? [],
-      }),
-    );
+    .map(normalizeImportRow)
+    .filter((row): row is AccessRecordInput => Boolean(row));
+}
+
+export function importAccessRecords(rows: AccessRecordImportRow[]): AccessRecord[] {
+  return normalizeAccessRecordImportRows(rows).map((row) => createAccessRecord(row));
 }

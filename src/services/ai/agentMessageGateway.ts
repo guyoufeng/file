@@ -1,3 +1,5 @@
+import * as QRCode from "qrcode";
+
 export type AgentGatewayProvider = "wechat" | "wecom" | "dingtalk";
 export type GatewayMessageDirection = "inbound" | "outbound";
 
@@ -19,8 +21,10 @@ export interface GatewayPairing {
   configId: string;
   provider: AgentGatewayProvider;
   payload: string;
+  pairingUrl: string;
   expiresAt: string;
   qrCells: boolean[];
+  qrSize: number;
 }
 
 export interface GatewayMessage {
@@ -76,7 +80,19 @@ function writeJson(key: string, value: unknown) {
   storage()?.setItem(key, JSON.stringify(value));
 }
 
-export function buildGatewayQrCells(value: string, size = 21): boolean[] {
+export function buildGatewayQrMatrix(value: string, size = 21): { cells: boolean[]; size: number } {
+  try {
+    const qr = QRCode.create(value, { errorCorrectionLevel: "M" });
+    return {
+      cells: Array.from(qr.modules.data),
+      size: qr.modules.size,
+    };
+  } catch {
+    return { cells: buildGatewayFallbackQrCells(value, size), size };
+  }
+}
+
+function buildGatewayFallbackQrCells(value: string, size = 21): boolean[] {
   let hash = 2166136261;
   for (const char of value) {
     hash ^= char.charCodeAt(0);
@@ -104,6 +120,10 @@ export function buildGatewayQrCells(value: string, size = 21): boolean[] {
     hash = Math.imul(hash ^ (index + 17), 1103515245);
     return Boolean(bit);
   });
+}
+
+export function buildGatewayQrCells(value: string, size = 21): boolean[] {
+  return buildGatewayQrMatrix(value, size).cells;
 }
 
 export function getGatewayConfigs(): AgentGatewayConfig[] {
@@ -139,20 +159,27 @@ export function createGatewayPairing(configId: string, publicBaseUrl = ""): Gate
   const config = getGatewayConfigs().find((item) => item.id === configId);
   if (!config) throw new Error("网关配置不存在");
   const expiresAt = new Date(Date.now() + 10 * 60 * 1000).toISOString();
+  const baseUrl = publicBaseUrl || config.endpoint.replace(/\/api\/agent\/v1\/gateway\/.*$/, "");
+  const pairingUrl = `${baseUrl.replace(/\/$/, "")}/api/agent/v1/gateway/${config.provider}/pair?configId=${encodeURIComponent(configId)}`;
   const payload = JSON.stringify({
     type: "qf-ai-dcim-agent-gateway",
+    mode: "pairing-url",
     provider: config.provider,
     configId,
     endpoint: publicBaseUrl ? `${publicBaseUrl}/api/agent/v1/gateway/${config.provider}` : config.endpoint,
+    pairingUrl,
     token: config.token ? `${config.token.slice(0, 4)}...${config.token.slice(-4)}` : "",
     expiresAt,
   });
+  const matrix = buildGatewayQrMatrix(pairingUrl);
   return {
     configId,
     provider: config.provider,
     payload,
+    pairingUrl,
     expiresAt,
-    qrCells: buildGatewayQrCells(payload),
+    qrCells: matrix.cells,
+    qrSize: matrix.size,
   };
 }
 

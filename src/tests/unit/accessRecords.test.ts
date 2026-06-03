@@ -3,6 +3,7 @@ import {
   createAccessRecord,
   deleteAccessRecord,
   getAccessRecords,
+  importAccessRecords,
   searchAccessRecords,
   updateAccessRecord,
 } from "../../features/access-management/accessRecords";
@@ -50,5 +51,34 @@ describe("data center access records", () => {
 
     deleteAccessRecord(record.id);
     expect(getAccessRecords()).toEqual([]);
+  });
+
+  it("imports the real access Excel shape even when visitor name is missing", () => {
+    const imported = importAccessRecords([
+      {
+        日期: "2026-06-02",
+        单位: "服务器维保厂家",
+        地点: "529数据中心",
+        进入时间: "1899-12-30T13:42:00.000Z",
+        离开时间: "1899-12-30T15:18:00.000Z",
+        事由: "处理虚拟化服务器重启问题",
+        固定资产编号: "QF-FA-001",
+        资产说明: "QF-SRV-001",
+        IP地址: "10.10.0.21",
+        用途描述: "虚拟化资源池",
+      } as Record<string, unknown>,
+    ]);
+
+    expect(imported).toHaveLength(1);
+    expect(imported[0]).toMatchObject({
+      date: "2026-06-02",
+      unit: "服务器维保厂家",
+      visitorName: "服务器维保厂家",
+      enterTime: "13:42",
+      leaveTime: "15:18",
+      isServerRepair: true,
+    });
+    expect(imported[0].deviceName).toContain("QF-SRV-001");
+    expect(imported[0].deviceName).toContain("10.10.0.21");
   });
 });

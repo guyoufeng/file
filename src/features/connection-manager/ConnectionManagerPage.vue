@@ -2,23 +2,18 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import { useAssetStore } from "../../stores/assetStore";
 import {
+  buildConnectionNodeSummaries,
   ensureDemoConnectionRecords,
   getConnectionRecords,
   getSavedConnectionViews,
   saveConnectionView,
   searchConnectionRecords,
+  type ConnectionNodeSummary,
   type ManagedConnection,
   type SavedConnectionView,
 } from "./connections";
 
 type ViewMode = "topology" | "table" | "ports";
-
-interface ConnectionNode {
-  id: string;
-  name: string;
-  role: "server" | "switch";
-  subtitle: string;
-}
 
 const assetStore = useAssetStore();
 const records = ref<ManagedConnection[]>([]);
@@ -28,29 +23,20 @@ const keyword = ref("");
 const selectedDeviceIds = ref<string[]>([]);
 const viewName = ref("529生产网络拓扑");
 const zoom = ref(1);
+const topologyViewport = reactive({ x: 0, y: 0 });
 const nodePositions = reactive<Record<string, { x: number; y: number }>>({});
+const hoveredNodeId = ref("");
+const hoverExpanded = ref(false);
+const hoverPosition = reactive({ x: 0, y: 0 });
 let draggingNode:
   | { id: string; startX: number; startY: number; originX: number; originY: number }
   | null = null;
+let panningCanvas:
+  | { startX: number; startY: number; originX: number; originY: number }
+  | null = null;
+let hoverCloseTimer: number | undefined;
 
-const availableNodes = computed<ConnectionNode[]>(() => {
-  const nodes = new Map<string, ConnectionNode>();
-  for (const record of records.value) {
-    nodes.set(record.sourceDeviceId, {
-      id: record.sourceDeviceId,
-      name: record.sourceDeviceName,
-      role: "server",
-      subtitle: record.sourcePortName,
-    });
-    nodes.set(record.targetDeviceId, {
-      id: record.targetDeviceId,
-      name: record.targetDeviceName,
-      role: "switch",
-      subtitle: record.targetPortName,
-    });
-  }
-  return [...nodes.values()].sort((first, second) => first.name.localeCompare(second.name));
-});
+const availableNodes = computed<ConnectionNodeSummary[]>(() => buildConnectionNodeSummaries(records.value));
 
 const filteredRecords = computed(() => {
   const base = keyword.value.trim() ? searchConnectionRecords(keyword.value, records.value) : records.value;
@@ -61,7 +47,7 @@ const filteredRecords = computed(() => {
   );
 });
 
-const topologyNodes = computed<ConnectionNode[]>(() => {
+const topologyNodes = computed<ConnectionNodeSummary[]>(() => {
   const nodeIds = new Set<string>();
   for (const record of filteredRecords.value) {
     nodeIds.add(record.sourceDeviceId);
@@ -69,6 +55,10 @@ const topologyNodes = computed<ConnectionNode[]>(() => {
   }
   return availableNodes.value.filter((node) => nodeIds.has(node.id));
 });
+
+const hoveredNode = computed(() =>
+  topologyNodes.value.find((node) => node.id === hoveredNodeId.value),
+);
 
 const portGroups = computed(() => {
   const groups = new Map<string, ManagedConnection[]>();
@@ -96,6 +86,9 @@ onMounted(async () => {
 onBeforeUnmount(() => {
   window.removeEventListener("pointermove", moveNode);
   window.removeEventListener("pointerup", stopNodeDrag);
+  window.removeEventListener("pointermove", moveCanvas);
+  window.removeEventListener("pointerup", stopCanvasPan);
+  if (hoverCloseTimer) window.clearTimeout(hoverCloseTimer);
 });
 
 watch(filteredRecords, initializeNodePositions);
@@ -132,6 +125,8 @@ function applySavedView(view: SavedConnectionView) {
   selectedDeviceIds.value = [...view.selectedDeviceIds];
   keyword.value = view.keyword;
   zoom.value = view.zoom;
+  topologyViewport.x = 0;
+  topologyViewport.y = 0;
   Object.assign(nodePositions, view.nodePositions);
 }
 
@@ -163,6 +158,36 @@ function startNodeDrag(nodeId: string, event: PointerEvent) {
   window.addEventListener("pointerup", stopNodeDrag);
 }
 
+function handleTopologyWheel(event: WheelEvent) {
+  const direction = event.deltaY > 0 ? -1 : 1;
+  zoom.value = Math.max(0.55, Math.min(1.9, Number((zoom.value + direction * 0.08).toFixed(2))));
+}
+
+function startCanvasPan(event: PointerEvent) {
+  const target = event.target as HTMLElement;
+  if (target.closest(".topology-node") || target.closest(".port-popover")) return;
+  panningCanvas = {
+    startX: event.clientX,
+    startY: event.clientY,
+    originX: topologyViewport.x,
+    originY: topologyViewport.y,
+  };
+  window.addEventListener("pointermove", moveCanvas);
+  window.addEventListener("pointerup", stopCanvasPan);
+}
+
+function moveCanvas(event: PointerEvent) {
+  if (!panningCanvas) return;
+  topologyViewport.x = panningCanvas.originX + event.clientX - panningCanvas.startX;
+  topologyViewport.y = panningCanvas.originY + event.clientY - panningCanvas.startY;
+}
+
+function stopCanvasPan() {
+  panningCanvas = null;
+  window.removeEventListener("pointermove", moveCanvas);
+  window.removeEventListener("pointerup", stopCanvasPan);
+}
+
 function moveNode(event: PointerEvent) {
   if (!draggingNode) return;
   nodePositions[draggingNode.id] = {
@@ -175,6 +200,26 @@ function stopNodeDrag() {
   draggingNode = null;
   window.removeEventListener("pointermove", moveNode);
   window.removeEventListener("pointerup", stopNodeDrag);
+}
+
+function showNodePopover(nodeId: string, event: MouseEvent) {
+  if (hoverCloseTimer) window.clearTimeout(hoverCloseTimer);
+  hoveredNodeId.value = nodeId;
+  hoverExpanded.value = false;
+  hoverPosition.x = Math.min(window.innerWidth - 380, event.clientX + 14);
+  hoverPosition.y = Math.min(window.innerHeight - 320, event.clientY + 14);
+}
+
+function keepNodePopover() {
+  if (hoverCloseTimer) window.clearTimeout(hoverCloseTimer);
+}
+
+function scheduleNodePopoverClose() {
+  if (hoverCloseTimer) window.clearTimeout(hoverCloseTimer);
+  hoverCloseTimer = window.setTimeout(() => {
+    hoveredNodeId.value = "";
+    hoverExpanded.value = false;
+  }, 160);
 }
 
 function nodeCenter(nodeId: string) {
@@ -253,12 +298,18 @@ function nodeCenter(nodeId: string) {
     <section class="connection-workspace">
       <div v-if="activeView === 'topology'" class="topology-view" aria-label="连线拓扑视图">
         <div class="topology-controls">
-          <button type="button" @click="zoom = Math.max(0.65, zoom - 0.1)">缩小</button>
+          <span>滚轮缩放，拖动画布移动，拖动设备可调整位置。</span>
           <strong>{{ Math.round(zoom * 100) }}%</strong>
-          <button type="button" @click="zoom = Math.min(1.8, zoom + 0.1)">放大</button>
         </div>
-        <div class="topology-canvas">
-          <div class="topology-canvas-inner" :style="{ transform: `scale(${zoom})` }">
+        <div
+          class="topology-canvas"
+          @wheel.prevent="handleTopologyWheel"
+          @pointerdown="startCanvasPan"
+        >
+          <div
+            class="topology-canvas-inner"
+            :style="{ transform: `translate(${topologyViewport.x}px, ${topologyViewport.y}px) scale(${zoom})` }"
+          >
             <svg class="topology-lines" viewBox="0 0 1500 820" aria-hidden="true">
               <line
                 v-for="record in filteredRecords"
@@ -274,13 +325,47 @@ function nodeCenter(nodeId: string) {
               :key="node.id"
               :class="['topology-node', node.role]"
               :style="{ left: `${nodePositions[node.id]?.x ?? 0}px`, top: `${nodePositions[node.id]?.y ?? 0}px` }"
-              @pointerdown.prevent="startNodeDrag(node.id, $event)"
+              @mouseenter="showNodePopover(node.id, $event)"
+              @mouseleave="scheduleNodePopoverClose"
+              @pointerdown.stop.prevent="startNodeDrag(node.id, $event)"
             >
               <small>{{ node.role === "switch" ? "交换机" : "服务器" }}</small>
               <strong>{{ node.name }}</strong>
               <span>{{ node.subtitle }}</span>
             </article>
           </div>
+          <aside
+            v-if="hoveredNode"
+            class="port-popover"
+            :style="{ left: `${hoverPosition.x}px`, top: `${hoverPosition.y}px` }"
+            @mouseenter="keepNodePopover"
+            @mouseleave="scheduleNodePopoverClose"
+          >
+            <header>
+              <div>
+                <small>{{ hoveredNode.role === "switch" ? "交换机端口" : "服务器接口" }}</small>
+                <strong>{{ hoveredNode.name }}</strong>
+              </div>
+              <span>{{ hoveredNode.subtitle }}</span>
+            </header>
+            <ul>
+              <li
+                v-for="link in (hoverExpanded ? hoveredNode.links : hoveredNode.links.slice(0, 8))"
+                :key="`${hoveredNode.id}-${link.recordId}`"
+              >
+                <strong>{{ link.localPort }}</strong>
+                <span>对端：{{ link.peerDeviceName }} / {{ link.peerPort }}</span>
+                <small>{{ link.cableNo || "未填写线缆" }} · {{ link.cableType || "未填写类型" }} · {{ link.status }}</small>
+              </li>
+            </ul>
+            <button
+              v-if="hoveredNode.links.length > 8"
+              type="button"
+              @click="hoverExpanded = !hoverExpanded"
+            >
+              {{ hoverExpanded ? "收起" : `显示更多（${hoveredNode.links.length}）` }}
+            </button>
+          </aside>
         </div>
       </div>
 
@@ -397,6 +482,14 @@ button {
   cursor: pointer;
 }
 
+.search-box button,
+.save-view-row button {
+  min-width: max-content;
+  padding: 0 11px;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
 button.active,
 .device-chip.active {
   border-color: color-mix(in srgb, var(--color-primary) 72%, var(--color-border));
@@ -491,6 +584,12 @@ header span,
   justify-content: flex-end;
 }
 
+.topology-controls span {
+  margin-right: auto;
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
 .topology-canvas {
   position: relative;
   height: 620px;
@@ -502,6 +601,12 @@ header span,
     linear-gradient(color-mix(in srgb, var(--color-primary) 8%, transparent) 1px, transparent 1px),
     color-mix(in srgb, #ecfdf5 72%, var(--color-panel));
   background-size: 36px 36px;
+  cursor: grab;
+  touch-action: none;
+}
+
+.topology-canvas:active {
+  cursor: grabbing;
 }
 
 .topology-canvas-inner {
@@ -509,6 +614,7 @@ header span,
   width: 1500px;
   height: 820px;
   transform-origin: 0 0;
+  will-change: transform;
 }
 
 .topology-lines {
@@ -561,6 +667,58 @@ header span,
   color: var(--color-text-muted);
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.port-popover {
+  position: fixed;
+  z-index: 120;
+  width: min(360px, calc(100vw - 28px));
+  display: grid;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  color: var(--color-text);
+  background: var(--surface-raised);
+  box-shadow: 0 18px 46px rgba(15, 23, 42, 0.18);
+}
+
+.port-popover header {
+  align-items: center;
+}
+
+.port-popover header > div {
+  display: grid;
+  gap: 3px;
+}
+
+.port-popover small,
+.port-popover span {
+  color: var(--color-text-muted);
+}
+
+.port-popover ul {
+  display: grid;
+  gap: 6px;
+  max-height: 230px;
+  margin: 0;
+  padding: 0;
+  overflow: auto;
+  list-style: none;
+}
+
+.port-popover li {
+  display: grid;
+  gap: 3px;
+  padding: 7px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-panel);
+}
+
+.port-popover button {
+  justify-self: end;
+  min-height: 28px;
 }
 
 .connection-table-wrap {

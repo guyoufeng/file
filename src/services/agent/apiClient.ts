@@ -30,6 +30,22 @@ export interface AgentReadonlyTokenSettings {
   tokenPreview?: string;
 }
 
+export interface AgentApiKeyView {
+  id: string;
+  name: string;
+  scopes: Array<"read" | "write">;
+  tokenPreview: string;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+  lastUsedAt?: string;
+}
+
+export interface CreatedAgentApiKeyResponse {
+  record: AgentApiKeyView;
+  token: string;
+}
+
 type Fetcher = typeof fetch;
 const TOKEN_STORAGE_KEY = "qf-ai-dcim.agent.readonlyToken";
 
@@ -146,4 +162,26 @@ export async function saveAgentReadonlyTokenSettings(
   );
   storeAgentReadonlyToken(settings.enabled ? settings.token : undefined);
   return saved;
+}
+
+export async function loadAgentApiKeys(
+  fetcher: Fetcher = fetch,
+): Promise<AgentApiKeyView[]> {
+  const response = await readJsonResponse<{ data: AgentApiKeyView[] }>(
+    await fetcher("/api/agent/v1/auth/keys"),
+  );
+  return response.data;
+}
+
+export async function createServerAgentApiKey(
+  input: { name: string; scopes: Array<"read" | "write"> },
+  fetcher: Fetcher = fetch,
+): Promise<CreatedAgentApiKeyResponse> {
+  return await readJsonResponse<CreatedAgentApiKeyResponse>(
+    await fetcher("/api/agent/v1/auth/keys", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(input),
+    }),
+  );
 }

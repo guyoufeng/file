@@ -45,7 +45,8 @@ describe("agent message gateway", () => {
 
     const pairing = createGatewayPairing(wechat.id, "http://192.168.1.10:5173");
     expect(pairing.payload).toContain("wechat");
-    expect(pairing.qrCells).toHaveLength(21 * 21);
+    expect(pairing.pairingUrl).toContain("/api/agent/v1/gateway/wechat/pair");
+    expect(pairing.qrCells).toHaveLength(pairing.qrSize * pairing.qrSize);
     expect(getGatewayConfigs()).toHaveLength(2);
 
     recordGatewayMessage({

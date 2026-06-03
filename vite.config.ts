@@ -21,7 +21,9 @@ import {
   type AgentQuery,
 } from "./src/services/agent/readonlyApi";
 import type { ProjectJson } from "./src/services/backend/data";
-import type { Alert } from "./src/types/domain";
+import type { Alert, Device } from "./src/types/domain";
+import type { AccessRecord } from "./src/features/access-management/accessRecords";
+import type { ChangeEvent } from "./src/features/change-management/changeEvents";
 
 async function readBody(req: IncomingMessage) {
   const chunks: Uint8Array[] = [];
@@ -35,6 +37,7 @@ async function readBody(req: IncomingMessage) {
 
 const agentSnapshotPath = path.resolve(".local/agent-api-snapshot.json");
 const agentAuthPath = path.resolve(".local/agent-api-auth.json");
+const agentApiKeysPath = path.resolve(".local/agent-api-keys.json");
 const demoSeedPath = path.resolve(".local/demo-seed.json");
 const gatewayInboxPath = path.resolve(".local/agent-gateway-inbox.json");
 
@@ -74,10 +77,42 @@ interface AgentAuthSettings {
   token?: string;
 }
 
+type AgentApiScope = "read" | "write";
+
+interface AgentApiKeyRecord {
+  id: string;
+  name: string;
+  scopes: AgentApiScope[];
+  tokenHash: string;
+  tokenPreview: string;
+  enabled: boolean;
+  createdAt: string;
+  updatedAt: string;
+  lastUsedAt?: string;
+}
+
 function previewToken(token?: string): string | undefined {
   if (!token) return undefined;
   if (token.length <= 12) return `${token.slice(0, 4)}...`;
   return `${token.slice(0, 10)}...${token.slice(-4)}`;
+}
+
+function hashAgentToken(token: string): string {
+  let hash = 2166136261;
+  for (let index = 0; index < token.length; index += 1) {
+    hash ^= token.charCodeAt(index);
+    hash = Math.imul(hash, 16777619);
+  }
+  return (hash >>> 0).toString(16).padStart(8, "0");
+}
+
+function createAgentToken(): string {
+  return `qf_agent_${crypto.randomUUID().replace(/-/g, "")}`;
+}
+
+function publicApiKey(record: AgentApiKeyRecord) {
+  const { tokenHash: _tokenHash, ...publicPart } = record;
+  return publicPart;
 }
 
 async function loadAgentAuthSettings(): Promise<AgentAuthSettings> {
@@ -93,24 +128,57 @@ async function saveAgentAuthSettings(settings: AgentAuthSettings): Promise<void>
   await writeFile(agentAuthPath, JSON.stringify(settings, null, 2), "utf8");
 }
 
+async function loadAgentApiKeys(): Promise<AgentApiKeyRecord[]> {
+  try {
+    const parsed = JSON.parse(await readFile(agentApiKeysPath, "utf8")) as AgentApiKeyRecord[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
+}
+
+async function saveAgentApiKeys(keys: AgentApiKeyRecord[]): Promise<void> {
+  await mkdir(path.dirname(agentApiKeysPath), { recursive: true });
+  await writeFile(agentApiKeysPath, JSON.stringify(keys, null, 2), "utf8");
+}
+
 async function ensureAgentAuthorized(
   req: IncomingMessage,
   res: Parameters<import("connect").NextHandleFunction>[1],
+  requiredScope: AgentApiScope = "read",
 ): Promise<boolean> {
   const settings = await loadAgentAuthSettings();
-  if (!settings.enabled) return true;
-
   const authorization = req.headers.authorization ?? "";
   const token = authorization.startsWith("Bearer ")
     ? authorization.slice("Bearer ".length).trim()
     : "";
-  if (token && token === settings.token) return true;
+
+  if (requiredScope === "read" && !settings.enabled) return true;
+  if (requiredScope === "read" && token && token === settings.token) return true;
+
+  if (token) {
+    const keys = await loadAgentApiKeys();
+    const hash = hashAgentToken(token);
+    const record = keys.find((item) => item.tokenHash === hash && item.enabled);
+    if (record?.scopes.includes(requiredScope)) {
+      const updated = {
+        ...record,
+        lastUsedAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+      await saveAgentApiKeys(keys.map((item) => (item.id === record.id ? updated : item)));
+      return true;
+    }
+  }
 
   sendJson(
     res,
     {
-      message: "只读 Agent API 已启用访问令牌，请使用 Authorization: Bearer <token> 调用。",
-      readonly: true,
+      message:
+        requiredScope === "write"
+          ? "Agent API 写入接口需要具备 write 权限的 API Key。"
+          : "Agent API 已启用访问令牌，请使用 Authorization: Bearer <token> 调用。",
+      requiredScope,
     },
     401,
   );
@@ -241,6 +309,38 @@ function aiProxyPlugin() {
         });
       });
 
+      server.middlewares.use("/api/agent/v1/auth/keys", async (req, res) => {
+        if (req.method === "GET") {
+          const keys = await loadAgentApiKeys();
+          sendJson(res, { data: keys.map(publicApiKey) });
+          return;
+        }
+
+        if (req.method !== "POST") {
+          res.statusCode = 405;
+          res.end("Method Not Allowed");
+          return;
+        }
+
+        const body = (await readBody(req)) as { name?: string; scopes?: AgentApiScope[] };
+        const token = createAgentToken();
+        const now = new Date().toISOString();
+        const scopes = new Set<AgentApiScope>(body.scopes?.length ? body.scopes : ["read"]);
+        if (scopes.has("write")) scopes.add("read");
+        const record: AgentApiKeyRecord = {
+          id: `agent-key-${crypto.randomUUID()}`,
+          name: body.name?.trim() || "未命名 Agent API Key",
+          scopes: [...scopes],
+          tokenHash: hashAgentToken(token),
+          tokenPreview: previewToken(token) ?? "qf_agent_...",
+          enabled: true,
+          createdAt: now,
+          updatedAt: now,
+        };
+        await saveAgentApiKeys([record, ...(await loadAgentApiKeys())]);
+        sendJson(res, { record: publicApiKey(record), token });
+      });
+
       server.middlewares.use("/api/agent/v1/health", async (req, res) => {
         if (!(await ensureAgentAuthorized(req, res))) return;
         const snapshot = await loadAgentSnapshot();
@@ -291,6 +391,47 @@ function aiProxyPlugin() {
       });
 
       server.middlewares.use("/api/agent/v1/devices", async (req, res) => {
+        if (req.method !== "GET") {
+          if (!(await ensureAgentAuthorized(req, res, "write"))) return;
+          const snapshot = await loadAgentSnapshot();
+          const body = (await readBody(req)) as Partial<Device> & { id?: string };
+          if (!body.id && !body.computerName && !body.name) {
+            sendJson(res, { message: "写入设备至少需要 id、computerName 或 name。" }, 400);
+            return;
+          }
+          const nowId = `api-device-${Date.now()}`;
+          const existing = snapshot.data.devices.find(
+            (item) =>
+              item.id === body.id ||
+              (!!body.computerName && item.computerName === body.computerName) ||
+              (!!body.businessIp && item.businessIp === body.businessIp),
+          );
+          const saved: Device = {
+            ...(existing ?? {
+              id: body.id || nowId,
+              rackId: body.rackId || snapshot.data.racks[0]?.id || "rack-unassigned",
+              categoryId: body.categoryId || "server",
+              name: body.name || "物理服务器",
+              ips: [],
+              side: "front",
+              startU: 1,
+              endU: body.heightU || 1,
+              heightU: body.heightU || 1,
+              status: "normal",
+              ports: [],
+            }),
+            ...body,
+            id: existing?.id || body.id || nowId,
+            ips: body.ips ?? existing?.ips ?? (body.businessIp ? [body.businessIp] : []),
+            ports: body.ports ?? existing?.ports ?? [],
+            metadata: body.metadata ?? existing?.metadata,
+          };
+          snapshot.data.devices = [saved, ...snapshot.data.devices.filter((item) => item.id !== saved.id)];
+          snapshot.generatedAt = new Date().toISOString();
+          await saveAgentSnapshot(snapshot);
+          sendJson(res, { message: existing ? "设备已更新" : "设备已新增", data: saved });
+          return;
+        }
         if (!(await ensureAgentAuthorized(req, res))) return;
         const snapshot = await loadAgentSnapshot();
         sendJson(res, { data: filterAgentDevices(snapshot.data, getQuery(req)) });
@@ -309,12 +450,79 @@ function aiProxyPlugin() {
       });
 
       server.middlewares.use("/api/agent/v1/access-records", async (req, res) => {
+        if (req.method !== "GET") {
+          if (!(await ensureAgentAuthorized(req, res, "write"))) return;
+          const snapshot = await loadAgentSnapshot();
+          const body = (await readBody(req)) as Partial<AccessRecord>;
+          const now = new Date().toISOString();
+          const saved: AccessRecord = {
+            id: body.id || `api-access-${Date.now()}`,
+            date: body.date || now.slice(0, 10),
+            unit: body.unit || "未填写单位",
+            visitorName: body.visitorName || "未填写人员",
+            enterTime: body.enterTime || now.slice(11, 16),
+            leaveTime: body.leaveTime,
+            reason: body.reason || "AI/API 录入",
+            isServerRepair: Boolean(body.isServerRepair),
+            deviceId: body.deviceId,
+            deviceName: body.deviceName,
+            faultDescription: body.faultDescription,
+            result: body.result,
+            attachments: body.attachments ?? [],
+            createdAt: body.createdAt || now,
+            updatedAt: now,
+          };
+          snapshot.data.accessRecords = [
+            saved,
+            ...(snapshot.data.accessRecords ?? []).filter((item) => item.id !== saved.id),
+          ];
+          snapshot.generatedAt = now;
+          await saveAgentSnapshot(snapshot);
+          sendJson(res, { message: "进出记录已写入", data: saved });
+          return;
+        }
         if (!(await ensureAgentAuthorized(req, res))) return;
         const snapshot = await loadAgentSnapshot();
         sendJson(res, { data: filterAgentAccessRecords(snapshot.data, getQuery(req)) });
       });
 
       server.middlewares.use("/api/agent/v1/change-events", async (req, res) => {
+        if (req.method !== "GET") {
+          if (!(await ensureAgentAuthorized(req, res, "write"))) return;
+          const snapshot = await loadAgentSnapshot();
+          const body = (await readBody(req)) as Partial<ChangeEvent>;
+          const now = new Date().toISOString();
+          const saved: ChangeEvent = {
+            id: body.id || `api-change-${Date.now()}`,
+            title: body.title || "AI/API 变更记录",
+            type: body.type || "other",
+            status: body.status || "completed",
+            roomId: body.roomId,
+            roomName: body.roomName,
+            rackId: body.rackId,
+            rackName: body.rackName,
+            deviceId: body.deviceId,
+            deviceName: body.deviceName,
+            businessIp: body.businessIp,
+            operator: body.operator || "api-agent",
+            changedAt: body.changedAt || now,
+            content: body.content || "未填写变更内容",
+            impact: body.impact,
+            result: body.result,
+            relatedConnectionId: body.relatedConnectionId,
+            attachments: body.attachments ?? [],
+            createdAt: body.createdAt || now,
+            updatedAt: now,
+          };
+          snapshot.data.changeEvents = [
+            saved,
+            ...(snapshot.data.changeEvents ?? []).filter((item) => item.id !== saved.id),
+          ];
+          snapshot.generatedAt = now;
+          await saveAgentSnapshot(snapshot);
+          sendJson(res, { message: "变更记录已写入", data: saved });
+          return;
+        }
         if (!(await ensureAgentAuthorized(req, res))) return;
         const snapshot = await loadAgentSnapshot();
         sendJson(res, { data: filterAgentChangeEvents(snapshot.data, getQuery(req)) });
@@ -327,6 +535,43 @@ function aiProxyPlugin() {
       });
 
       server.middlewares.use("/api/agent/v1/gateway", async (req, res) => {
+        if (req.method === "GET") {
+          const requestUrl = new URL(req.url ?? "/", "http://localhost");
+          const segments = requestUrl.pathname.split("/").filter(Boolean);
+          const provider = segments[0] ?? "wechat";
+          if (segments[1] === "pair") {
+            const configId = requestUrl.searchParams.get("configId") ?? "";
+            const record = {
+              id: `gateway-pair-${Date.now()}`,
+              provider,
+              configId,
+              externalUserId: `scan-${Date.now()}`,
+              displayName: "扫码配对用户",
+              content: "扫码配对成功",
+              receivedAt: new Date().toISOString(),
+              status: "paired",
+            };
+            await appendGatewayInbox(record);
+            res.statusCode = 200;
+            res.setHeader("Content-Type", "text/html; charset=utf-8");
+            res.end(
+              [
+                "<!doctype html><html><head><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\" />",
+                "<title>泉峰AI消息网关配对</title>",
+                "<style>body{font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#ecfdf5;color:#0f172a;padding:32px;line-height:1.7}main{max-width:560px;margin:auto;background:white;border:1px solid #bbf7d0;border-radius:12px;padding:24px;box-shadow:0 18px 44px rgba(15,23,42,.12)}code{display:block;overflow:auto;background:#f8fafc;border-radius:8px;padding:10px}</style>",
+                "</head><body><main>",
+                "<h1>消息网关配对已接收</h1>",
+                `<p>平台已收到 ${provider} 的扫码配对请求。</p>`,
+                "<p>如果要让微信/企业微信/钉钉消息真正进入 AI Agent，还需要在服务器部署对应 gateway adapter，并把消息 POST 到平台回调地址。</p>",
+                `<code>${getRuntimePublicBaseUrl(req)}/api/agent/v1/gateway/${provider}</code>`,
+                "</main></body></html>",
+              ].join(""),
+            );
+            return;
+          }
+          sendJson(res, { message: "Agent 消息网关在线", provider });
+          return;
+        }
         if (req.method !== "POST") {
           res.statusCode = 405;
           res.end("Method Not Allowed");

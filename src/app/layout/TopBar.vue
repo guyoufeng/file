@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/authStore'
 
@@ -10,6 +10,7 @@ const emit = defineEmits<{
 const router = useRouter()
 const authStore = useAuthStore()
 const userMenuOpen = ref(false)
+const userMenuRef = ref<HTMLElement | null>(null)
 const currentTime = ref(formatTime(new Date()))
 const timer = window.setInterval(() => {
   currentTime.value = formatTime(new Date())
@@ -17,6 +18,11 @@ const timer = window.setInterval(() => {
 
 onBeforeUnmount(() => {
   window.clearInterval(timer)
+  document.removeEventListener('pointerdown', closeUserMenuWhenOutside, true)
+})
+
+onMounted(() => {
+  document.addEventListener('pointerdown', closeUserMenuWhenOutside, true)
 })
 
 function formatTime(date: Date): string {
@@ -36,6 +42,13 @@ async function logout() {
   userMenuOpen.value = false
   await router.replace('/login')
 }
+
+function closeUserMenuWhenOutside(event: PointerEvent) {
+  if (!userMenuOpen.value) return
+  const target = event.target as Node | null
+  if (!target || userMenuRef.value?.contains(target)) return
+  userMenuOpen.value = false
+}
 </script>
 
 <template>
@@ -49,7 +62,7 @@ async function logout() {
       <button type="button" class="ai-icon-button" aria-label="打开 AI助手" @click="emit('openAi')">
         <span>AI助手</span>
       </button>
-      <div class="user-menu">
+      <div ref="userMenuRef" class="user-menu">
         <button
           type="button"
           data-testid="current-user"

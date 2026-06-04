@@ -1,4 +1,5 @@
 import * as QRCode from "qrcode";
+import { createPersistentCollection } from "../persistence/unifiedPersistence";
 
 export type AgentGatewayProvider = "wechat" | "wecom" | "dingtalk";
 export type GatewayMessageDirection = "inbound" | "outbound";
@@ -54,30 +55,22 @@ export interface GatewayMessageInput {
 
 const CONFIG_STORAGE_KEY = "qf-ai-dcim.agentGatewayConfigs";
 const SESSION_STORAGE_KEY = "qf-ai-dcim.agentGatewaySessions";
-
-function storage() {
-  return typeof localStorage === "undefined" ? undefined : localStorage;
-}
+const gatewayConfigCollection = createPersistentCollection<AgentGatewayConfig>({
+  name: "agent.gatewayConfigs",
+  legacyKeys: [CONFIG_STORAGE_KEY],
+  exportable: false,
+  sensitive: true,
+});
+const gatewaySessionCollection = createPersistentCollection<GatewaySession>({
+  name: "agent.gatewaySessions",
+  legacyKeys: [SESSION_STORAGE_KEY],
+});
 
 function createId(prefix: string) {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return `${prefix}-${crypto.randomUUID()}`;
   }
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-}
-
-function readJson<T>(key: string, fallback: T): T {
-  const raw = storage()?.getItem(key);
-  if (!raw) return fallback;
-  try {
-    return JSON.parse(raw) as T;
-  } catch {
-    return fallback;
-  }
-}
-
-function writeJson(key: string, value: unknown) {
-  storage()?.setItem(key, JSON.stringify(value));
 }
 
 export function buildGatewayQrMatrix(value: string, size = 21): { cells: boolean[]; size: number } {
@@ -127,7 +120,7 @@ export function buildGatewayQrCells(value: string, size = 21): boolean[] {
 }
 
 export function getGatewayConfigs(): AgentGatewayConfig[] {
-  return readJson<AgentGatewayConfig[]>(CONFIG_STORAGE_KEY, []).sort((first, second) =>
+  return gatewayConfigCollection.read().sort((first, second) =>
     second.updatedAt.localeCompare(first.updatedAt),
   );
 }
@@ -144,13 +137,12 @@ export function saveGatewayConfig(input: AgentGatewayConfigInput): AgentGatewayC
     updatedAt: now,
   };
   const records = getGatewayConfigs().filter((config) => config.id !== next.id);
-  writeJson(CONFIG_STORAGE_KEY, [next, ...records]);
+  gatewayConfigCollection.write([next, ...records]);
   return next;
 }
 
 export function deleteGatewayConfig(id: string) {
-  writeJson(
-    CONFIG_STORAGE_KEY,
+  gatewayConfigCollection.write(
     getGatewayConfigs().filter((config) => config.id !== id),
   );
 }
@@ -184,7 +176,7 @@ export function createGatewayPairing(configId: string, publicBaseUrl = ""): Gate
 }
 
 export function getGatewaySessions(): GatewaySession[] {
-  return readJson<GatewaySession[]>(SESSION_STORAGE_KEY, []).sort((first, second) =>
+  return gatewaySessionCollection.read().sort((first, second) =>
     second.updatedAt.localeCompare(first.updatedAt),
   );
 }
@@ -209,8 +201,7 @@ export function recordGatewayMessage(input: GatewayMessageInput): GatewaySession
     messages: [...(existing?.messages ?? []), message],
     updatedAt: now,
   };
-  writeJson(
-    SESSION_STORAGE_KEY,
+  gatewaySessionCollection.write(
     [next, ...sessions.filter((session) => session.id !== sessionId)],
   );
   return next;

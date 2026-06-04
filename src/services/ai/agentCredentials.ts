@@ -1,3 +1,5 @@
+import { createPersistentCollection } from "../persistence/unifiedPersistence";
+
 export type AgentCredentialType = "zoho" | "prometheus" | "cmdb" | "zstack" | "webhook" | "other";
 
 export interface AgentCredential {
@@ -14,21 +16,19 @@ export interface AgentCredential {
 export type AgentCredentialInput = Omit<AgentCredential, "id" | "createdAt">;
 
 const STORAGE_KEY = "qf-ai-dcim.agent.credentials";
+const credentialCollection = createPersistentCollection<AgentCredential>({
+  name: "agent.credentials",
+  legacyKeys: [STORAGE_KEY],
+  exportable: false,
+  sensitive: true,
+});
 
 function readCredentials(): AgentCredential[] {
-  if (typeof localStorage === "undefined") return [];
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) return [];
-  try {
-    return JSON.parse(raw) as AgentCredential[];
-  } catch {
-    return [];
-  }
+  return credentialCollection.read();
 }
 
 function writeCredentials(credentials: AgentCredential[]) {
-  if (typeof localStorage === "undefined") return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(credentials));
+  credentialCollection.write(credentials);
 }
 
 export function getAgentCredentials(): AgentCredential[] {

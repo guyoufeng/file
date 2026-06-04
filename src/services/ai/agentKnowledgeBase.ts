@@ -1,3 +1,5 @@
+import { createPersistentCollection } from "../persistence/unifiedPersistence";
+
 export interface KnowledgeEntry {
   id: string;
   title: string;
@@ -15,21 +17,18 @@ export interface KnowledgeEntryInput {
 }
 
 const STORAGE_KEY = "qf-ai-dcim.agent.knowledgeBase";
+const knowledgeCollection = createPersistentCollection<KnowledgeEntry>({
+  name: "ai.knowledgeBase",
+  legacyKeys: [STORAGE_KEY],
+  maxRecords: 200,
+});
 
 function readKnowledge(): KnowledgeEntry[] {
-  if (typeof localStorage === "undefined") return [];
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) return [];
-  try {
-    return JSON.parse(raw) as KnowledgeEntry[];
-  } catch {
-    return [];
-  }
+  return knowledgeCollection.read();
 }
 
 function writeKnowledge(entries: KnowledgeEntry[]) {
-  if (typeof localStorage === "undefined") return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(entries));
+  knowledgeCollection.write(entries);
 }
 
 export function getKnowledgeEntries(): KnowledgeEntry[] {

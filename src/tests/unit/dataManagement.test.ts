@@ -9,6 +9,11 @@ import {
   validateProjectJson,
 } from "../../services/backend/data";
 import { getLocalAiAuditLogs } from "../../services/backend/ai";
+import { createAccessRecord } from "../../features/access-management/accessRecords";
+import { createChangeEvent, getChangeEvents } from "../../features/change-management/changeEvents";
+import { createConnectionRecord, getConnectionRecords } from "../../features/connection-manager/connections";
+import { addKnowledgeEntry, getKnowledgeEntries } from "../../services/ai/agentKnowledgeBase";
+import { createAgentApiKey } from "../../services/agent/apiKeys";
 
 function installLocalStorage() {
   const storage = new Map<string, string>();
@@ -77,6 +82,52 @@ describe('system data management', () => {
     expect(project.data.microModules?.length).toBeGreaterThan(0);
   });
 
+  it("includes non-sensitive operational collections in project export", () => {
+    createAccessRecord({
+      date: "2026-06-04",
+      unit: "维保厂家",
+      visitorName: "王工",
+      enterTime: "15:00",
+      reason: "检查服务器",
+      isServerRepair: true,
+      attachments: [],
+    });
+    createChangeEvent({
+      title: "QF-SRV-001 增加 L20 显卡",
+      type: "configuration",
+      status: "completed",
+      operator: "admin",
+      changedAt: "2026-06-04T15:00:00.000Z",
+      content: "增加 3 块 L20 显卡",
+      attachments: [],
+    });
+    createConnectionRecord({
+      sourceDeviceId: "dev-1",
+      sourceDeviceName: "QF-SRV-001",
+      sourcePortName: "eth0",
+      targetDeviceId: "sw-1",
+      targetDeviceName: "SW-529-CORE-A",
+      targetPortName: "GE1/0/1",
+      direction: "uplink",
+      status: "active",
+    });
+    addKnowledgeEntry({
+      title: "ECC 报警处理",
+      content: "先查看BMC日志，再安排内存条复插或更换。",
+      sourceType: "manual",
+    });
+    createAgentApiKey({ name: "外部只读Agent", scopes: ["read"] });
+
+    const project = buildProjectJson(sampleProject);
+
+    expect(project.data.accessRecords).toHaveLength(1);
+    expect(project.data.changeEvents?.[0].title).toContain("L20");
+    expect(project.data.connectionRecords?.[0].targetPortName).toBe("GE1/0/1");
+    expect(project.data.knowledgeEntries?.[0].title).toBe("ECC 报警处理");
+    expect(JSON.stringify(project)).not.toContain("tokenHash");
+    expect(project.data.persistentCollections?.["agent.apiKeys"]).toBeUndefined();
+  });
+
   it("removes sensitive AI fields from exported project json", () => {
     const project = sanitizeProjectJson({
       schemaVersion: "0.1.0",
@@ -122,6 +173,62 @@ describe('system data management', () => {
     expect(JSON.parse(localStorage.getItem("qf-ai-dcim.devices") ?? "[]")).toEqual([
       importedDevice,
     ]);
+  });
+
+  it("imports operational collections into unified browser persistence", async () => {
+    await importProjectJson({
+      schemaVersion: "0.1.0",
+      exportedAt: "2026-06-04T08:00:00.000Z",
+      data: {
+        rooms: sampleProject.rooms,
+        racks: sampleProject.racks,
+        devices: [],
+        alerts: [],
+        changeEvents: [
+          {
+            id: "change-imported",
+            title: "导入变更",
+            type: "maintenance",
+            status: "completed",
+            operator: "admin",
+            changedAt: "2026-06-04T08:00:00.000Z",
+            content: "导入测试",
+            attachments: [],
+            createdAt: "2026-06-04T08:00:00.000Z",
+            updatedAt: "2026-06-04T08:00:00.000Z",
+          },
+        ],
+        connectionRecords: [
+          {
+            id: "conn-imported",
+            sourceDeviceId: "dev-1",
+            sourceDeviceName: "QF-SRV-001",
+            sourcePortName: "eth0",
+            targetDeviceId: "sw-1",
+            targetDeviceName: "SW-529-CORE-A",
+            targetPortName: "GE1/0/1",
+            direction: "uplink",
+            status: "active",
+            createdAt: "2026-06-04T08:00:00.000Z",
+            updatedAt: "2026-06-04T08:00:00.000Z",
+          },
+        ],
+        knowledgeEntries: [
+          {
+            id: "knowledge-imported",
+            title: "巡检建议",
+            content: "检查温湿度、UPS、空调和告警。",
+            sourceType: "manual",
+            tags: [],
+            createdAt: "2026-06-04T08:00:00.000Z",
+          },
+        ],
+      },
+    });
+
+    expect(getChangeEvents()[0].id).toBe("change-imported");
+    expect(getConnectionRecords()[0].id).toBe("conn-imported");
+    expect(getKnowledgeEntries()[0].id).toBe("knowledge-imported");
   });
 
   it("preserves top-level micro modules as room layout data on browser import", async () => {

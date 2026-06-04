@@ -8,8 +8,18 @@ export interface AgentReadonlyTool {
   query?: Record<string, string>;
 }
 
+export interface AgentWriteTool {
+  name: string;
+  description: string;
+  method: "POST";
+  path: string;
+  url: string;
+  requiredScope: "write";
+  bodySchema: Record<string, string>;
+}
+
 type OpenApiPathItem = {
-  get: {
+  get?: {
     summary: string;
     description: string;
     parameters?: Array<{
@@ -19,6 +29,27 @@ type OpenApiPathItem = {
       schema: { type: "string" };
       description: string;
     }>;
+    responses: {
+      "200": {
+        description: string;
+      };
+    };
+  };
+  post?: {
+    summary: string;
+    description: string;
+    security: Array<{ writeAgentToken: [] }>;
+    requestBody: {
+      required: true;
+      content: {
+        "application/json": {
+          schema: {
+            type: "object";
+            properties: Record<string, { type: "string"; description: string }>;
+          };
+        };
+      };
+    };
     responses: {
       "200": {
         description: string;
@@ -42,6 +73,12 @@ export interface AgentOpenApiDocument {
         type: "http";
         scheme: "bearer";
         bearerFormat: "只读访问令牌";
+        description: string;
+      };
+      writeAgentToken?: {
+        type: "http";
+        scheme: "bearer";
+        bearerFormat: "写入访问令牌";
         description: string;
       };
     };
@@ -168,8 +205,104 @@ export function getAgentReadonlyTools(baseUrl: string): AgentReadonlyTool[] {
   ];
 }
 
-export function buildAgentOpenApiDocument(baseUrl: string): AgentOpenApiDocument {
+export function getAgentWriteTools(baseUrl: string): AgentWriteTool[] {
+  return [
+    {
+      name: "agent_create_or_update_device",
+      description: "通过结构化字段新增或更新设备资产。需要写入权限。",
+      method: "POST",
+      path: "/devices",
+      url: joinUrl(baseUrl, "/devices"),
+      requiredScope: "write",
+      bodySchema: {
+        id: "设备 ID，更新时填写；新增可留空。",
+        computerName: "计算机名。",
+        businessIp: "业务 IP。",
+        managementIp: "带外或管理 IP。",
+        rackId: "目标机柜 ID。",
+        startU: "起始 U 位。",
+        endU: "结束 U 位。",
+        owner: "责任人。",
+        purpose: "用途。",
+      },
+    },
+    {
+      name: "agent_create_access_record",
+      description: "录入数据中心进出、维修或现场处理记录。需要写入权限。",
+      method: "POST",
+      path: "/access-records",
+      url: joinUrl(baseUrl, "/access-records"),
+      requiredScope: "write",
+      bodySchema: {
+        date: "日期，YYYY-MM-DD。",
+        unit: "进入单位。",
+        visitorName: "进入人员。",
+        enterTime: "进入时间。",
+        leaveTime: "离开时间，可选。",
+        reason: "进入事由。",
+        deviceId: "关联设备 ID，可选。",
+        faultDescription: "故障说明，可选。",
+        result: "处理结果，可选。",
+      },
+    },
+    {
+      name: "agent_create_change_event",
+      description: "录入上架、下架、接线、维修、配置调整等变更记录。需要写入权限。",
+      method: "POST",
+      path: "/change-events",
+      url: joinUrl(baseUrl, "/change-events"),
+      requiredScope: "write",
+      bodySchema: {
+        title: "变更标题。",
+        type: "变更类型，如 rack_mount、cabling、maintenance、configuration。",
+        changedAt: "变更时间。",
+        deviceId: "关联设备 ID，可选。",
+        content: "变更内容。",
+        result: "处理结果，可选。",
+      },
+    },
+  ];
+}
+
+export function buildAgentOpenApiDocument(
+  baseUrl: string,
+  options?: { includeWriteTools?: boolean },
+): AgentOpenApiDocument {
   const tools = getAgentReadonlyTools(baseUrl);
+  const writeTools = options?.includeWriteTools ? getAgentWriteTools(baseUrl) : [];
+  const writePaths = Object.fromEntries(
+    writeTools.map((tool) => [
+      tool.path,
+      {
+        post: {
+          summary: tool.name,
+          description: tool.description,
+          security: [{ writeAgentToken: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              "application/json": {
+                schema: {
+                  type: "object" as const,
+                  properties: Object.fromEntries(
+                    Object.entries(tool.bodySchema).map(([name, description]) => [
+                      name,
+                      { type: "string", description },
+                    ]),
+                  ),
+                },
+              },
+            },
+          },
+          responses: {
+            "200": {
+              description: "写入成功，且会产生审计日志。",
+            },
+          },
+        },
+      },
+    ]),
+  );
   return {
     openapi: "3.1.0",
     info: {
@@ -188,10 +321,21 @@ export function buildAgentOpenApiDocument(baseUrl: string): AgentOpenApiDocument
           description:
             "外部 AI Agent 调用只读接口时使用 Authorization: Bearer <token>。第一版令牌只允许读取，不允许写入平台数据。",
         },
+        ...(options?.includeWriteTools
+          ? {
+              writeAgentToken: {
+                type: "http" as const,
+                scheme: "bearer" as const,
+                bearerFormat: "写入访问令牌" as const,
+                description:
+                  "外部 AI Agent 调用写入接口时使用 Authorization: Bearer <token>，令牌必须包含 write scope；所有写入都会记录审计。",
+              },
+            }
+          : {}),
       },
     },
-    paths: Object.fromEntries(
-      tools.map((tool) => [
+    paths: {
+      ...Object.fromEntries(tools.map((tool) => [
         tool.path,
         {
           get: {
@@ -211,7 +355,8 @@ export function buildAgentOpenApiDocument(baseUrl: string): AgentOpenApiDocument
             },
           },
         },
-      ]),
-    ),
+      ])),
+      ...writePaths,
+    },
   };
 }

@@ -1,3 +1,5 @@
+import { createPersistentCollection } from "../persistence/unifiedPersistence";
+
 export type AgentApiKeyScope = "read" | "write";
 
 export interface AgentApiKeyRecord {
@@ -29,10 +31,12 @@ export interface AgentApiKeyAuthorization {
 }
 
 const STORAGE_KEY = "qf-ai-dcim.agent.apiKeys";
-
-function storage() {
-  return typeof localStorage === "undefined" ? undefined : localStorage;
-}
+const apiKeyCollection = createPersistentCollection<AgentApiKeyRecord>({
+  name: "agent.apiKeys",
+  legacyKeys: [STORAGE_KEY],
+  exportable: false,
+  sensitive: true,
+});
 
 function now() {
   return new Date().toISOString();
@@ -74,18 +78,11 @@ function sanitizeScopes(scopes: AgentApiKeyScope[]) {
 }
 
 function readRecords(): AgentApiKeyRecord[] {
-  const raw = storage()?.getItem(STORAGE_KEY);
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw) as AgentApiKeyRecord[];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+  return apiKeyCollection.read();
 }
 
 function writeRecords(records: AgentApiKeyRecord[]) {
-  storage()?.setItem(STORAGE_KEY, JSON.stringify(records));
+  apiKeyCollection.write(records);
 }
 
 function publicRecord(record: AgentApiKeyRecord): Omit<AgentApiKeyRecord, "tokenHash"> {

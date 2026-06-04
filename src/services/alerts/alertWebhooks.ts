@@ -1,4 +1,5 @@
 import type { Alert, AlertLevel, Device } from "../../types/domain";
+import { createPersistentCollection } from "../persistence/unifiedPersistence";
 
 export interface AlertWebhook {
   id: string;
@@ -30,6 +31,12 @@ export interface IncomingAlertPayload {
 const WEBHOOK_KEY = "qf-ai-dcim.alertWebhooks";
 const ALERT_KEY = "qf-ai-dcim.alerts";
 const PUBLIC_BASE_URL_KEY = "qf-ai-dcim.alertWebhookPublicBaseUrl";
+const webhookCollection = createPersistentCollection<AlertWebhook>({
+  name: "alerts.webhooks",
+  legacyKeys: [WEBHOOK_KEY],
+  exportable: false,
+  sensitive: true,
+});
 
 function storage() {
   return typeof localStorage === "undefined" ? undefined : localStorage;
@@ -85,7 +92,7 @@ export function setAlertWebhookPublicBaseUrl(baseUrl: string): string {
     ...webhook,
     url: webhookUrl(webhook.token, normalized),
   }));
-  writeJson(WEBHOOK_KEY, webhooks);
+  webhookCollection.write(webhooks);
   return normalized;
 }
 
@@ -95,7 +102,7 @@ export function refreshAlertWebhookUrls(baseUrl = getAlertWebhookPublicBaseUrl()
     ...webhook,
     url: webhookUrl(webhook.token, normalized),
   }));
-  writeJson(WEBHOOK_KEY, webhooks);
+  webhookCollection.write(webhooks);
   return webhooks;
 }
 
@@ -111,7 +118,7 @@ function normalizeLevel(severity?: string): AlertLevel {
 }
 
 export function getAlertWebhooks(): AlertWebhook[] {
-  return readJson<AlertWebhook[]>(WEBHOOK_KEY, []);
+  return webhookCollection.read();
 }
 
 export function createAlertWebhook(input: AlertWebhookInput): AlertWebhook {
@@ -127,13 +134,12 @@ export function createAlertWebhook(input: AlertWebhookInput): AlertWebhook {
     createdAt: now,
     updatedAt: now,
   };
-  writeJson(WEBHOOK_KEY, [webhook, ...getAlertWebhooks()]);
+  webhookCollection.write([webhook, ...getAlertWebhooks()]);
   return webhook;
 }
 
 export function deleteAlertWebhook(id: string) {
-  writeJson(
-    WEBHOOK_KEY,
+  webhookCollection.write(
     getAlertWebhooks().filter((item) => item.id !== id),
   );
 }

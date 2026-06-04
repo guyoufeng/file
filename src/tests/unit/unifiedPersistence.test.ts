@@ -1,7 +1,11 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   createPersistentCollection,
+  exportPersistentCollections,
   getPersistenceBackendInfo,
+  listPersistentCollections,
+  readPersistentCollection,
+  writePersistentCollection,
 } from "../../services/persistence/unifiedPersistence";
 
 function installLocalStorage() {
@@ -50,5 +54,22 @@ describe("unified persistence", () => {
       sqliteReady: false,
       tauriReady: false,
     });
+    expect(getPersistenceBackendInfo().collections.length).toBeGreaterThan(0);
+  });
+
+  it("exports only non-sensitive registered platform collections by default", () => {
+    writePersistentCollection("connections.records", [{ id: "conn-1" }]);
+    writePersistentCollection("agent.apiKeys", [{ id: "key-1", tokenHash: "secret" }]);
+    writePersistentCollection("agent.credentials", [{ id: "cred-1", secret: "password" }]);
+
+    const exported = exportPersistentCollections();
+
+    expect(exported["connections.records"]).toEqual([{ id: "conn-1" }]);
+    expect(exported["agent.apiKeys"]).toBeUndefined();
+    expect(exported["agent.credentials"]).toBeUndefined();
+    expect(readPersistentCollection("agent.apiKeys")).toEqual([
+      { id: "key-1", tokenHash: "secret" },
+    ]);
+    expect(listPersistentCollections().some((item) => item.sensitive)).toBe(true);
   });
 });

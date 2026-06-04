@@ -1,21 +1,19 @@
 import type { AiSkillDefinition } from "./agentProfile";
+import { createPersistentCollection } from "../persistence/unifiedPersistence";
 
 const STORAGE_KEY = "qf-ai-dcim.agent.customSkills";
+const skillCollection = createPersistentCollection<AiSkillDefinition>({
+  name: "ai.customSkills",
+  legacyKeys: [STORAGE_KEY],
+  maxRecords: 30,
+});
 
 function readCustomSkills(): AiSkillDefinition[] {
-  if (typeof localStorage === "undefined") return [];
-  const raw = localStorage.getItem(STORAGE_KEY);
-  if (!raw) return [];
-  try {
-    return JSON.parse(raw) as AiSkillDefinition[];
-  } catch {
-    return [];
-  }
+  return skillCollection.read();
 }
 
 function writeCustomSkills(skills: AiSkillDefinition[]) {
-  if (typeof localStorage === "undefined") return;
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(skills));
+  skillCollection.write(skills);
 }
 
 export function getCustomAgentSkills(): AiSkillDefinition[] {

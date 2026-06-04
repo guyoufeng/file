@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   buildAgentOpenApiDocument,
   getAgentReadonlyTools,
+  getAgentWriteTools,
 } from "../../services/agent/apiManifest";
 
 describe("agent api manifest", () => {
@@ -46,5 +47,20 @@ describe("agent api manifest", () => {
       scheme: "bearer",
     });
     expect(doc.security).toEqual([{ readonlyAgentToken: [] }]);
+  });
+
+  it("exposes write tools only when the OpenAPI document is explicitly built for write agents", () => {
+    const baseUrl = "http://127.0.0.1:5200/api/agent/v1";
+    const tools = getAgentWriteTools(baseUrl);
+    const doc = buildAgentOpenApiDocument(baseUrl, { includeWriteTools: true });
+
+    expect(tools.map((tool) => tool.name)).toEqual([
+      "agent_create_or_update_device",
+      "agent_create_access_record",
+      "agent_create_change_event",
+    ]);
+    expect(doc.paths["/devices"].post?.security).toEqual([{ writeAgentToken: [] }]);
+    expect(doc.paths["/change-events"].post?.description).toContain("需要写入权限");
+    expect(doc.components.securitySchemes.writeAgentToken?.bearerFormat).toBe("写入访问令牌");
   });
 });

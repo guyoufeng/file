@@ -1,8 +1,26 @@
 import { defaultDeviceCategories } from "../../constants/categories";
 import type { AccessRecord } from "../../features/access-management/accessRecords";
-import type { AiModelConfig, Alert, DataCenter, Device, MicroModule, Rack, Room } from "../../types/domain";
+import { getAccessRecords } from "../../features/access-management/accessRecords";
+import type { ChangeEvent } from "../../features/change-management/changeEvents";
+import { getChangeEvents } from "../../features/change-management/changeEvents";
+import type { ManagedConnection, SavedConnectionView } from "../../features/connection-manager/connections";
+import { getConnectionRecords, getSavedConnectionViews } from "../../features/connection-manager/connections";
+import type { VirtualServer } from "../../features/virtual-server-management/virtualServers";
+import { loadVirtualServers, saveVirtualServers } from "../../features/virtual-server-management/virtualServers";
+import type { AiModelConfig, Alert, AuditLog, DataCenter, Device, MicroModule, Rack, Room } from "../../types/domain";
+import { getCustomAgentSkills } from "../ai/agentCustomSkills";
+import { getGatewaySessions } from "../ai/agentMessageGateway";
+import type { KnowledgeEntry } from "../ai/agentKnowledgeBase";
+import { getKnowledgeEntries } from "../ai/agentKnowledgeBase";
+import type { AgentRunRecord } from "../ai/agentRunStore";
+import { getAgentRunRecords } from "../ai/agentRunStore";
 import { writeSystemAuditLog } from "./ai";
 import { invokeCommand } from "./invoke";
+import {
+  exportPersistentCollections,
+  importPersistentCollections,
+  writePersistentCollection,
+} from "../persistence/unifiedPersistence";
 
 export interface SampleProject {
   schemaVersion: "0.1.0";
@@ -13,7 +31,17 @@ export interface SampleProject {
   devices: Device[];
   alerts: Alert[];
   accessRecords?: AccessRecord[];
+  changeEvents?: ChangeEvent[];
+  virtualServers?: VirtualServer[];
+  connectionRecords?: ManagedConnection[];
+  connectionViews?: SavedConnectionView[];
+  agentRunRecords?: AgentRunRecord[];
+  knowledgeEntries?: KnowledgeEntry[];
+  customAgentSkills?: ReturnType<typeof getCustomAgentSkills>;
+  gatewaySessions?: ReturnType<typeof getGatewaySessions>;
   aiModelConfigs?: AiModelConfig[];
+  auditLogs?: AuditLog[];
+  persistentCollections?: Record<string, unknown[]>;
 }
 
 export interface ProjectJson {
@@ -368,6 +396,15 @@ export function sanitizeProjectJson(project: ProjectJson): ProjectJson {
 }
 
 export function buildProjectJson(data: SampleProject): ProjectJson {
+  const accessRecords = getAccessRecords();
+  const changeEvents = getChangeEvents();
+  const connectionRecords = getConnectionRecords();
+  const connectionViews = getSavedConnectionViews();
+  const virtualServers = loadVirtualServers();
+  const agentRunRecords = getAgentRunRecords();
+  const knowledgeEntries = getKnowledgeEntries();
+  const customAgentSkills = getCustomAgentSkills();
+  const gatewaySessions = getGatewaySessions();
   const project: ProjectJson = {
     schemaVersion: "0.1.0",
     exportedAt: new Date().toISOString(),
@@ -381,10 +418,16 @@ export function buildProjectJson(data: SampleProject): ProjectJson {
       racks: readLocalJson<Rack[]>("qf-ai-dcim.racks", data.racks),
       devices: readLocalJson<Device[]>("qf-ai-dcim.devices", data.devices),
       alerts: readLocalJson<Alert[]>("qf-ai-dcim.alerts", data.alerts),
-      accessRecords: readLocalJson<AccessRecord[]>(
-        "qf-ai-dcim.accessRecords",
-        data.accessRecords ?? [],
-      ),
+      accessRecords,
+      changeEvents,
+      connectionRecords,
+      connectionViews,
+      virtualServers,
+      agentRunRecords,
+      knowledgeEntries,
+      customAgentSkills,
+      gatewaySessions,
+      persistentCollections: exportPersistentCollections(),
       aiModelConfigs: readLocalJson<AiModelConfig[]>(
         "qf-ai-dcim.aiModelConfigs",
         data.aiModelConfigs ?? [],
@@ -428,6 +471,20 @@ export function validateProjectJson(value: unknown): ProjectValidationResult {
   return { valid: true, message: "项目 JSON 校验通过" };
 }
 
+function persistOperationalProjectData(project: ProjectJson) {
+  importPersistentCollections(project.data.persistentCollections ?? {});
+  writePersistentCollection("operations.accessRecords", project.data.accessRecords ?? []);
+  writePersistentCollection("operations.changeEvents", project.data.changeEvents ?? []);
+  writePersistentCollection("operations.virtualServers", project.data.virtualServers ?? []);
+  writePersistentCollection("connections.records", project.data.connectionRecords ?? []);
+  writePersistentCollection("connections.views", project.data.connectionViews ?? []);
+  writePersistentCollection("agent.runRecords", project.data.agentRunRecords ?? []);
+  writePersistentCollection("ai.knowledgeBase", project.data.knowledgeEntries ?? []);
+  writePersistentCollection("ai.customSkills", project.data.customAgentSkills ?? []);
+  writePersistentCollection("agent.gatewaySessions", project.data.gatewaySessions ?? []);
+  saveVirtualServers(project.data.virtualServers ?? []);
+}
+
 export async function exportProjectJson(): Promise<ProjectJson> {
   try {
     return sanitizeProjectJson(await invokeCommand<ProjectJson>("export_project_json"));
@@ -459,6 +516,7 @@ export async function importProjectJson(project: ProjectJson): Promise<void> {
     writeLocalJson("qf-ai-dcim.accessRecords", project.data.accessRecords ?? []);
     writeLocalJson("qf-ai-dcim.aiModelConfigs", project.data.aiModelConfigs ?? []);
   }
+  persistOperationalProjectData(project);
 
   const summary = getProjectSummary(project);
   writeSystemAuditLog({
@@ -481,6 +539,15 @@ export async function restoreSampleProject(): Promise<void> {
     writeLocalJson("qf-ai-dcim.alerts", sampleProject.alerts);
     writeLocalJson("qf-ai-dcim.accessRecords", []);
     writeLocalJson("qf-ai-dcim.aiModelConfigs", []);
+    writePersistentCollection("operations.accessRecords", []);
+    writePersistentCollection("operations.changeEvents", []);
+    writePersistentCollection("operations.virtualServers", []);
+    writePersistentCollection("connections.records", []);
+    writePersistentCollection("connections.views", []);
+    writePersistentCollection("agent.runRecords", []);
+    writePersistentCollection("ai.knowledgeBase", []);
+    writePersistentCollection("ai.customSkills", []);
+    writePersistentCollection("agent.gatewaySessions", []);
   }
 
   writeSystemAuditLog({

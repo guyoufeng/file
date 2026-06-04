@@ -1,4 +1,5 @@
 import type { Device } from "../../types/domain";
+import { createPersistentCollection } from "../../services/persistence/unifiedPersistence";
 
 export type ConnectionDirection =
   | "front_to_rear"
@@ -69,39 +70,33 @@ export interface ConnectionNodeSummary {
 const STORAGE_KEY = "qf-ai-dcim.connectionRecords";
 const DEMO_SEEDED_KEY = "qf-ai-dcim.connectionRecords.demoSeeded";
 const VIEW_STORAGE_KEY = "qf-ai-dcim.connectionViews";
+const connectionCollection = createPersistentCollection<ManagedConnection>({
+  name: "connections.records",
+  legacyKeys: [STORAGE_KEY],
+});
+const viewCollection = createPersistentCollection<SavedConnectionView>({
+  name: "connections.views",
+  legacyKeys: [VIEW_STORAGE_KEY],
+});
 
 function storage() {
   return typeof localStorage === "undefined" ? undefined : localStorage;
 }
 
 function readRecords(): ManagedConnection[] {
-  const raw = storage()?.getItem(STORAGE_KEY);
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw) as ManagedConnection[];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+  return connectionCollection.read();
 }
 
 function writeRecords(records: ManagedConnection[]) {
-  storage()?.setItem(STORAGE_KEY, JSON.stringify(records));
+  connectionCollection.write(records);
 }
 
 function readViews(): SavedConnectionView[] {
-  const raw = storage()?.getItem(VIEW_STORAGE_KEY);
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw) as SavedConnectionView[];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+  return viewCollection.read();
 }
 
 function writeViews(views: SavedConnectionView[]) {
-  storage()?.setItem(VIEW_STORAGE_KEY, JSON.stringify(views));
+  viewCollection.write(views);
 }
 
 function createId() {

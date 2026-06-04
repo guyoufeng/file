@@ -5,8 +5,9 @@ use crate::{
     commands::AppState,
     export::project_json::PROJECT_SCHEMA_VERSION,
     models::{
-        AiModelConfig, Alert, AuditLog, DataCenter, Device, DeviceInput, MicroModule, ProjectJson,
-        Rack, Room,
+        AccessRecord, AgentRunRecord, AiModelConfig, Alert, AuditLog, ChangeEvent,
+        ConnectionView, CustomAgentSkill, DataCenter, Device, DeviceInput, GatewaySession,
+        KnowledgeEntry, ManagedConnection, MicroModule, ProjectJson, Rack, Room, VirtualServer,
     },
 };
 
@@ -220,6 +221,69 @@ pub async fn export_project_json(state: State<'_, AppState>) -> Result<ProjectJs
     .await
     .map_err(|error| error.to_string())?;
 
+    let access_records = sqlx::query_as::<_, AccessRecord>(
+        "SELECT id, date, unit, visitor_name, enter_time, leave_time, reason, is_server_repair, device_id, device_name, fault_description, result, attachments_json, created_at, updated_at FROM access_records ORDER BY date DESC, enter_time DESC",
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|error| error.to_string())?;
+
+    let change_events = sqlx::query_as::<_, ChangeEvent>(
+        "SELECT id, title, type, status, room_id, room_name, rack_id, rack_name, device_id, device_name, business_ip, operator, changed_at, content, impact, result, related_connection_id, attachments_json, created_at, updated_at FROM change_events ORDER BY changed_at DESC",
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|error| error.to_string())?;
+
+    let virtual_servers = sqlx::query_as::<_, VirtualServer>(
+        "SELECT id, name, platform, business_ip, os, purpose, owner, host_device_id, host_device_name, status FROM virtual_servers ORDER BY name",
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|error| error.to_string())?;
+
+    let connection_records = sqlx::query_as::<_, ManagedConnection>(
+        "SELECT id, source_device_id, source_device_name, source_port_name, target_device_id, target_device_name, target_port_name, cable_no, cable_type, direction, status, notes, created_at, updated_at FROM managed_connections ORDER BY updated_at DESC",
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|error| error.to_string())?;
+
+    let connection_views = sqlx::query_as::<_, ConnectionView>(
+        "SELECT id, name, selected_device_ids_json, keyword, zoom, node_positions_json, created_at, updated_at FROM connection_views ORDER BY updated_at DESC",
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|error| error.to_string())?;
+
+    let agent_run_records = sqlx::query_as::<_, AgentRunRecord>(
+        "SELECT id, session_id, question, answer, tool_name, data_source, used_model, fallback_reason, status, duration_ms, events_json, target_json, attachments_json, started_at, ended_at FROM agent_run_records ORDER BY started_at DESC",
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|error| error.to_string())?;
+
+    let knowledge_entries = sqlx::query_as::<_, KnowledgeEntry>(
+        "SELECT id, title, content, source_type, tags_json, created_at FROM knowledge_entries ORDER BY created_at DESC",
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|error| error.to_string())?;
+
+    let custom_agent_skills = sqlx::query_as::<_, CustomAgentSkill>(
+        "SELECT name, description, rules_json, updated_at FROM custom_agent_skills ORDER BY name",
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|error| error.to_string())?;
+
+    let gateway_sessions = sqlx::query_as::<_, GatewaySession>(
+        "SELECT id, provider, external_user_id, display_name, skill_scope, messages_json, updated_at FROM gateway_sessions ORDER BY updated_at DESC",
+    )
+    .fetch_all(&state.pool)
+    .await
+    .map_err(|error| error.to_string())?;
+
     Ok(ProjectJson {
         schema_version: PROJECT_SCHEMA_VERSION.to_string(),
         exported_at: chrono::Utc::now().to_rfc3339(),
@@ -231,7 +295,16 @@ pub async fn export_project_json(state: State<'_, AppState>) -> Result<ProjectJs
             "devices": devices,
             "alerts": alerts,
             "aiModelConfigs": ai_model_configs,
-            "auditLogs": audit_logs
+            "auditLogs": audit_logs,
+            "accessRecords": access_records,
+            "changeEvents": change_events,
+            "virtualServers": virtual_servers,
+            "connectionRecords": connection_records,
+            "connectionViews": connection_views,
+            "agentRunRecords": agent_run_records,
+            "knowledgeEntries": knowledge_entries,
+            "customAgentSkills": custom_agent_skills,
+            "gatewaySessions": gateway_sessions
         }),
     })
 }

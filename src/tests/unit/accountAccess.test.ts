@@ -40,7 +40,9 @@ describe("account access control", () => {
       role: "viewer",
     });
     expect(canModifyModule(accounts[0], "settings")).toBe(true);
+    expect(canAccessModule(accounts[0], "agent-traces")).toBe(true);
     expect(canModifyModule(accounts.find((account) => account.username === "readonly")!, "assets")).toBe(false);
+    expect(canAccessModule(accounts.find((account) => account.username === "readonly")!, "agent-traces")).toBe(true);
   });
 
   it("authenticates active accounts and stores a session", () => {

@@ -7,6 +7,7 @@ export type AppModuleKey =
   | "access-records"
   | "change-management"
   | "connections"
+  | "agent-traces"
   | "alerts"
   | "reports"
   | "settings";
@@ -53,6 +54,7 @@ export const appModules: Array<{ key: AppModuleKey; label: string; path: string 
   { key: "access-records", label: "进出管理", path: "/access-records" },
   { key: "change-management", label: "变更管理", path: "/changes" },
   { key: "connections", label: "连线管理", path: "/connections" },
+  { key: "agent-traces", label: "Agent轨迹", path: "/agent-traces" },
   { key: "alerts", label: "告警中心", path: "/alerts" },
   { key: "reports", label: "报表中心", path: "/reports" },
   { key: "settings", label: "系统设置", path: "/settings" },
@@ -83,6 +85,7 @@ export function defaultAccountPermissions(role: AccountRole): AccountPermissions
     "access-records": level,
     "change-management": level,
     connections: level,
+    "agent-traces": level,
     alerts: level,
     reports: level,
     settings: role === "admin" ? "write" : "none",

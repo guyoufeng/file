@@ -51,6 +51,12 @@ export const routes = [
     meta: { module: 'connections' },
   },
   {
+    path: '/agent-traces',
+    name: 'Agent轨迹',
+    component: () => import('../features/agent-traces/AgentTracePage.vue'),
+    meta: { module: 'agent-traces' },
+  },
+  {
     path: '/alerts',
     name: '告警中心',
     component: () => import('../features/alert-center/AlertCenterPage.vue'),

@@ -97,6 +97,10 @@ test("starts the app and navigates through v0.1 core pages", async ({
   await expect(page.getByRole("cell", { name: "MES-VM-DB-01" })).toBeVisible();
   await expect(page.getByText("已录入虚拟服务器：MES-VM-DB-01")).toBeVisible();
 
+  await page.getByRole("link", { name: "Agent轨迹" }).click();
+  await expect(page.getByRole("heading", { name: "AI Agent 执行轨迹" })).toBeVisible();
+  await expect(page.getByText("集中查看 AI 助手每次问答")).toBeVisible();
+
   await page.getByRole("link", { name: "报表中心" }).click();
   await expect(page.getByRole("heading", { name: "报表中心" })).toBeVisible();
 

@@ -34,6 +34,10 @@ import { getAccessRecords } from "../../access-management/accessRecords";
 import { getChangeEvents } from "../../change-management/changeEvents";
 import { getConnectionRecords } from "../../connection-manager/connections";
 import { executeAgentWriteCommand } from "../../../services/ai/agentWriteTools";
+import {
+  buildAgentClarification,
+  type AgentClarification,
+} from "../../../services/ai/agentClarify";
 
 const props = defineProps<{
   rooms: Room[];
@@ -57,6 +61,7 @@ interface ChatAnswer {
   events: TimedAiAgentEvent[];
   target?: AiNavigationTarget;
   attachments?: ChatAttachment[];
+  clarification?: AgentClarification;
 }
 
 type ChatAttachment = AgentAttachmentSummary;
@@ -190,6 +195,48 @@ async function processQuestion(currentQuestion: string, currentAttachments: Chat
     }
 
     const agentContext = await loadContextForAgent();
+    const clarification = buildAgentClarification(currentQuestion);
+    if (clarification) {
+      const endedAt = new Date();
+      const runRecord = saveAgentRunRecord({
+        sessionId: activeSessionId.value,
+        question: currentQuestion,
+        answer: clarification.prompt,
+        toolName: "general_chat",
+        dataSource: "Agent Clarify",
+        startedAt: startedAt.toISOString(),
+        endedAt: endedAt.toISOString(),
+        events: buildAiAgentEvents({
+          question: currentQuestion,
+          toolName: "general_chat",
+          answer: clarification.prompt,
+          dataSource: "Agent Clarify",
+        }),
+        attachments: compactAttachmentsForStorage(currentAttachments),
+      });
+      answers.value.push({
+        id: `${Date.now()}-${answers.value.length}`,
+        question: currentQuestion,
+        content: clarification.prompt,
+        toolName: "general_chat",
+        dataSource: "Agent Clarify",
+        events: runRecord.events,
+        attachments: compactAttachmentsForStorage(currentAttachments),
+        clarification,
+      });
+      updateActiveSession(currentQuestion);
+      question.value = "";
+      pendingAttachments.value = [];
+      await scrollToLatestMessage();
+      writeAiAuditLog({
+        question: currentQuestion,
+        tools: ["general_chat"],
+        answerSummary: clarification.prompt,
+        status: "success",
+      });
+      return;
+    }
+
     const writeAnswer = await executeAgentWriteCommand({
       question: currentQuestion,
       session: authStore.session,
@@ -507,6 +554,11 @@ function compactAttachmentsForStorage(attachments: ChatAttachment[]): ChatAttach
     extractedText: attachment.extractedText?.slice(0, 1600),
   }));
 }
+
+async function chooseClarification(value: string) {
+  question.value = value;
+  await ask();
+}
 </script>
 
 <template>
@@ -564,6 +616,16 @@ function compactAttachmentsForStorage(attachments: ChatAttachment[]): ChatAttach
           </ol>
         </details>
         <AiAnswerCard :answer="answer.content" />
+        <div v-if="answer.clarification" class="clarify-options">
+          <button
+            v-for="option in answer.clarification.options"
+            :key="option.id"
+            type="button"
+            @click="chooseClarification(option.value)"
+          >
+            {{ option.label }}
+          </button>
+        </div>
         <button
           v-if="answer.target"
           type="button"
@@ -935,6 +997,23 @@ button:disabled {
     linear-gradient(135deg, rgba(14, 165, 233, 0.24), rgba(37, 99, 235, 0.16)),
     rgba(8, 17, 31, 0.9);
   box-shadow: 0 10px 24px rgba(14, 165, 233, 0.12);
+  cursor: pointer;
+}
+
+.clarify-options {
+  justify-self: start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.clarify-options button {
+  min-height: 30px;
+  padding: 0 11px;
+  border: 1px solid rgba(14, 165, 233, 0.42);
+  border-radius: 8px;
+  color: var(--color-text);
+  background: rgba(14, 165, 233, 0.14);
   cursor: pointer;
 }
 </style>

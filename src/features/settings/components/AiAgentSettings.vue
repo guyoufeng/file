@@ -527,8 +527,12 @@ async function createApiKey() {
             <p class="eyebrow">Message Gateway</p>
             <h3>消息网关</h3>
           </div>
-          <span>对接微信、企业微信、钉钉。平台提供回调、配对和独立会话；个人微信真实消息收发需部署 Hermes/iLink gateway adapter。</span>
+          <span>对接微信、企业微信、钉钉。平台提供回调、配对和独立会话；个人微信真实扫码登录必须由 Hermes/iLink 等网关适配器完成。</span>
         </header>
+        <div class="gateway-note">
+          <strong>接入边界</strong>
+          <span>这里生成的是平台配对二维码和回调地址。微信个人号、企业微信、钉钉的真实收发需要后端 Gateway Adapter 在线并完成官方/适配器登录，平台收到回调后会按外部用户创建独立会话，共用当前 Agent Skill。</span>
+        </div>
         <div class="gateway-layout">
           <div class="gateway-form">
             <select v-model="gatewayForm.provider" aria-label="消息网关类型">
@@ -1144,6 +1148,21 @@ article.disabled {
   display: grid;
   grid-template-columns: minmax(0, 1fr) 220px;
   gap: 12px;
+}
+
+.gateway-note {
+  display: grid;
+  gap: 5px;
+  padding: 10px 12px;
+  border: 1px solid rgba(14, 165, 233, 0.28);
+  border-radius: 8px;
+  color: var(--color-text-muted);
+  background: color-mix(in srgb, var(--color-primary) 7%, var(--color-panel));
+  font-size: 12px;
+}
+
+.gateway-note strong {
+  color: var(--color-text);
 }
 
 .gateway-form {

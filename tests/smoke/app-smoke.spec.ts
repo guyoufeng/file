@@ -11,7 +11,7 @@ test("starts the app and navigates through v0.1 core pages", async ({
   await expect(page.getByRole("heading", { name: "机柜总览" })).toBeVisible();
   await expect(page.getByRole("button", { name: "529数据中心" })).toBeVisible();
   await expect(page.getByText("208")).toBeVisible();
-  await expect(page.getByRole("button", { name: "系统展示" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "系统展示" })).toHaveCount(0);
   await expect(page.getByTestId("current-user")).toHaveText("admin");
   await expect(page.getByTestId("app-clock")).toBeVisible();
   await expect(page.getByRole("button", { name: "打开 AI助手" })).toBeVisible();

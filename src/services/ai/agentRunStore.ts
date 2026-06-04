@@ -1,9 +1,15 @@
 import type { AiNavigationTarget } from "../../types/aiNavigation";
+import { createPersistentCollection } from "../persistence/unifiedPersistence";
 import type { AiToolName } from "./aiTools";
 import type { AiAgentEvent } from "./agentEvents";
 
 const STORAGE_KEY = "qf-ai-dcim.agent.runRecords";
 const MAX_RECORDS = 500;
+const runCollection = createPersistentCollection<AgentRunRecord>({
+  name: "agent.runRecords",
+  legacyKeys: [STORAGE_KEY],
+  maxRecords: MAX_RECORDS,
+});
 
 export interface TimedAiAgentEvent extends AiAgentEvent {
   elapsedMs: number;
@@ -36,16 +42,6 @@ export interface AgentRunRecord extends Omit<AgentRunRecordInput, "events"> {
   events: TimedAiAgentEvent[];
 }
 
-interface StorageLike {
-  getItem(key: string): string | null;
-  setItem(key: string, value: string): void;
-  removeItem(key: string): void;
-}
-
-function storage(): StorageLike | undefined {
-  return typeof localStorage === "undefined" ? undefined : localStorage;
-}
-
 function createId(prefix: string) {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
     return `${prefix}-${crypto.randomUUID()}`;
@@ -54,18 +50,11 @@ function createId(prefix: string) {
 }
 
 function readRecords(): AgentRunRecord[] {
-  const raw = storage()?.getItem(STORAGE_KEY);
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw) as AgentRunRecord[];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+  return runCollection.read();
 }
 
 function writeRecords(records: AgentRunRecord[]) {
-  storage()?.setItem(STORAGE_KEY, JSON.stringify(records.slice(0, MAX_RECORDS)));
+  runCollection.write(records);
 }
 
 export function formatAgentElapsed(ms: number) {
@@ -166,5 +155,5 @@ export function searchAgentRunRecords(keyword: string) {
 }
 
 export function clearAgentRunRecords() {
-  storage()?.removeItem(STORAGE_KEY);
+  runCollection.clear();
 }

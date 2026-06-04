@@ -1,3 +1,5 @@
+import { createPersistentCollection } from "../../services/persistence/unifiedPersistence";
+
 export interface VirtualServer {
   id: string;
   name: string;
@@ -25,6 +27,10 @@ interface VirtualServerStorage {
 }
 
 const storageKey = "qf-ai-dcim.virtualServers";
+const virtualServerCollection = createPersistentCollection<VirtualServer>({
+  name: "operations.virtualServers",
+  legacyKeys: [storageKey],
+});
 
 export const sampleVirtualServers: VirtualServer[] = [
   {
@@ -133,6 +139,10 @@ export function loadVirtualServers(
   storage: VirtualServerStorage | undefined = getDefaultStorage(),
 ): VirtualServer[] {
   if (!storage) return sampleVirtualServers;
+  if (storage === getDefaultStorage()) {
+    const records = virtualServerCollection.read();
+    return records.length > 0 ? records : sampleVirtualServers;
+  }
   const raw = storage.getItem(storageKey);
   if (!raw) return sampleVirtualServers;
 
@@ -148,5 +158,9 @@ export function saveVirtualServers(
   servers: VirtualServer[],
   storage: VirtualServerStorage | undefined = getDefaultStorage(),
 ): void {
+  if (storage === getDefaultStorage()) {
+    virtualServerCollection.write(servers);
+    return;
+  }
   storage?.setItem(storageKey, JSON.stringify(servers));
 }

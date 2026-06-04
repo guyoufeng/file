@@ -1,3 +1,5 @@
+import { createPersistentCollection } from "../../services/persistence/unifiedPersistence";
+
 export interface AccessRecord {
   id: string;
   date: string;
@@ -20,24 +22,17 @@ export type AccessRecordInput = Omit<AccessRecord, "id" | "createdAt" | "updated
 export type AccessRecordImportRow = Partial<AccessRecordInput> & Record<string, unknown>;
 
 const STORAGE_KEY = "qf-ai-dcim.accessRecords";
-
-function storage() {
-  return typeof localStorage === "undefined" ? undefined : localStorage;
-}
+const accessRecordCollection = createPersistentCollection<AccessRecord>({
+  name: "operations.accessRecords",
+  legacyKeys: [STORAGE_KEY],
+});
 
 function readRecords(): AccessRecord[] {
-  const raw = storage()?.getItem(STORAGE_KEY);
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw) as AccessRecord[];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+  return accessRecordCollection.read();
 }
 
 function writeRecords(records: AccessRecord[]) {
-  storage()?.setItem(STORAGE_KEY, JSON.stringify(records));
+  accessRecordCollection.write(records);
 }
 
 function createId() {

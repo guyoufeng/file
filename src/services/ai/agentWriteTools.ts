@@ -15,6 +15,7 @@ import {
   createChangeEvent,
   type ChangeEvent,
   type ChangeEventInput,
+  type ChangeEventType,
 } from "../../features/change-management/changeEvents";
 
 export interface AgentWriteDependencies {
@@ -100,7 +101,20 @@ function extractAfterPrefix(question: string, prefix: RegExp) {
 }
 
 function parseDate(question: string) {
-  return question.match(/日期\s*[:：]?\s*(\d{4}[-/]\d{1,2}[-/]\d{1,2})/)?.[1]?.replace(/\//g, "-");
+  const explicit = question.match(/日期\s*[:：]?\s*(\d{4}[-/]\d{1,2}[-/]\d{1,2})/)?.[1]?.replace(/\//g, "-");
+  if (explicit) return explicit;
+  const chinese = question.match(/(\d{4})年(\d{1,2})月(\d{1,2})(?:号|日)?/);
+  if (!chinese) return undefined;
+  return `${chinese[1]}-${chinese[2].padStart(2, "0")}-${chinese[3].padStart(2, "0")}`;
+}
+
+function parseDateTime(question: string) {
+  const date = parseDate(question);
+  if (!date) return new Date().toISOString();
+  const time = question.match(/(\d{1,2})\s*(?:点|:)(\d{1,2})?/) ?? question.match(/(\d{1,2}):(\d{2})/);
+  const hour = time?.[1]?.padStart(2, "0") ?? "00";
+  const minute = time?.[2]?.padStart(2, "0") ?? "00";
+  return `${date}T${hour}:${minute}:00.000Z`;
 }
 
 function parseLabelValue(question: string, label: string) {
@@ -310,22 +324,33 @@ function executeAccessCreate(input: AgentWriteCommandInput): AgentWriteCommandRe
   };
 }
 
+function isChangeCreateIntent(question: string) {
+  return (
+    /(变更管理|变更记录|变更).*(录入|新增|添加|创建|保存)/.test(question) ||
+    /(录入|新增|添加|创建|保存).*(变更管理|变更记录|变更)/.test(question) ||
+    /(上架|下架|接线|更换|维修|安装|配置调整|增加了?.*(显卡|内存|硬盘|网卡))/.test(question)
+  );
+}
+
+function inferChangeType(question: string): ChangeEventType {
+  if (/接线|端口|线缆/.test(question)) return "cabling";
+  if (/上架/.test(question)) return "rack_mount";
+  if (/下架/.test(question)) return "rack_unmount";
+  if (/安装|配置|增加.*(显卡|内存|硬盘|网卡)/.test(question)) return "configuration";
+  if (/巡检/.test(question)) return "inspection";
+  return "maintenance";
+}
+
 function executeChangeCreate(input: AgentWriteCommandInput): AgentWriteCommandResult | null {
-  if (!/新增.*变更|录入.*变更|添加.*变更/.test(input.question)) return null;
+  if (!isChangeCreateIntent(input.question)) return null;
   const denied = assertPermission(input.session, "change-management", "变更管理", "write_change_event");
   if (denied) return denied;
   const device = findDevice(input.question, input.devices);
   const { rack, room } = findRackAndRoom(device, input.racks, input.rooms);
-  const content = extractAfterPrefix(input.question, /新增.*?变更记录|录入.*?变更记录|添加.*?变更记录/);
+  const content = extractAfterPrefix(input.question, /.*?(?:变更管理|变更记录|变更).*?(?:录入|新增|添加|创建|保存)|(?:录入|新增|添加|创建|保存).*?(?:变更管理|变更记录|变更)/);
   const record = (input.dependencies?.createChangeEvent ?? createChangeEvent)({
     title: content ? content.slice(0, 60) : `${device?.computerName || device?.name || "设备"} 运维变更`,
-    type: /接线|端口|线缆/.test(input.question)
-      ? "cabling"
-      : /上架/.test(input.question)
-        ? "rack_mount"
-        : /下架/.test(input.question)
-          ? "rack_unmount"
-          : "maintenance",
+    type: inferChangeType(input.question),
     status: /计划/.test(input.question) ? "planned" : "completed",
     roomId: room?.id,
     roomName: room?.name,
@@ -335,7 +360,7 @@ function executeChangeCreate(input: AgentWriteCommandInput): AgentWriteCommandRe
     deviceName: device?.computerName || device?.name,
     businessIp: device?.businessIp,
     operator: input.session?.username || "AI助手",
-    changedAt: new Date().toISOString(),
+    changedAt: parseDateTime(input.question),
     content: content || input.question,
     impact: parseLabelValue(input.question, "影响范围") || "",
     result: parseLabelValue(input.question, "处理结果") || "",

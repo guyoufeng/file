@@ -1,5 +1,8 @@
 <script setup lang="ts">
+import { computed, ref } from 'vue'
+import TableColumnSettings from '../../../components/TableColumnSettings.vue'
 import type { Device, Rack } from '../../../types/domain'
+import type { DataTableColumn, ResolvedDataTableColumn } from '../../../services/table/tableColumnPreferences'
 
 defineProps<{
   devices: Device[]
@@ -15,50 +18,65 @@ const emit = defineEmits<{
 function rackName(racks: Rack[], rackId: string): string {
   return racks.find((rack) => rack.id === rackId)?.name ?? rackId
 }
+
+const tableColumns: DataTableColumn[] = [
+  { id: 'computerName', label: '计算机名', locked: true },
+  { id: 'businessIp', label: '业务IP' },
+  { id: 'managementIp', label: '管理IP' },
+  { id: 'purpose', label: '用途' },
+  { id: 'model', label: '型号' },
+  { id: 'rack', label: '所属机柜' },
+  { id: 'uPosition', label: 'U位' },
+  { id: 'status', label: '状态' },
+  { id: 'owner', label: '责任人' },
+  { id: 'warranty', label: '维保到期' },
+  { id: 'actions', label: '操作', locked: true },
+]
+const activeColumns = ref<ResolvedDataTableColumn[]>([])
+const visibleColumns = computed(() => activeColumns.value.filter((column) => column.visible))
 </script>
 
 <template>
   <div class="asset-table">
+    <div class="asset-table-toolbar">
+      <TableColumnSettings
+        table-id="asset-management"
+        :columns="tableColumns"
+        @update:columns="activeColumns = $event"
+      />
+    </div>
     <table>
       <thead>
         <tr>
-          <th>计算机名</th>
-          <th>业务IP</th>
-          <th>管理IP</th>
-          <th>用途</th>
-          <th>型号</th>
-          <th>所属机柜</th>
-          <th>U位</th>
-          <th>状态</th>
-          <th>责任人</th>
-          <th>维保到期</th>
-          <th>操作</th>
+          <th v-for="column in visibleColumns" :key="column.id">{{ column.label }}</th>
         </tr>
       </thead>
       <tbody>
         <tr v-for="device in devices" :key="device.id">
-          <td>
-            <button
-              type="button"
-              class="asset-link"
-              :aria-label="`查看 ${device.computerName || device.name} 资产详情`"
-              @click="emit('view', device)"
-            >
-              {{ device.computerName || device.name }}
-            </button>
-          </td>
-          <td>{{ device.businessIp }}</td>
-          <td>{{ device.managementIp }}</td>
-          <td>{{ device.purpose }}</td>
-          <td>{{ device.vendor }} {{ device.model }}</td>
-          <td>{{ rackName(racks, device.rackId) }}</td>
-          <td>{{ device.startU }}U-{{ device.endU }}U</td>
-          <td>{{ device.status }}</td>
-          <td>{{ device.owner }}</td>
-          <td>{{ device.warrantyExpireAt }}</td>
-          <td>
-            <button type="button" @click="emit('edit', device)">编辑</button>
-            <button type="button" class="danger" @click="emit('delete', device)">删除</button>
+          <td v-for="column in visibleColumns" :key="column.id">
+            <template v-if="column.id === 'computerName'">
+              <button
+                type="button"
+                class="asset-link"
+                :aria-label="`查看 ${device.computerName || device.name} 资产详情`"
+                @click="emit('view', device)"
+              >
+                {{ device.computerName || device.name }}
+              </button>
+            </template>
+            <template v-else-if="column.id === 'businessIp'">{{ device.businessIp }}</template>
+            <template v-else-if="column.id === 'managementIp'">{{ device.managementIp }}</template>
+            <template v-else-if="column.id === 'purpose'">{{ device.purpose }}</template>
+            <template v-else-if="column.id === 'model'">{{ device.vendor }} {{ device.model }}</template>
+            <template v-else-if="column.id === 'rack'">{{ rackName(racks, device.rackId) }}</template>
+            <template v-else-if="column.id === 'uPosition'">{{ device.startU }}U-{{ device.endU }}U</template>
+            <template v-else-if="column.id === 'status'">{{ device.status }}</template>
+            <template v-else-if="column.id === 'owner'">{{ device.owner }}</template>
+            <template v-else-if="column.id === 'warranty'">{{ device.warrantyExpireAt }}</template>
+            <template v-else-if="column.id === 'actions'">
+              <button type="button" @click="emit('edit', device)">编辑</button>
+              <button type="button" class="danger" @click="emit('delete', device)">删除</button>
+            </template>
           </td>
         </tr>
       </tbody>
@@ -73,6 +91,14 @@ function rackName(racks: Rack[], rackId: string): string {
   border-radius: 8px;
   background: var(--color-panel);
   box-shadow: var(--shadow-soft);
+}
+
+.asset-table-toolbar {
+  position: sticky;
+  left: 0;
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 10px 0;
 }
 
 table {

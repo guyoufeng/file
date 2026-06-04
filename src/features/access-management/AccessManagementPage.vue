@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import * as XLSX from "xlsx";
+import TableColumnSettings from "../../components/TableColumnSettings.vue";
 import {
   createAccessRecord,
   deleteAccessRecord,
@@ -13,10 +14,21 @@ import {
 } from "./accessRecords";
 import { useAssetStore } from "../../stores/assetStore";
 import { writeSystemAuditLog } from "../../services/backend/ai";
+import type { DataTableColumn, ResolvedDataTableColumn } from "../../services/table/tableColumnPreferences";
 
 const assetStore = useAssetStore();
 const records = ref<AccessRecord[]>([]);
 const keyword = ref("");
+const tableColumns: DataTableColumn[] = [
+  { id: "date", label: "日期" },
+  { id: "visitor", label: "单位/人员", locked: true },
+  { id: "time", label: "时间" },
+  { id: "reason", label: "事由" },
+  { id: "device", label: "关联服务器" },
+  { id: "result", label: "故障与处理" },
+  { id: "actions", label: "操作", locked: true },
+];
+const activeColumns = ref<ResolvedDataTableColumn[]>([]);
 const editingId = ref<string | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const recordWindowOpen = ref(false);
@@ -43,6 +55,7 @@ const form = ref<AccessRecordInput>({
 const filteredRecords = computed(() =>
   keyword.value ? searchAccessRecords(keyword.value, records.value) : records.value,
 );
+const visibleColumns = computed(() => activeColumns.value.filter((column) => column.visible));
 const recordWindowStyle = computed(() => ({
   left: `${recordWindow.value.x}px`,
   top: `${recordWindow.value.y}px`,
@@ -281,35 +294,36 @@ async function importExcel(event: Event) {
         <div class="list-toolbar">
           <input v-model="keyword" placeholder="搜索日期、单位、人员、服务器、故障或处理结果" />
           <span>{{ filteredRecords.length }} 条记录</span>
+          <TableColumnSettings
+            table-id="access-records"
+            :columns="tableColumns"
+            @update:columns="activeColumns = $event"
+          />
         </div>
         <div class="table-wrap">
           <table>
             <thead>
               <tr>
-                <th>日期</th>
-                <th>单位/人员</th>
-                <th>时间</th>
-                <th>事由</th>
-                <th>关联服务器</th>
-                <th>故障与处理</th>
-                <th>操作</th>
+                <th v-for="column in visibleColumns" :key="column.id">{{ column.label }}</th>
               </tr>
             </thead>
             <tbody>
               <tr v-for="record in filteredRecords" :key="record.id">
-                <td>{{ record.date }}</td>
-                <td>{{ record.unit }}<br /><small>{{ record.visitorName }}</small></td>
-                <td>{{ record.enterTime }} - {{ record.leaveTime || "未离开" }}</td>
-                <td>{{ record.reason || "-" }}</td>
-                <td>{{ record.deviceName || record.deviceId || "-" }}</td>
-                <td>{{ record.faultDescription || "-" }}<br /><small>{{ record.result || "-" }}</small></td>
-                <td>
-                  <button type="button" @click="editRecord(record)">编辑</button>
-                  <button type="button" class="danger" @click="removeRecord(record)">删除</button>
+                <td v-for="column in visibleColumns" :key="column.id">
+                  <template v-if="column.id === 'date'">{{ record.date }}</template>
+                  <template v-else-if="column.id === 'visitor'">{{ record.unit }}<br /><small>{{ record.visitorName }}</small></template>
+                  <template v-else-if="column.id === 'time'">{{ record.enterTime }} - {{ record.leaveTime || "未离开" }}</template>
+                  <template v-else-if="column.id === 'reason'">{{ record.reason || "-" }}</template>
+                  <template v-else-if="column.id === 'device'">{{ record.deviceName || record.deviceId || "-" }}</template>
+                  <template v-else-if="column.id === 'result'">{{ record.faultDescription || "-" }}<br /><small>{{ record.result || "-" }}</small></template>
+                  <template v-else-if="column.id === 'actions'">
+                    <button type="button" @click="editRecord(record)">编辑</button>
+                    <button type="button" class="danger" @click="removeRecord(record)">删除</button>
+                  </template>
                 </td>
               </tr>
               <tr v-if="filteredRecords.length === 0">
-                <td colspan="7" class="empty-cell">暂无进出记录。</td>
+                <td :colspan="visibleColumns.length || 1" class="empty-cell">暂无进出记录。</td>
               </tr>
             </tbody>
           </table>

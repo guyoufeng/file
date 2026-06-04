@@ -166,4 +166,31 @@ describe("AI agent write tools", () => {
       }),
     );
   });
+
+  it("routes explicit change-management natural language to change records instead of asset creation", async () => {
+    const saveDevice = vi.fn(async (next: Device) => next);
+    const createChangeEvent = vi.fn((input) => ({ id: "change-gpu", ...input }));
+
+    const result = await executeAgentWriteCommand({
+      question: "现在在变更管理里面录入，2026年6月4号15点，服务器10.10.0.21增加了3块L20显卡。",
+      session: adminSession,
+      rooms: [room],
+      racks: [rack],
+      devices: [device],
+      dependencies: { saveDevice, createChangeEvent },
+    });
+
+    expect(result?.toolName).toBe("write_change_event");
+    expect(result?.status).toBe("success");
+    expect(saveDevice).not.toHaveBeenCalled();
+    expect(createChangeEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        deviceId: "dev-qf-srv-001",
+        businessIp: "10.10.0.21",
+        type: "configuration",
+        changedAt: "2026-06-04T15:00:00.000Z",
+        content: expect.stringContaining("增加了3块L20显卡"),
+      }),
+    );
+  });
 });

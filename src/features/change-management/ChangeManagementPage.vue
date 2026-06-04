@@ -2,8 +2,10 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from "vue";
 import * as XLSX from "xlsx";
 import { useRouter } from "vue-router";
+import TableColumnSettings from "../../components/TableColumnSettings.vue";
 import { useAssetStore } from "../../stores/assetStore";
 import { useRoomStore } from "../../stores/roomStore";
+import type { DataTableColumn, ResolvedDataTableColumn } from "../../services/table/tableColumnPreferences";
 import {
   createChangeEvent,
   deleteChangeEvent,
@@ -21,6 +23,15 @@ const assetStore = useAssetStore();
 const roomStore = useRoomStore();
 const keyword = ref("");
 const records = ref<ChangeEvent[]>([]);
+const tableColumns: DataTableColumn[] = [
+  { id: "title", label: "变更标题", locked: true },
+  { id: "typeStatus", label: "类型/状态" },
+  { id: "device", label: "关联设备" },
+  { id: "changedAt", label: "变更时间" },
+  { id: "content", label: "内容摘要" },
+  { id: "actions", label: "操作", locked: true },
+];
+const activeColumns = ref<ResolvedDataTableColumn[]>([]);
 const editingId = ref("");
 const formWindowOpen = ref(false);
 const excelWindowOpen = ref(false);
@@ -74,6 +85,7 @@ const selectedRoom = computed(() =>
 const filteredRecords = computed(() =>
   keyword.value.trim() ? searchChangeEvents(keyword.value, records.value) : records.value,
 );
+const visibleColumns = computed(() => activeColumns.value.filter((column) => column.visible));
 
 watch(
   () => form.deviceId,
@@ -390,18 +402,20 @@ async function handleChangeExcel(event: Event) {
             <p class="eyebrow">Change Records</p>
             <h3>变更记录</h3>
           </div>
-          <input v-model="keyword" placeholder="搜索服务器、IP、机柜、接线、操作人" />
+          <div class="list-tools">
+            <input v-model="keyword" placeholder="搜索服务器、IP、机柜、接线、操作人" />
+            <TableColumnSettings
+              table-id="change-management"
+              :columns="tableColumns"
+              @update:columns="activeColumns = $event"
+            />
+          </div>
         </header>
         <div class="change-record-list table-wrap">
           <table>
             <thead>
               <tr>
-                <th>变更标题</th>
-                <th>类型/状态</th>
-                <th>关联设备</th>
-                <th>变更时间</th>
-                <th>内容摘要</th>
-                <th>操作</th>
+                <th v-for="column in visibleColumns" :key="column.id">{{ column.label }}</th>
               </tr>
             </thead>
             <tbody>
@@ -412,19 +426,27 @@ async function handleChangeExcel(event: Event) {
                 @click="editChange(record)"
                 @keydown.enter="editChange(record)"
               >
-                <td><strong>{{ record.title }}</strong><small>{{ record.operator }}</small></td>
-                <td>{{ record.type }}<br /><small>{{ record.status }}</small></td>
-                <td>{{ record.roomName || "-" }} / {{ record.rackName || "-" }}<br /><small>{{ record.deviceName || "-" }}</small></td>
-                <td>{{ record.changedAt }}</td>
-                <td>{{ record.content }}</td>
-                <td class="row-actions">
-                  <button type="button" @click.stop="locateChange(record)">定位</button>
-                  <button type="button" @click.stop="editChange(record)">编辑</button>
-                  <button type="button" @click.stop="removeChange(record.id)">删除</button>
+                <td
+                  v-for="column in visibleColumns"
+                  :key="column.id"
+                  :class="{ 'row-actions': column.id === 'actions' }"
+                >
+                  <template v-if="column.id === 'title'">
+                    <strong>{{ record.title }}</strong><small>{{ record.operator }}</small>
+                  </template>
+                  <template v-else-if="column.id === 'typeStatus'">{{ record.type }}<br /><small>{{ record.status }}</small></template>
+                  <template v-else-if="column.id === 'device'">{{ record.roomName || "-" }} / {{ record.rackName || "-" }}<br /><small>{{ record.deviceName || "-" }}</small></template>
+                  <template v-else-if="column.id === 'changedAt'">{{ record.changedAt }}</template>
+                  <template v-else-if="column.id === 'content'">{{ record.content }}</template>
+                  <template v-else-if="column.id === 'actions'">
+                    <button type="button" @click.stop="locateChange(record)">定位</button>
+                    <button type="button" @click.stop="editChange(record)">编辑</button>
+                    <button type="button" @click.stop="removeChange(record.id)">删除</button>
+                  </template>
                 </td>
               </tr>
               <tr v-if="filteredRecords.length === 0">
-                <td colspan="6" class="empty">暂无变更记录。后续上架、维修、接线和配置调整都建议记录在这里。</td>
+                <td :colspan="visibleColumns.length || 1" class="empty">暂无变更记录。后续上架、维修、接线和配置调整都建议记录在这里。</td>
               </tr>
             </tbody>
           </table>
@@ -436,8 +458,11 @@ async function handleChangeExcel(event: Event) {
 
 <style scoped>
 .change-page {
-  display: grid;
-  gap: 16px;
+  display: block;
+}
+
+.page-header {
+  margin-bottom: 16px;
 }
 
 .header-actions,
@@ -450,11 +475,13 @@ async function handleChangeExcel(event: Event) {
 .change-layout {
   display: grid;
   gap: 16px;
+  align-content: start;
 }
 
 .change-form-panel,
 .change-list-panel {
   display: grid;
+  align-content: start;
   gap: 12px;
   padding: 16px;
   border: 1px solid var(--color-border);
@@ -477,6 +504,14 @@ async function handleChangeExcel(event: Event) {
   align-items: start;
   justify-content: space-between;
   gap: 12px;
+}
+
+.list-tools {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .eyebrow,

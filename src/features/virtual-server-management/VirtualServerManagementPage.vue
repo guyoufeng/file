@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from "vue";
 import AssetSyncDialog from "../asset-management/components/AssetSyncDialog.vue";
+import TableColumnSettings from "../../components/TableColumnSettings.vue";
 import {
   addVirtualServer,
   filterVirtualServers,
@@ -10,11 +11,22 @@ import {
   type VirtualServer,
 } from "./virtualServers";
 import type { AssetSyncConfig } from "../../services/asset/assetSyncConfig";
+import type { DataTableColumn, ResolvedDataTableColumn } from "../../services/table/tableColumnPreferences";
 
 const search = ref("");
 const syncOpen = ref(false);
 const manualOpen = ref(false);
 const servers = ref<VirtualServer[]>(loadVirtualServers());
+const tableColumns: DataTableColumn[] = [
+  { id: "name", label: "虚拟机名", locked: true },
+  { id: "businessIp", label: "业务IP" },
+  { id: "platform", label: "平台" },
+  { id: "purpose", label: "用途" },
+  { id: "owner", label: "责任人" },
+  { id: "hostDeviceName", label: "宿主物理服务器" },
+  { id: "status", label: "状态" },
+];
+const activeColumns = ref<ResolvedDataTableColumn[]>([]);
 const message = ref("虚拟服务器独立管理，不占用机柜 U 位，通过宿主物理服务器关联到数据中心。");
 const form = ref<VirtualServerInput>({
   name: "",
@@ -30,6 +42,7 @@ const form = ref<VirtualServerInput>({
 const filteredServers = computed(() =>
   filterVirtualServers(servers.value, search.value),
 );
+const visibleColumns = computed(() => activeColumns.value.filter((column) => column.visible));
 
 function confirmMcpSync(config: AssetSyncConfig) {
   syncOpen.value = false;
@@ -77,6 +90,11 @@ function saveManualVirtualServer() {
       <button type="button" @click="manualOpen = true">手动录入</button>
       <button type="button">Excel导入</button>
       <button type="button" @click="syncOpen = true">MCP同步</button>
+      <TableColumnSettings
+        table-id="virtual-servers"
+        :columns="tableColumns"
+        @update:columns="activeColumns = $event"
+      />
     </div>
 
     <p class="virtual-message">{{ message }}</p>
@@ -85,24 +103,20 @@ function saveManualVirtualServer() {
       <table>
         <thead>
           <tr>
-            <th>虚拟机名</th>
-            <th>业务IP</th>
-            <th>平台</th>
-            <th>用途</th>
-            <th>责任人</th>
-            <th>宿主物理服务器</th>
-            <th>状态</th>
+            <th v-for="column in visibleColumns" :key="column.id">{{ column.label }}</th>
           </tr>
         </thead>
         <tbody>
           <tr v-for="server in filteredServers" :key="server.id">
-            <td>{{ server.name }}</td>
-            <td>{{ server.businessIp || '-' }}</td>
-            <td>{{ server.platform }}</td>
-            <td>{{ server.purpose || '-' }}</td>
-            <td>{{ server.owner || '-' }}</td>
-            <td>{{ server.hostDeviceName || '未关联' }}</td>
-            <td>{{ server.status }}</td>
+            <td v-for="column in visibleColumns" :key="column.id">
+              <template v-if="column.id === 'name'">{{ server.name }}</template>
+              <template v-else-if="column.id === 'businessIp'">{{ server.businessIp || '-' }}</template>
+              <template v-else-if="column.id === 'platform'">{{ server.platform }}</template>
+              <template v-else-if="column.id === 'purpose'">{{ server.purpose || '-' }}</template>
+              <template v-else-if="column.id === 'owner'">{{ server.owner || '-' }}</template>
+              <template v-else-if="column.id === 'hostDeviceName'">{{ server.hostDeviceName || '未关联' }}</template>
+              <template v-else-if="column.id === 'status'">{{ server.status }}</template>
+            </td>
           </tr>
         </tbody>
       </table>

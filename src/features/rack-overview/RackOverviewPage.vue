@@ -16,7 +16,6 @@ import { useRoomStore } from "../../stores/roomStore";
 import DataCenterSelector from "./components/DataCenterSelector.vue";
 import GlobalSearchBox from "./components/GlobalSearchBox.vue";
 import LayoutOverview from "./components/LayoutOverview.vue";
-import LeadershipModeToggle from "./components/LeadershipModeToggle.vue";
 import RackUView from "./components/RackUView.vue";
 import RightDetailDrawer from "./components/RightDetailDrawer.vue";
 import ViewModeTabs, { type ViewMode } from "./components/ViewModeTabs.vue";
@@ -38,7 +37,6 @@ const selectedRoomId = ref<string | null>(null);
 const selectedRack = ref<Rack | null>(null);
 const selectedDeviceId = ref<string | null>(null);
 const viewMode = ref<ViewMode>("u-view");
-const leadershipMode = ref(false);
 const detailOpen = ref(false);
 const deviceEditorOpen = ref(false);
 const editingDevice = ref<Device | null>(null);
@@ -468,10 +466,7 @@ async function restoreRackItem(itemId: string) {
 </script>
 
 <template>
-  <section
-    class="page rack-overview-page"
-    :class="{ 'leadership-mode': leadershipMode }"
-  >
+  <section class="page rack-overview-page">
     <div class="page-header">
       <div>
         <h2 class="page-title">机柜总览</h2>
@@ -480,7 +475,6 @@ async function restoreRackItem(itemId: string) {
         </p>
       </div>
       <div class="header-actions">
-        <LeadershipModeToggle v-model="leadershipMode" />
         <ViewModeTabs v-model="viewMode" />
       </div>
     </div>
@@ -574,7 +568,7 @@ async function restoreRackItem(itemId: string) {
           :devices="assetStore.devices"
           :alerts="alertStore.alerts"
           :selected-rack-id="selectedRack?.id ?? null"
-          :leadership-mode="leadershipMode"
+          :leadership-mode="false"
           @select-rack="selectRack"
         />
       </div>
@@ -883,16 +877,6 @@ async function restoreRackItem(itemId: string) {
   color: var(--color-text);
   font-size: 28px;
   line-height: 1;
-}
-
-.leadership-mode .overview-metrics strong {
-  color: #e0f2fe;
-  font-size: 34px;
-}
-
-.leadership-mode .overview-metrics div {
-  border-color: rgba(56, 189, 248, 0.34);
-  background: rgba(8, 47, 73, 0.46);
 }
 
 .overview-metrics span {

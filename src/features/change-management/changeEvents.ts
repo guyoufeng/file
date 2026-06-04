@@ -1,3 +1,5 @@
+import { createPersistentCollection } from "../../services/persistence/unifiedPersistence";
+
 export type ChangeEventType =
   | "rack_mount"
   | "rack_unmount"
@@ -37,24 +39,17 @@ export type ChangeEventInput = Omit<ChangeEvent, "id" | "createdAt" | "updatedAt
 export type ChangeEventImportRow = Record<string, unknown>;
 
 const STORAGE_KEY = "qf-ai-dcim.changeEvents";
-
-function storage() {
-  return typeof localStorage === "undefined" ? undefined : localStorage;
-}
+const changeEventCollection = createPersistentCollection<ChangeEvent>({
+  name: "operations.changeEvents",
+  legacyKeys: [STORAGE_KEY],
+});
 
 function readRecords(): ChangeEvent[] {
-  const raw = storage()?.getItem(STORAGE_KEY);
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw) as ChangeEvent[];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
+  return changeEventCollection.read();
 }
 
 function writeRecords(records: ChangeEvent[]) {
-  storage()?.setItem(STORAGE_KEY, JSON.stringify(records));
+  changeEventCollection.write(records);
 }
 
 function createId() {

@@ -12,21 +12,30 @@ import {
 } from "./virtualServers";
 import type { AssetSyncConfig } from "../../services/asset/assetSyncConfig";
 import type { DataTableColumn, ResolvedDataTableColumn } from "../../services/table/tableColumnPreferences";
+import { useTableColumnResize } from "../../services/table/tableColumnResize";
 
 const search = ref("");
 const syncOpen = ref(false);
 const manualOpen = ref(false);
 const servers = ref<VirtualServer[]>(loadVirtualServers());
 const tableColumns: DataTableColumn[] = [
-  { id: "name", label: "虚拟机名", locked: true },
-  { id: "businessIp", label: "业务IP" },
-  { id: "platform", label: "平台" },
-  { id: "purpose", label: "用途" },
-  { id: "owner", label: "责任人" },
-  { id: "hostDeviceName", label: "宿主物理服务器" },
-  { id: "status", label: "状态" },
+  { id: "name", label: "虚拟机名", locked: true, width: 210, minWidth: 150 },
+  { id: "businessIp", label: "业务IP", width: 150 },
+  { id: "platform", label: "平台", width: 120 },
+  { id: "purpose", label: "用途", width: 190 },
+  { id: "owner", label: "责任人", width: 120 },
+  { id: "hostDeviceName", label: "宿主物理服务器", width: 210, minWidth: 150 },
+  { id: "status", label: "状态", width: 110 },
 ];
 const activeColumns = ref<ResolvedDataTableColumn[]>([]);
+const tableId = "virtual-servers";
+const { columnWidthStyle, startColumnResize } = useTableColumnResize(
+  tableId,
+  tableColumns,
+  (columns) => {
+    activeColumns.value = columns;
+  },
+);
 const message = ref("虚拟服务器独立管理，不占用机柜 U 位，通过宿主物理服务器关联到数据中心。");
 const form = ref<VirtualServerInput>({
   name: "",
@@ -91,7 +100,7 @@ function saveManualVirtualServer() {
       <button type="button">Excel导入</button>
       <button type="button" @click="syncOpen = true">MCP同步</button>
       <TableColumnSettings
-        table-id="virtual-servers"
+        :table-id="tableId"
         :columns="tableColumns"
         @update:columns="activeColumns = $event"
       />
@@ -101,9 +110,19 @@ function saveManualVirtualServer() {
 
     <div class="virtual-table">
       <table>
+        <colgroup>
+          <col v-for="column in visibleColumns" :key="column.id" :style="columnWidthStyle(column)" />
+        </colgroup>
         <thead>
           <tr>
-            <th v-for="column in visibleColumns" :key="column.id">{{ column.label }}</th>
+            <th v-for="column in visibleColumns" :key="column.id" :style="columnWidthStyle(column)">
+              <span>{{ column.label }}</span>
+              <span
+                class="column-resizer"
+                aria-hidden="true"
+                @pointerdown="startColumnResize(column, $event)"
+              />
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -245,6 +264,7 @@ table {
   width: 100%;
   min-width: 920px;
   border-collapse: collapse;
+  table-layout: fixed;
 }
 
 th,
@@ -255,8 +275,32 @@ td {
 }
 
 th {
+  position: relative;
   color: var(--color-text-muted);
   background: var(--table-header-bg);
+}
+
+th span {
+  display: block;
+  overflow: hidden;
+  padding-right: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.column-resizer {
+  position: absolute;
+  top: 7px;
+  right: 0;
+  width: 8px;
+  height: calc(100% - 14px);
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-right: 2px solid color-mix(in srgb, var(--color-primary) 42%, transparent);
+  border-radius: 0;
+  background: transparent;
+  cursor: col-resize;
 }
 
 .modal-mask {

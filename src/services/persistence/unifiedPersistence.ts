@@ -150,6 +150,10 @@ function storage() {
   return typeof localStorage === "undefined" ? undefined : localStorage;
 }
 
+function canUseBackendApi() {
+  return typeof window !== "undefined" && typeof fetch !== "undefined";
+}
+
 function collectionKey(name: string) {
   return `${DATA_NAMESPACE}.${name}`;
 }
@@ -162,6 +166,30 @@ function parseRecords<T>(raw: string | null): T[] {
   } catch {
     return [];
   }
+}
+
+async function fetchBackendCollection<T>(name: string): Promise<T[] | undefined> {
+  if (!canUseBackendApi()) return undefined;
+  try {
+    const response = await fetch(`/api/local/v1/collections/${encodeURIComponent(name)}`);
+    if (!response.ok) return undefined;
+    const body = (await response.json()) as { data?: T[] };
+    return Array.isArray(body.data) ? body.data : undefined;
+  } catch {
+    return undefined;
+  }
+}
+
+function syncBackendCollection(name: string, records: unknown[]) {
+  if (!canUseBackendApi()) return;
+  void fetch(`/api/local/v1/collections/${encodeURIComponent(name)}`, {
+    method: "PUT",
+    headers: {
+      "Content-Type": "application/json",
+      "X-QF-Actor": "web-ui",
+    },
+    body: JSON.stringify({ data: records }),
+  }).catch(() => undefined);
 }
 
 function migrateLegacyKeys<T>(key: string, legacyKeys: string[]) {
@@ -210,6 +238,7 @@ export function createPersistentCollection<T>(
             : records,
         ),
       );
+      syncBackendCollection(options.name, records);
     },
     clear() {
       storage()?.removeItem(key);
@@ -230,6 +259,7 @@ export function readPersistentCollection<T = unknown>(name: string): T[] {
 export function writePersistentCollection<T = unknown>(name: string, records: T[]): void {
   const registration = registry.get(name) ?? registerCollection({ name });
   storage()?.setItem(registration.key, JSON.stringify(records));
+  syncBackendCollection(name, records);
 }
 
 export function clearPersistentCollection(name: string): void {
@@ -262,4 +292,27 @@ export function getPersistenceBackendInfo(): PersistenceBackendInfo {
     tauriReady: hasTauri,
     collections: listPersistentCollections(),
   };
+}
+
+export async function hydratePersistentCollectionsFromBackend(): Promise<void> {
+  const store = storage();
+  if (!store) return;
+
+  await Promise.all(
+    listPersistentCollections().map(async (collection) => {
+      const records = await fetchBackendCollection(collection.name);
+      if (!records || records.length === 0) return;
+      store.setItem(collection.key, JSON.stringify(records));
+    }),
+  );
+}
+
+export async function flushPersistentCollectionsToBackend(): Promise<void> {
+  await Promise.all(
+    listPersistentCollections().map(async (collection) => {
+      const records = readPersistentCollection(collection.name);
+      if (records.length === 0) return;
+      syncBackendCollection(collection.name, records);
+    }),
+  );
 }

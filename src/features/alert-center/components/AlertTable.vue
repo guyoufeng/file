@@ -1,10 +1,8 @@
 <script setup lang="ts">
-import { computed, ref } from 'vue'
-import TableColumnSettings from '../../../components/TableColumnSettings.vue'
 import type { Alert, Device, Rack, Room } from '../../../types/domain'
 import { getAlertDeviceContext } from '../../../services/alerts/alertFilters'
 import { getAlertStatusLabel } from '../../../services/alerts/alertWorkflow'
-import type { DataTableColumn, ResolvedDataTableColumn } from '../../../services/table/tableColumnPreferences'
+import type { ResolvedDataTableColumn } from '../../../services/table/tableColumnPreferences'
 
 defineProps<{
   alerts: Alert[]
@@ -12,6 +10,7 @@ defineProps<{
   racks: Rack[]
   rooms: Room[]
   selectedIds: string[]
+  visibleColumns: ResolvedDataTableColumn[]
 }>()
 
 const emit = defineEmits<{
@@ -20,31 +19,10 @@ const emit = defineEmits<{
   toggle: [alertId: string]
   toggleAll: []
 }>()
-
-const tableColumns: DataTableColumn[] = [
-  { id: 'select', label: '选择', locked: true },
-  { id: 'level', label: '级别' },
-  { id: 'title', label: '标题', locked: true },
-  { id: 'device', label: '设备' },
-  { id: 'location', label: '位置' },
-  { id: 'source', label: '来源' },
-  { id: 'status', label: '状态' },
-  { id: 'startedAt', label: '开始时间' },
-  { id: 'actions', label: '操作', locked: true },
-]
-const activeColumns = ref<ResolvedDataTableColumn[]>([])
-const visibleColumns = computed(() => activeColumns.value.filter((column) => column.visible))
 </script>
 
 <template>
   <div class="alert-table">
-    <div class="alert-table-toolbar">
-      <TableColumnSettings
-        table-id="alert-center"
-        :columns="tableColumns"
-        @update:columns="activeColumns = $event"
-      />
-    </div>
     <table>
       <thead>
         <tr>
@@ -87,14 +65,6 @@ const visibleColumns = computed(() => activeColumns.value.filter((column) => col
   border-radius: 8px;
   background: var(--color-panel);
   box-shadow: var(--shadow-soft);
-}
-
-.alert-table-toolbar {
-  position: sticky;
-  left: 0;
-  display: flex;
-  justify-content: flex-end;
-  padding: 10px 10px 0;
 }
 
 table {

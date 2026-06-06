@@ -2,6 +2,8 @@
 import { onBeforeUnmount, onMounted, ref } from "vue";
 import { useRouter } from "vue-router";
 import { getFirstAccessiblePath } from "../../services/auth/accountAccess";
+import ChervonLogo from "../../components/ChervonLogo.vue";
+import { getStoredThemePreference } from "../../services/theme/themePreference";
 import {
   clearRememberedLogin,
   getRememberedLogin,
@@ -16,6 +18,7 @@ const password = ref("");
 const rememberPassword = ref(false);
 const showPassword = ref(false);
 const tip = ref("");
+const loginTheme = ref(getStoredThemePreference());
 
 onMounted(() => {
   document.body.classList.add("login-active");
@@ -50,8 +53,9 @@ function forgotPassword() {
 </script>
 
 <template>
-  <main class="login-page">
+  <main class="login-page" :class="`theme-${loginTheme}`">
     <section class="login-card" aria-label="账号登录">
+      <ChervonLogo dark />
       <div class="login-title">
         <h1>泉峰AI数据中心管理平台</h1>
         <p>账号登录</p>
@@ -121,6 +125,19 @@ function forgotPassword() {
   border-radius: 4px;
   background: rgba(255, 255, 255, 0.96);
   box-shadow: 0 28px 78px rgba(17, 60, 21, 0.22);
+}
+
+.login-page.theme-dark {
+  background:
+    linear-gradient(135deg, rgba(5, 10, 22, 0.7), rgba(8, 19, 35, 0.48)),
+    url("/login-dark-bg.png") center / cover no-repeat,
+    #06111f;
+}
+
+.login-page.theme-dark .login-card {
+  border-color: rgba(125, 211, 252, 0.28);
+  background: rgba(248, 250, 252, 0.95);
+  box-shadow: 0 30px 90px rgba(0, 0, 0, 0.38);
 }
 
 .login-title {

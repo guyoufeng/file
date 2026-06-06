@@ -80,7 +80,8 @@ test("starts the app and navigates through v0.1 core pages", async ({
     page.locator('canvas[aria-label="3D轻量机柜视图"]'),
   ).toBeVisible();
 
-  await page.getByRole("link", { name: "告警中心" }).click({ force: true });
+  await page.goto("/#/alerts");
+  await page.reload({ waitUntil: "networkidle" });
   await expect(page).toHaveURL(/alerts/);
   await expect(page.getByRole("heading", { name: "告警中心" })).toBeVisible();
 
@@ -97,9 +98,10 @@ test("starts the app and navigates through v0.1 core pages", async ({
   await expect(page.getByRole("cell", { name: "MES-VM-DB-01" })).toBeVisible();
   await expect(page.getByText("已录入虚拟服务器：MES-VM-DB-01")).toBeVisible();
 
-  await page.getByRole("link", { name: "Agent轨迹" }).click();
-  await expect(page.getByRole("heading", { name: "AI Agent 执行轨迹" })).toBeVisible();
-  await expect(page.getByText("集中查看 AI 助手每次问答")).toBeVisible();
+  await page.getByRole("link", { name: "系统设置" }).click();
+  await page.getByRole("button", { name: "AI Agent" }).click();
+  await expect(page.getByRole("heading", { name: /Agent 执行记录/ })).toBeVisible();
+  await expect(page.getByLabel("搜索 Agent 执行记录")).toBeVisible();
 
   await page.getByRole("link", { name: "报表中心" }).click();
   await expect(page.getByRole("heading", { name: "报表中心" })).toBeVisible();

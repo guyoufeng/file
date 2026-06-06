@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from "vue";
 import * as XLSX from "xlsx";
 import TableColumnSettings from "../../components/TableColumnSettings.vue";
+import PaginationControls from "../../components/PaginationControls.vue";
 import {
   createAccessRecord,
   deleteAccessRecord,
@@ -15,20 +16,32 @@ import {
 import { useAssetStore } from "../../stores/assetStore";
 import { writeSystemAuditLog } from "../../services/backend/ai";
 import type { DataTableColumn, ResolvedDataTableColumn } from "../../services/table/tableColumnPreferences";
+import { useTableColumnResize } from "../../services/table/tableColumnResize";
+import { paginate } from "../../services/pagination";
 
 const assetStore = useAssetStore();
 const records = ref<AccessRecord[]>([]);
 const keyword = ref("");
 const tableColumns: DataTableColumn[] = [
-  { id: "date", label: "日期" },
-  { id: "visitor", label: "单位/人员", locked: true },
-  { id: "time", label: "时间" },
-  { id: "reason", label: "事由" },
-  { id: "device", label: "关联服务器" },
-  { id: "result", label: "故障与处理" },
-  { id: "actions", label: "操作", locked: true },
+  { id: "date", label: "日期", width: 130 },
+  { id: "visitor", label: "单位/人员", locked: true, width: 160 },
+  { id: "time", label: "时间", width: 150 },
+  { id: "reason", label: "事由", width: 240, minWidth: 150 },
+  { id: "device", label: "关联服务器", width: 180 },
+  { id: "result", label: "故障与处理", width: 240, minWidth: 160 },
+  { id: "actions", label: "操作", locked: true, width: 140, minWidth: 120 },
 ];
 const activeColumns = ref<ResolvedDataTableColumn[]>([]);
+const tableId = "access-records";
+const { columnWidthStyle, startColumnResize } = useTableColumnResize(
+  tableId,
+  tableColumns,
+  (columns) => {
+    activeColumns.value = columns;
+  },
+);
+const page = ref(1);
+const pageSize = ref(20);
 const editingId = ref<string | null>(null);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 const recordWindowOpen = ref(false);
@@ -56,6 +69,9 @@ const filteredRecords = computed(() =>
   keyword.value ? searchAccessRecords(keyword.value, records.value) : records.value,
 );
 const visibleColumns = computed(() => activeColumns.value.filter((column) => column.visible));
+const pagedRecords = computed(() =>
+  paginate(filteredRecords.value, { page: page.value, pageSize: pageSize.value }),
+);
 const recordWindowStyle = computed(() => ({
   left: `${recordWindow.value.x}px`,
   top: `${recordWindow.value.y}px`,
@@ -72,6 +88,10 @@ watch(recordWindowOpen, (open) => {
   } else {
     document.removeEventListener("pointerdown", closeRecordWhenClickOutside, true);
   }
+});
+
+watch([keyword, pageSize], () => {
+  page.value = 1;
 });
 
 onBeforeUnmount(() => {
@@ -295,20 +315,30 @@ async function importExcel(event: Event) {
           <input v-model="keyword" placeholder="搜索日期、单位、人员、服务器、故障或处理结果" />
           <span>{{ filteredRecords.length }} 条记录</span>
           <TableColumnSettings
-            table-id="access-records"
+            :table-id="tableId"
             :columns="tableColumns"
             @update:columns="activeColumns = $event"
           />
         </div>
         <div class="table-wrap">
           <table>
+            <colgroup>
+              <col v-for="column in visibleColumns" :key="column.id" :style="columnWidthStyle(column)" />
+            </colgroup>
             <thead>
               <tr>
-                <th v-for="column in visibleColumns" :key="column.id">{{ column.label }}</th>
+                <th v-for="column in visibleColumns" :key="column.id" :style="columnWidthStyle(column)">
+                  <span>{{ column.label }}</span>
+                  <span
+                    class="column-resizer"
+                    aria-hidden="true"
+                    @pointerdown="startColumnResize(column, $event)"
+                  />
+                </th>
               </tr>
             </thead>
             <tbody>
-              <tr v-for="record in filteredRecords" :key="record.id">
+              <tr v-for="record in pagedRecords.items" :key="record.id">
                 <td v-for="column in visibleColumns" :key="column.id">
                   <template v-if="column.id === 'date'">{{ record.date }}</template>
                   <template v-else-if="column.id === 'visitor'">{{ record.unit }}<br /><small>{{ record.visitorName }}</small></template>
@@ -328,6 +358,12 @@ async function importExcel(event: Event) {
             </tbody>
           </table>
         </div>
+        <PaginationControls
+          v-model:page="page"
+          v-model:page-size="pageSize"
+          :total="pagedRecords.total"
+          :page-count="pagedRecords.pageCount"
+        />
       </section>
     </div>
   </section>
@@ -474,7 +510,9 @@ small {
 
 table {
   width: 100%;
+  min-width: 1240px;
   border-collapse: collapse;
+  table-layout: fixed;
 }
 
 th,
@@ -486,8 +524,33 @@ td {
 }
 
 th {
+  position: relative;
   color: var(--color-text-muted);
   font-size: 12px;
+  background: var(--table-header-bg);
+}
+
+th span {
+  display: block;
+  overflow: hidden;
+  padding-right: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.column-resizer {
+  position: absolute;
+  top: 7px;
+  right: 0;
+  width: 8px;
+  height: calc(100% - 14px);
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-right: 2px solid color-mix(in srgb, var(--color-primary) 42%, transparent);
+  border-radius: 0;
+  background: transparent;
+  cursor: col-resize;
 }
 
 td button {

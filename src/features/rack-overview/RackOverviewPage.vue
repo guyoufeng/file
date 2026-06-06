@@ -920,6 +920,19 @@ async function restoreRackItem(itemId: string) {
   font-size: 12px;
 }
 
+:global(:root[data-theme="light"]) .location-focus-banner {
+  border-color: rgba(34, 197, 94, 0.32);
+  color: #134e4a;
+  background:
+    linear-gradient(135deg, rgba(187, 247, 208, 0.72), rgba(224, 242, 254, 0.72)),
+    #ecfdf5;
+  box-shadow: 0 12px 32px rgba(15, 118, 110, 0.1);
+}
+
+:global(:root[data-theme="light"]) .location-focus-banner strong {
+  color: #0369a1;
+}
+
 .layout-panel {
   min-width: 0;
   overflow-x: auto;

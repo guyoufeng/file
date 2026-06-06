@@ -38,6 +38,17 @@ import {
   buildAgentClarification,
   type AgentClarification,
 } from "../../../services/ai/agentClarify";
+import {
+  buildAgentWriteDraft,
+  toAccessRecordInput,
+  toChangeEventInput,
+  updateAgentWriteDraftField,
+  type AgentWriteDraft,
+  type AgentWriteDraftField,
+} from "../../../services/ai/agentWriteDraft";
+import { canModifyModule, type AppModuleKey } from "../../../services/auth/accountAccess";
+import { createAccessRecord } from "../../access-management/accessRecords";
+import { createChangeEvent } from "../../change-management/changeEvents";
 
 const props = defineProps<{
   rooms: Room[];
@@ -62,6 +73,8 @@ interface ChatAnswer {
   target?: AiNavigationTarget;
   attachments?: ChatAttachment[];
   clarification?: AgentClarification;
+  writeDraft?: AgentWriteDraft;
+  writeDraftStatus?: "pending" | "applied" | "denied";
 }
 
 type ChatAttachment = AgentAttachmentSummary;
@@ -144,6 +157,16 @@ async function processQuestion(currentQuestion: string, currentAttachments: Chat
   const startedAt = new Date();
   startThinkingTimeline(currentQuestion, startedAt.toISOString());
   try {
+    if (/^确认(?:更新|录入|保存|写入|执行)?[。.!！]?$/.test(currentQuestion.replace(/\s+/g, ""))) {
+      const pending = getPendingWriteDraftAnswer();
+      if (pending) {
+        await confirmWriteDraft(pending, currentQuestion);
+        question.value = "";
+        pendingAttachments.value = [];
+        return;
+      }
+    }
+
     const commandAnswer = await answerLocalAgentCommand(currentQuestion);
     if (commandAnswer) {
       const endedAt = new Date();
@@ -195,6 +218,69 @@ async function processQuestion(currentQuestion: string, currentAttachments: Chat
     }
 
     const agentContext = await loadContextForAgent();
+    const writeDraft = buildAgentWriteDraft({
+      question: currentQuestion,
+      rooms: agentContext.rooms,
+      racks: agentContext.racks,
+      devices: agentContext.devices,
+      lastTarget: getLastNavigationTarget(),
+    });
+    if (writeDraft) {
+      const answerText = `${writeDraft.prompt}\n\n确认无误后，可以点击“确认写入”，也可以直接回复“确认更新”。`;
+      const endedAt = new Date();
+      const runRecord = saveAgentRunRecord({
+        sessionId: activeSessionId.value,
+        question: currentQuestion,
+        answer: answerText,
+        toolName: "agent_clarify_write",
+        dataSource: "AI交互式写入草稿",
+        startedAt: startedAt.toISOString(),
+        endedAt: endedAt.toISOString(),
+        events: buildAiAgentEvents({
+          question: currentQuestion,
+          toolName: "general_chat",
+          answer: answerText,
+          dataSource: "AI交互式写入草稿",
+        }),
+        target: {
+          roomId: writeDraft.targetRoomId,
+          rackId: writeDraft.targetRackId,
+          deviceId: writeDraft.targetDeviceId,
+        },
+        attachments: compactAttachmentsForStorage(currentAttachments),
+      });
+      answers.value.push({
+        id: `${Date.now()}-${answers.value.length}`,
+        question: currentQuestion,
+        content: answerText,
+        toolName: "agent_clarify_write",
+        dataSource: "AI交互式写入草稿",
+        events: runRecord.events,
+        target: buildNavigationTarget({
+          relatedRoomId: writeDraft.targetRoomId,
+          relatedRackId: writeDraft.targetRackId,
+          relatedDeviceId: writeDraft.targetDeviceId,
+        }),
+        attachments: compactAttachmentsForStorage(currentAttachments),
+        writeDraft,
+        writeDraftStatus: "pending",
+      });
+      updateActiveSession(currentQuestion);
+      question.value = "";
+      pendingAttachments.value = [];
+      await scrollToLatestMessage();
+      writeAiAuditLog({
+        question: currentQuestion,
+        tools: ["agent_clarify_write"],
+        answerSummary: writeDraft.prompt,
+        relatedDeviceId: writeDraft.targetDeviceId,
+        relatedRackId: writeDraft.targetRackId,
+        relatedRoomId: writeDraft.targetRoomId,
+        status: "success",
+      });
+      return;
+    }
+
     const clarification = buildAgentClarification(currentQuestion);
     if (clarification) {
       const endedAt = new Date();
@@ -460,6 +546,186 @@ async function loadContextForAgent() {
   }
 }
 
+function getPendingWriteDraftAnswer() {
+  return [...answers.value].reverse().find((item) => item.writeDraft && item.writeDraftStatus === "pending");
+}
+
+function getLastNavigationTarget() {
+  return [...answers.value].reverse().find((item) => item.target)?.target;
+}
+
+function requiredModuleForDraft(kind: AgentWriteDraft["kind"]): AppModuleKey {
+  if (kind === "access_record") return "access-records";
+  if (kind === "change_event") return "change-management";
+  return "assets";
+}
+
+function updateDraftField(answer: ChatAnswer, field: AgentWriteDraftField, event: Event) {
+  if (!answer.writeDraft) return;
+  const target = event.target as HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement;
+  const value = field.type === "checkbox" ? (target as HTMLInputElement).checked : target.value;
+  answer.writeDraft = updateAgentWriteDraftField(answer.writeDraft, field.key, value);
+}
+
+async function confirmWriteDraft(answer: ChatAnswer, confirmQuestion = "确认更新") {
+  if (!answer.writeDraft) return;
+  const draft = answer.writeDraft;
+  const moduleKey = requiredModuleForDraft(draft.kind);
+  if (!canModifyModule(authStore.session ?? undefined, moduleKey)) {
+    answer.writeDraftStatus = "denied";
+    appendSystemAnswer({
+      questionText: confirmQuestion,
+      content: "当前账号没有对应模块的修改权限，AI 助手不能执行本次写入。请使用管理员账号或调整账号权限后再操作。",
+      toolName: "agent_write_denied",
+      dataSource: "AI交互式写入工具",
+      target: answer.target,
+      startedAt: new Date(),
+    });
+    return;
+  }
+
+  if (draft.kind === "access_record") {
+    const input = toAccessRecordInput(draft);
+    const device = assetStore.devices.find((item) => item.id === input.deviceId);
+    const saved = createAccessRecord({
+      ...input,
+      deviceName: device?.computerName || device?.name || input.deviceName,
+    });
+    answer.writeDraftStatus = "applied";
+    writeSystemAuditLog({
+      action: "ai_access_record.create",
+      targetType: "access_record",
+      targetId: saved.id,
+      summary: `AI 确认录入进出记录：${saved.date} ${saved.unit}`,
+      status: "success",
+      metadata: { deviceId: saved.deviceId, reason: saved.reason },
+    });
+    appendSystemAnswer({
+      questionText: confirmQuestion,
+      content: `已写入进出记录：${saved.date}，${saved.unit} / ${saved.visitorName}，事由：${saved.reason}。`,
+      toolName: "write_access_record",
+      dataSource: "AI交互式写入工具",
+      target: answer.target,
+      startedAt: new Date(),
+    });
+    return;
+  }
+
+  if (draft.kind === "change_event") {
+    const saved = createChangeEvent(toChangeEventInput(draft, assetStore.devices, props.racks, props.rooms));
+    answer.writeDraftStatus = "applied";
+    writeSystemAuditLog({
+      action: "ai_change_event.create",
+      targetType: "change_event",
+      targetId: saved.id,
+      summary: `AI 确认录入变更记录：${saved.title}`,
+      status: "success",
+      metadata: { deviceId: saved.deviceId, type: saved.type, status: saved.status },
+    });
+    appendSystemAnswer({
+      questionText: confirmQuestion,
+      content: `已写入变更记录：${saved.title}，状态：${saved.status}，时间：${saved.changedAt}。`,
+      toolName: "write_change_event",
+      dataSource: "AI交互式写入工具",
+      target: buildNavigationTarget({
+        relatedRoomId: saved.roomId,
+        relatedRackId: saved.rackId,
+        relatedDeviceId: saved.deviceId,
+      }),
+      startedAt: new Date(),
+    });
+    return;
+  }
+
+  const device = assetStore.devices.find((item) => item.id === draft.targetDeviceId);
+  if (!device) {
+    appendSystemAnswer({
+      questionText: confirmQuestion,
+      content: "没有找到要更新的资产，写入已取消。",
+      toolName: "write_asset",
+      dataSource: "AI交互式写入工具",
+      startedAt: new Date(),
+    });
+    return;
+  }
+  const patch = Object.fromEntries(
+    draft.fields
+      .map((field) => [field.key, field.value])
+      .filter(([, value]) => typeof value === "string" && value.trim() !== ""),
+  ) as Partial<Device>;
+  const saved = await assetStore.upsertDevice({
+    ...device,
+    ...patch,
+    ips: [patch.businessIp ?? device.businessIp, patch.managementIp ?? device.managementIp].filter(
+      (item): item is string => Boolean(item),
+    ),
+  });
+  answer.writeDraftStatus = "applied";
+  writeSystemAuditLog({
+    action: "ai_asset.update",
+    targetType: "device",
+    targetId: saved.id,
+    summary: `AI 确认更新资产：${saved.computerName || saved.name}`,
+    status: "success",
+    metadata: { patch },
+  });
+  appendSystemAnswer({
+    questionText: confirmQuestion,
+    content: `已更新资产：${saved.computerName || saved.name}。更新字段：${Object.keys(patch).join("、")}。`,
+    toolName: "write_asset",
+    dataSource: "AI交互式写入工具",
+    target: answer.target,
+    startedAt: new Date(),
+  });
+}
+
+function appendSystemAnswer(input: {
+  questionText: string;
+  content: string;
+  toolName: string;
+  dataSource: string;
+  target?: AiNavigationTarget;
+  startedAt: Date;
+}) {
+  const endedAt = new Date();
+  const runRecord = saveAgentRunRecord({
+    sessionId: activeSessionId.value,
+    question: input.questionText,
+    answer: input.content,
+    toolName: input.toolName,
+    dataSource: input.dataSource,
+    startedAt: input.startedAt.toISOString(),
+    endedAt: endedAt.toISOString(),
+    events: buildAiAgentEvents({
+      question: input.questionText,
+      toolName: input.toolName,
+      answer: input.content,
+      dataSource: input.dataSource,
+    }),
+    target: input.target,
+  });
+  answers.value.push({
+    id: `${Date.now()}-${answers.value.length}`,
+    question: input.questionText,
+    content: input.content,
+    toolName: input.toolName,
+    dataSource: input.dataSource,
+    events: runRecord.events,
+    target: input.target,
+  });
+  updateActiveSession(input.questionText);
+  void scrollToLatestMessage();
+  writeAiAuditLog({
+    question: input.questionText,
+    tools: [input.toolName],
+    answerSummary: input.content,
+    relatedDeviceId: input.target?.deviceId,
+    relatedRackId: input.target?.rackId,
+    relatedRoomId: input.target?.roomId,
+    status: "success",
+  });
+}
+
 function loadSessions() {
   const stored = localStorage.getItem(storageKey);
   if (stored) {
@@ -616,6 +882,71 @@ async function chooseClarification(value: string) {
           </ol>
         </details>
         <AiAnswerCard :answer="answer.content" />
+        <form
+          v-if="answer.writeDraft"
+          class="write-draft-card"
+          :class="answer.writeDraftStatus"
+          @submit.prevent="confirmWriteDraft(answer)"
+        >
+          <header>
+            <div>
+              <strong>{{ answer.writeDraft.title }}</strong>
+              <span>{{ answer.writeDraftStatus === "applied" ? "已写入" : answer.writeDraft.prompt }}</span>
+            </div>
+            <small>{{ answer.writeDraft.kind }}</small>
+          </header>
+          <div class="write-draft-grid">
+            <label
+              v-for="field in answer.writeDraft.fields"
+              :key="field.key"
+              :class="{ wide: field.type === 'textarea' }"
+            >
+              <span>{{ field.label }}<em v-if="field.required">*</em></span>
+              <textarea
+                v-if="field.type === 'textarea'"
+                rows="2"
+                :value="field.value"
+                :disabled="answer.writeDraftStatus === 'applied'"
+                @input="updateDraftField(answer, field, $event)"
+              />
+              <select
+                v-else-if="field.type === 'select'"
+                :value="field.value"
+                :disabled="answer.writeDraftStatus === 'applied'"
+                @change="updateDraftField(answer, field, $event)"
+              >
+                <option v-for="option in field.options ?? []" :key="option.value" :value="option.value">
+                  {{ option.label }}
+                </option>
+              </select>
+              <span v-else-if="field.type === 'checkbox'" class="draft-check">
+                <input
+                  type="checkbox"
+                  :checked="Boolean(field.value)"
+                  :disabled="answer.writeDraftStatus === 'applied'"
+                  @change="updateDraftField(answer, field, $event)"
+                />
+                <small>{{ Boolean(field.value) ? "是" : "否" }}</small>
+              </span>
+              <input
+                v-else
+                :type="field.type"
+                :value="field.value"
+                :required="field.required"
+                :disabled="answer.writeDraftStatus === 'applied'"
+                @input="updateDraftField(answer, field, $event)"
+              />
+            </label>
+          </div>
+          <div class="write-draft-actions">
+            <span v-if="answer.writeDraftStatus === 'pending'">确认前可以直接修改字段。</span>
+            <span v-else-if="answer.writeDraftStatus === 'denied'">权限不足，未写入。</span>
+            <span v-else>记录已写入平台。</span>
+            <button type="submit" :disabled="answer.writeDraftStatus !== 'pending'">
+              确认写入
+            </button>
+          </div>
+        </form>
         <div v-if="answer.clarification" class="clarify-options">
           <button
             v-for="option in answer.clarification.options"
@@ -997,6 +1328,110 @@ button:disabled {
     linear-gradient(135deg, rgba(14, 165, 233, 0.24), rgba(37, 99, 235, 0.16)),
     rgba(8, 17, 31, 0.9);
   box-shadow: 0 10px 24px rgba(14, 165, 233, 0.12);
+  cursor: pointer;
+}
+
+.write-draft-card {
+  justify-self: start;
+  width: min(100%, 560px);
+  display: grid;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid rgba(56, 189, 248, 0.26);
+  border-radius: 8px;
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--color-primary) 8%, var(--surface-raised));
+  box-shadow: 0 12px 32px rgba(14, 165, 233, 0.1);
+}
+
+.write-draft-card.applied {
+  border-color: rgba(16, 185, 129, 0.4);
+  background: color-mix(in srgb, var(--color-success) 8%, var(--surface-raised));
+}
+
+.write-draft-card.denied {
+  border-color: rgba(239, 68, 68, 0.42);
+}
+
+.write-draft-card header,
+.write-draft-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.write-draft-card header > div {
+  display: grid;
+  gap: 3px;
+}
+
+.write-draft-card header span,
+.write-draft-card header small,
+.write-draft-actions span,
+.write-draft-grid label > span {
+  color: var(--color-text-muted);
+  font-size: 12px;
+}
+
+.write-draft-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.write-draft-grid label {
+  display: grid;
+  gap: 5px;
+}
+
+.write-draft-grid label.wide {
+  grid-column: 1 / -1;
+}
+
+.write-draft-grid em {
+  color: var(--color-critical);
+  font-style: normal;
+}
+
+.write-draft-grid input,
+.write-draft-grid select,
+.write-draft-grid textarea {
+  width: 100%;
+  min-height: 32px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  color: var(--color-text);
+  background: var(--control-bg);
+}
+
+.write-draft-grid input,
+.write-draft-grid select {
+  padding: 0 9px;
+}
+
+.write-draft-grid textarea {
+  resize: vertical;
+  padding: 8px 9px;
+}
+
+.draft-check {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.draft-check input {
+  width: 16px;
+  min-height: 16px;
+}
+
+.write-draft-actions button {
+  min-height: 30px;
+  border: 1px solid rgba(14, 165, 233, 0.56);
+  border-radius: 8px;
+  color: var(--color-text);
+  background: color-mix(in srgb, var(--color-primary) 16%, var(--control-bg));
   cursor: pointer;
 }
 

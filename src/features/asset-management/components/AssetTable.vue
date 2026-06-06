@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import TableColumnSettings from '../../../components/TableColumnSettings.vue'
 import type { Device, Rack } from '../../../types/domain'
 import type { DataTableColumn, ResolvedDataTableColumn } from '../../../services/table/tableColumnPreferences'
+import { useTableColumnResize } from '../../../services/table/tableColumnResize'
 
 defineProps<{
   devices: Device[]
@@ -20,35 +21,53 @@ function rackName(racks: Rack[], rackId: string): string {
 }
 
 const tableColumns: DataTableColumn[] = [
-  { id: 'computerName', label: '计算机名', locked: true },
-  { id: 'businessIp', label: '业务IP' },
-  { id: 'managementIp', label: '管理IP' },
-  { id: 'purpose', label: '用途' },
-  { id: 'model', label: '型号' },
-  { id: 'rack', label: '所属机柜' },
-  { id: 'uPosition', label: 'U位' },
-  { id: 'status', label: '状态' },
-  { id: 'owner', label: '责任人' },
-  { id: 'warranty', label: '维保到期' },
-  { id: 'actions', label: '操作', locked: true },
+  { id: 'computerName', label: '计算机名', locked: true, width: 210, minWidth: 150 },
+  { id: 'businessIp', label: '业务IP', width: 150 },
+  { id: 'managementIp', label: '管理IP', width: 150 },
+  { id: 'purpose', label: '用途', width: 180 },
+  { id: 'model', label: '型号', width: 180 },
+  { id: 'rack', label: '所属机柜', width: 130 },
+  { id: 'uPosition', label: 'U位', width: 100 },
+  { id: 'status', label: '状态', width: 110 },
+  { id: 'owner', label: '责任人', width: 120 },
+  { id: 'warranty', label: '维保到期', width: 140 },
+  { id: 'actions', label: '操作', locked: true, width: 140, minWidth: 120 },
 ]
 const activeColumns = ref<ResolvedDataTableColumn[]>([])
 const visibleColumns = computed(() => activeColumns.value.filter((column) => column.visible))
+const tableId = 'asset-management'
+const { columnWidthStyle, startColumnResize } = useTableColumnResize(
+  tableId,
+  tableColumns,
+  (columns) => {
+    activeColumns.value = columns
+  },
+)
 </script>
 
 <template>
   <div class="asset-table">
-    <div class="asset-table-toolbar">
+    <Teleport defer to="#asset-table-column-settings-host">
       <TableColumnSettings
-        table-id="asset-management"
+        :table-id="tableId"
         :columns="tableColumns"
         @update:columns="activeColumns = $event"
       />
-    </div>
+    </Teleport>
     <table>
+      <colgroup>
+        <col v-for="column in visibleColumns" :key="column.id" :style="columnWidthStyle(column)" />
+      </colgroup>
       <thead>
         <tr>
-          <th v-for="column in visibleColumns" :key="column.id">{{ column.label }}</th>
+          <th v-for="column in visibleColumns" :key="column.id" :style="columnWidthStyle(column)">
+            <span>{{ column.label }}</span>
+            <span
+              class="column-resizer"
+              aria-hidden="true"
+              @pointerdown="startColumnResize(column, $event)"
+            />
+          </th>
         </tr>
       </thead>
       <tbody>
@@ -86,6 +105,7 @@ const visibleColumns = computed(() => activeColumns.value.filter((column) => col
 
 <style scoped>
 .asset-table {
+  position: relative;
   overflow: auto;
   border: 1px solid var(--color-border);
   border-radius: 8px;
@@ -93,18 +113,11 @@ const visibleColumns = computed(() => activeColumns.value.filter((column) => col
   box-shadow: var(--shadow-soft);
 }
 
-.asset-table-toolbar {
-  position: sticky;
-  left: 0;
-  display: flex;
-  justify-content: flex-end;
-  padding: 10px 10px 0;
-}
-
 table {
   width: 100%;
   min-width: 1180px;
   border-collapse: collapse;
+  table-layout: fixed;
 }
 
 th,
@@ -116,9 +129,32 @@ td {
 }
 
 th {
+  position: relative;
   color: var(--color-text-muted);
   font-weight: 600;
   background: var(--table-header-bg);
+}
+
+th span {
+  display: block;
+  overflow: hidden;
+  padding-right: 10px;
+  text-overflow: ellipsis;
+}
+
+.column-resizer {
+  position: absolute;
+  top: 7px;
+  right: 0;
+  width: 8px;
+  height: calc(100% - 14px);
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-right: 2px solid color-mix(in srgb, var(--color-primary) 42%, transparent);
+  border-radius: 0;
+  background: transparent;
+  cursor: col-resize;
 }
 
 button {

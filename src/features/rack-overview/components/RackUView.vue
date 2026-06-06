@@ -345,4 +345,19 @@ h3 {
     0 0 0 2px rgba(253, 230, 138, 0.22),
     0 10px 24px rgba(245, 158, 11, 0.12);
 }
+
+:global(:root[data-theme="light"]) .rack-u-column.active .rack-u-title {
+  border-color: rgba(245, 158, 11, 0.72);
+  color: #0f172a;
+  background:
+    linear-gradient(135deg, rgba(254, 249, 195, 0.9), rgba(224, 242, 254, 0.72)),
+    var(--viz-panel-strong);
+  box-shadow:
+    0 0 0 2px rgba(245, 158, 11, 0.18),
+    0 10px 24px rgba(245, 158, 11, 0.12);
+}
+
+:global(:root[data-theme="light"]) .rack-u-column.active .rack-u-title span {
+  color: #334155;
+}
 </style>

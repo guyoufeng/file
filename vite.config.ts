@@ -21,9 +21,10 @@ import {
   type AgentQuery,
 } from "./src/services/agent/readonlyApi";
 import type { ProjectJson } from "./src/services/backend/data";
-import type { Alert, Device } from "./src/types/domain";
+import type { Alert, AuditLog, Device } from "./src/types/domain";
 import type { AccessRecord } from "./src/features/access-management/accessRecords";
 import type { ChangeEvent } from "./src/features/change-management/changeEvents";
+import { LocalServiceDataSource, getRequestActor } from "./local-service/dataSource";
 
 async function readBody(req: IncomingMessage) {
   const chunks: Uint8Array[] = [];
@@ -40,6 +41,8 @@ const agentAuthPath = path.resolve(".local/agent-api-auth.json");
 const agentApiKeysPath = path.resolve(".local/agent-api-keys.json");
 const demoSeedPath = path.resolve(".local/demo-seed.json");
 const gatewayInboxPath = path.resolve(".local/agent-gateway-inbox.json");
+const localDataSource = new LocalServiceDataSource(path.resolve(".local"));
+const localDataSourceReady = localDataSource.init();
 
 function getQuery(req: IncomingMessage): AgentQuery {
   const url = new URL(req.url ?? "/", "http://localhost");
@@ -147,6 +150,7 @@ async function ensureAgentAuthorized(
   res: Parameters<import("connect").NextHandleFunction>[1],
   requiredScope: AgentApiScope = "read",
 ): Promise<boolean> {
+  await localDataSourceReady;
   const settings = await loadAgentAuthSettings();
   const authorization = req.headers.authorization ?? "";
   const token = authorization.startsWith("Bearer ")
@@ -154,7 +158,17 @@ async function ensureAgentAuthorized(
     : "";
 
   if (requiredScope === "read" && !settings.enabled) return true;
-  if (requiredScope === "read" && token && token === settings.token) return true;
+  if (requiredScope === "read" && token && token === settings.token) {
+    await localDataSource.appendAudit({
+      actor: getRequestActor(req),
+      action: "agent_api.authorize",
+      targetType: "agent_api",
+      requiredScope,
+      status: "success",
+      summary: "Agent API 只读令牌验证通过",
+    });
+    return true;
+  }
 
   if (token) {
     const keys = await loadAgentApiKeys();
@@ -167,10 +181,28 @@ async function ensureAgentAuthorized(
         updatedAt: new Date().toISOString(),
       };
       await saveAgentApiKeys(keys.map((item) => (item.id === record.id ? updated : item)));
+      await localDataSource.appendAudit({
+        actor: record.name,
+        action: "agent_api.authorize",
+        targetType: "agent_api_key",
+        targetId: record.id,
+        requiredScope,
+        status: "success",
+        summary: `Agent API Key ${record.name} 通过 ${requiredScope} 权限校验`,
+      });
       return true;
     }
   }
 
+  await localDataSource.appendAudit({
+    actor: getRequestActor(req),
+    action: "agent_api.authorize",
+    targetType: "agent_api",
+    requiredScope,
+    status: "denied",
+    summary: `Agent API ${requiredScope} 权限校验失败`,
+    metadata: { hasBearerToken: Boolean(token) },
+  });
   sendJson(
     res,
     {
@@ -186,6 +218,9 @@ async function ensureAgentAuthorized(
 }
 
 async function loadAgentSnapshot(): Promise<AgentReadonlySnapshot> {
+  await localDataSourceReady;
+  const sqliteSnapshot = await localDataSource.loadSnapshot();
+  if (sqliteSnapshot) return sqliteSnapshot;
   try {
     return JSON.parse(await readFile(agentSnapshotPath, "utf8")) as AgentReadonlySnapshot;
   } catch {
@@ -199,8 +234,65 @@ async function loadAgentSnapshot(): Promise<AgentReadonlySnapshot> {
 }
 
 async function saveAgentSnapshot(snapshot: AgentReadonlySnapshot): Promise<void> {
+  await localDataSourceReady;
+  await localDataSource.saveSnapshot(snapshot);
   await mkdir(path.dirname(agentSnapshotPath), { recursive: true });
   await writeFile(agentSnapshotPath, JSON.stringify(snapshot, null, 2), "utf8");
+}
+
+async function auditAgentApi(
+  req: IncomingMessage,
+  input: {
+    action: string;
+    summary: string;
+    targetType?: string;
+    targetId?: string;
+    requiredScope?: AgentApiScope;
+    status?: "success" | "denied" | "failed";
+    metadata?: Record<string, unknown>;
+  },
+) {
+  await localDataSourceReady;
+  await localDataSource.appendAudit({
+    actor: getRequestActor(req),
+    action: input.action,
+    targetType: input.targetType ?? "agent_api",
+    targetId: input.targetId,
+    requiredScope: input.requiredScope,
+    status: input.status ?? "success",
+    summary: input.summary,
+    metadata: {
+      method: req.method ?? "GET",
+      endpoint: req.url ?? "",
+      ...input.metadata,
+    },
+  });
+}
+
+function toDomainAuditLog(record: Awaited<ReturnType<LocalServiceDataSource["loadAuditLogs"]>>[number]): AuditLog {
+  return {
+    id: record.id,
+    actor: record.actor,
+    action: record.action,
+    targetType: record.targetType,
+    targetId: record.targetId,
+    summary: record.summary,
+    createdAt: record.createdAt,
+    metadata: {
+      ...record.metadata,
+      requiredScope: record.requiredScope,
+      status: record.status,
+      source: "local_http_service",
+    },
+  };
+}
+
+async function getCombinedAuditLogs(snapshot: AgentReadonlySnapshot): Promise<AuditLog[]> {
+  await localDataSourceReady;
+  const serviceLogs = (await localDataSource.loadAuditLogs(500)).map(toDomainAuditLog);
+  return [...serviceLogs, ...(snapshot.data.auditLogs ?? [])].sort(
+    (left, right) => new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime(),
+  );
 }
 
 async function appendGatewayInbox(message: unknown): Promise<number> {
@@ -237,10 +329,90 @@ function aiProxyPlugin() {
         sendJson(res, { baseUrl: getRuntimePublicBaseUrl(req) });
       });
 
+      server.middlewares.use("/api/local/v1/collections", async (req, res) => {
+        await localDataSourceReady;
+        const collectionName = decodeURIComponent(
+          new URL(req.url ?? "/", "http://localhost").pathname.split("/").filter(Boolean)[0] ?? "",
+        );
+
+        if (!collectionName) {
+          if (req.method === "GET") {
+            sendJson(res, {
+              dataSourceMode: localDataSource.mode,
+              data: await localDataSource.listCollections(),
+            });
+            return;
+          }
+          sendJson(res, { message: "缺少 collection 名称。" }, 400);
+          return;
+        }
+
+        if (req.method === "GET") {
+          sendJson(res, {
+            collection: collectionName,
+            data: await localDataSource.loadCollection(collectionName),
+            dataSourceMode: localDataSource.mode,
+          });
+          return;
+        }
+
+        if (req.method !== "PUT" && req.method !== "POST") {
+          res.statusCode = 405;
+          res.end("Method Not Allowed");
+          return;
+        }
+
+        const body = (await readBody(req)) as { data?: unknown[] };
+        if (!Array.isArray(body.data)) {
+          sendJson(res, { message: "collection 写入需要 data 数组。" }, 400);
+          return;
+        }
+        await localDataSource.saveCollection(collectionName, body.data);
+        await localDataSource.appendAudit({
+          actor: getRequestActor(req),
+          action: "local_collection.write",
+          targetType: "local_collection",
+          targetId: collectionName,
+          requiredScope: "write",
+          status: "success",
+          summary: `写入统一数据集合：${collectionName}`,
+          metadata: { count: body.data.length, dataSourceMode: localDataSource.mode },
+        });
+        sendJson(res, {
+          message: "统一数据集合已写入 SQLite 后端",
+          collection: collectionName,
+          count: body.data.length,
+          dataSourceMode: localDataSource.mode,
+        });
+      });
+
+      server.middlewares.use("/api/local/v1/backups", async (req, res) => {
+        await localDataSourceReady;
+        if (req.method !== "POST") {
+          res.statusCode = 405;
+          res.end("Method Not Allowed");
+          return;
+        }
+        if (!(await ensureAgentAuthorized(req, res, "write"))) return;
+        const backup = await localDataSource.createBackup();
+        sendJson(res, {
+          message: "统一后端数据备份已创建",
+          data: backup,
+          dataSourceMode: localDataSource.mode,
+        });
+      });
+
       server.middlewares.use("/api/agent/v1/snapshot", async (req, res) => {
         if (!(await ensureAgentAuthorized(req, res))) return;
         if (req.method === "GET") {
-          sendJson(res, await loadAgentSnapshot());
+          const snapshot = await loadAgentSnapshot();
+          await auditAgentApi(req, {
+            action: "agent_api.snapshot.read",
+            summary: "读取 Agent API 全量快照",
+            requiredScope: "read",
+            metadata: { dataSourceMode: localDataSource.mode },
+          });
+          sendJson(res, snapshot);
           return;
         }
 
@@ -254,6 +426,16 @@ function aiProxyPlugin() {
           const project = (await readBody(req)) as ProjectJson;
           const snapshot = buildAgentReadonlySnapshot(project);
           await saveAgentSnapshot(snapshot);
+          await auditAgentApi(req, {
+            action: "agent_api.snapshot.sync",
+            summary: "同步 Agent API 全量快照",
+            requiredScope: "write",
+            metadata: {
+              dataSourceMode: localDataSource.mode,
+              devices: snapshot.data.devices.length,
+              racks: snapshot.data.racks.length,
+            },
+          });
           sendJson(res, {
             message: "只读 Agent API 快照已更新",
             generatedAt: snapshot.generatedAt,
@@ -303,6 +485,13 @@ function aiProxyPlugin() {
           return;
         }
         await saveAgentAuthSettings(nextSettings);
+        await auditAgentApi(req, {
+          action: "agent_api.auth_token.update",
+          summary: `${nextSettings.enabled ? "启用" : "停用"} Agent API 只读令牌`,
+          targetType: "agent_api_auth",
+          requiredScope: "write",
+          metadata: { enabled: nextSettings.enabled },
+        });
         sendJson(res, {
           enabled: nextSettings.enabled,
           tokenPreview: previewToken(nextSettings.token),
@@ -338,12 +527,95 @@ function aiProxyPlugin() {
           updatedAt: now,
         };
         await saveAgentApiKeys([record, ...(await loadAgentApiKeys())]);
+        await auditAgentApi(req, {
+          action: "agent_api_key.create",
+          summary: `创建 Agent API Key：${record.name}`,
+          targetType: "agent_api_key",
+          targetId: record.id,
+          requiredScope: "write",
+          metadata: { scopes: record.scopes },
+        });
         sendJson(res, { record: publicApiKey(record), token });
+      });
+
+      server.middlewares.use("/api/agent/v1/write-approvals", async (req, res) => {
+        await localDataSourceReady;
+        const requestUrl = new URL(req.url ?? "/", "http://localhost");
+        const segments = requestUrl.pathname.split("/").filter(Boolean);
+
+        if (req.method === "GET") {
+          if (!(await ensureAgentAuthorized(req, res, "read"))) return;
+          const status = requestUrl.searchParams.get("status");
+          const approvals = await localDataSource.loadWriteApprovals(500);
+          sendJson(res, {
+            data: status ? approvals.filter((item) => item.status === status) : approvals,
+            dataSourceMode: localDataSource.mode,
+          });
+          return;
+        }
+
+        if (req.method !== "POST") {
+          res.statusCode = 405;
+          res.end("Method Not Allowed");
+          return;
+        }
+
+        const body = (await readBody(req)) as {
+          module?: string;
+          action?: string;
+          summary?: string;
+          payload?: unknown;
+          decisionBy?: string;
+          decisionNote?: string;
+          status?: "approved" | "rejected" | "applied";
+        };
+
+        if (segments.length >= 2 && segments[1] === "decision") {
+          if (!(await ensureAgentAuthorized(req, res, "write"))) return;
+          const id = segments[0];
+          const status = body.status ?? "approved";
+          const record = await localDataSource.decideWriteApproval({
+            id,
+            status,
+            decisionBy: body.decisionBy || getRequestActor(req),
+            decisionNote: body.decisionNote,
+          });
+          if (!record) {
+            sendJson(res, { message: "审批记录不存在。" }, 404);
+            return;
+          }
+          sendJson(res, { message: "Agent 写入审批已处理", data: record });
+          return;
+        }
+
+        if (!(await ensureAgentAuthorized(req, res, "write"))) return;
+        if (!body.module || !body.action || !body.summary) {
+          sendJson(res, { message: "创建审批需要 module、action、summary。" }, 400);
+          return;
+        }
+        const record = await localDataSource.createWriteApproval({
+          actor: getRequestActor(req),
+          module: body.module,
+          action: body.action,
+          summary: body.summary,
+          payload: body.payload ?? {},
+        });
+        sendJson(res, {
+          message: "Agent 写入请求已进入审批流",
+          data: record,
+          requiresApproval: true,
+        });
       });
 
       server.middlewares.use("/api/agent/v1/health", async (req, res) => {
         if (!(await ensureAgentAuthorized(req, res))) return;
         const snapshot = await loadAgentSnapshot();
+        await auditAgentApi(req, {
+          action: "agent_api.health.read",
+          summary: "读取 Agent API 健康状态",
+          requiredScope: "read",
+          metadata: { dataSourceMode: localDataSource.mode },
+        });
         sendJson(res, {
           status: "ok",
           readonly: true,
@@ -364,30 +636,57 @@ function aiProxyPlugin() {
 
       server.middlewares.use("/api/agent/v1/tools", async (req, res) => {
         if (!(await ensureAgentAuthorized(req, res))) return;
+        await auditAgentApi(req, {
+          action: "agent_api.tools.read",
+          summary: "读取 Agent 工具清单",
+          requiredScope: "read",
+        });
         sendJson(res, { data: getAgentReadonlyTools(getAgentApiBaseUrl(req)) });
       });
 
       server.middlewares.use("/api/agent/v1/openapi.json", async (req, res) => {
         if (!(await ensureAgentAuthorized(req, res))) return;
+        await auditAgentApi(req, {
+          action: "agent_api.openapi.read",
+          summary: "读取 Agent OpenAPI 描述",
+          requiredScope: "read",
+        });
         sendJson(res, buildAgentOpenApiDocument(getAgentApiBaseUrl(req)));
       });
 
       server.middlewares.use("/api/agent/v1/topology", async (req, res) => {
         if (!(await ensureAgentAuthorized(req, res))) return;
         const snapshot = await loadAgentSnapshot();
+        await auditAgentApi(req, {
+          action: "agent_api.topology.read",
+          summary: "读取拓扑全量数据",
+          requiredScope: "read",
+        });
         sendJson(res, snapshot);
       });
 
       server.middlewares.use("/api/agent/v1/rooms", async (req, res) => {
         if (!(await ensureAgentAuthorized(req, res))) return;
         const snapshot = await loadAgentSnapshot();
+        await auditAgentApi(req, {
+          action: "agent_api.rooms.read",
+          summary: "读取机房列表",
+          requiredScope: "read",
+        });
         sendJson(res, { data: snapshot.data.rooms });
       });
 
       server.middlewares.use("/api/agent/v1/racks", async (req, res) => {
         if (!(await ensureAgentAuthorized(req, res))) return;
         const snapshot = await loadAgentSnapshot();
-        sendJson(res, { data: filterAgentRacks(snapshot.data, getQuery(req)) });
+        const data = filterAgentRacks(snapshot.data, getQuery(req));
+        await auditAgentApi(req, {
+          action: "agent_api.racks.read",
+          summary: `读取机柜列表：${data.length} 条`,
+          requiredScope: "read",
+          metadata: getQuery(req),
+        });
+        sendJson(res, { data });
       });
 
       server.middlewares.use("/api/agent/v1/devices", async (req, res) => {
@@ -429,24 +728,54 @@ function aiProxyPlugin() {
           snapshot.data.devices = [saved, ...snapshot.data.devices.filter((item) => item.id !== saved.id)];
           snapshot.generatedAt = new Date().toISOString();
           await saveAgentSnapshot(snapshot);
+          await auditAgentApi(req, {
+            action: existing ? "agent_api.devices.update" : "agent_api.devices.create",
+            summary: existing ? `更新设备：${saved.computerName || saved.name}` : `新增设备：${saved.computerName || saved.name}`,
+            targetType: "device",
+            targetId: saved.id,
+            requiredScope: "write",
+            metadata: { businessIp: saved.businessIp, rackId: saved.rackId },
+          });
           sendJson(res, { message: existing ? "设备已更新" : "设备已新增", data: saved });
           return;
         }
         if (!(await ensureAgentAuthorized(req, res))) return;
         const snapshot = await loadAgentSnapshot();
-        sendJson(res, { data: filterAgentDevices(snapshot.data, getQuery(req)) });
+        const data = filterAgentDevices(snapshot.data, getQuery(req));
+        await auditAgentApi(req, {
+          action: "agent_api.devices.read",
+          summary: `读取设备列表：${data.length} 条`,
+          requiredScope: "read",
+          metadata: getQuery(req),
+        });
+        sendJson(res, { data });
       });
 
       server.middlewares.use("/api/agent/v1/alerts", async (req, res) => {
         if (!(await ensureAgentAuthorized(req, res))) return;
         const snapshot = await loadAgentSnapshot();
-        sendJson(res, { data: filterAgentAlerts(snapshot.data, getQuery(req)) });
+        const data = filterAgentAlerts(snapshot.data, getQuery(req));
+        await auditAgentApi(req, {
+          action: "agent_api.alerts.read",
+          summary: `读取告警列表：${data.length} 条`,
+          requiredScope: "read",
+          metadata: getQuery(req),
+        });
+        sendJson(res, { data });
       });
 
       server.middlewares.use("/api/agent/v1/audit-logs", async (req, res) => {
         if (!(await ensureAgentAuthorized(req, res))) return;
         const snapshot = await loadAgentSnapshot();
-        sendJson(res, { data: filterAgentAuditLogs(snapshot.data, getQuery(req)) });
+        const auditLogs = await getCombinedAuditLogs(snapshot);
+        const data = filterAgentAuditLogs({ auditLogs }, getQuery(req));
+        await auditAgentApi(req, {
+          action: "agent_api.audit_logs.read",
+          summary: `读取审计日志：${data.length} 条`,
+          requiredScope: "read",
+          metadata: getQuery(req),
+        });
+        sendJson(res, { data });
       });
 
       server.middlewares.use("/api/agent/v1/access-records", async (req, res) => {
@@ -478,12 +807,27 @@ function aiProxyPlugin() {
           ];
           snapshot.generatedAt = now;
           await saveAgentSnapshot(snapshot);
+          await auditAgentApi(req, {
+            action: "agent_api.access_records.create",
+            summary: `写入进出记录：${saved.date} ${saved.unit}`,
+            targetType: "access_record",
+            targetId: saved.id,
+            requiredScope: "write",
+            metadata: { deviceId: saved.deviceId, reason: saved.reason },
+          });
           sendJson(res, { message: "进出记录已写入", data: saved });
           return;
         }
         if (!(await ensureAgentAuthorized(req, res))) return;
         const snapshot = await loadAgentSnapshot();
-        sendJson(res, { data: filterAgentAccessRecords(snapshot.data, getQuery(req)) });
+        const data = filterAgentAccessRecords(snapshot.data, getQuery(req));
+        await auditAgentApi(req, {
+          action: "agent_api.access_records.read",
+          summary: `读取进出记录：${data.length} 条`,
+          requiredScope: "read",
+          metadata: getQuery(req),
+        });
+        sendJson(res, { data });
       });
 
       server.middlewares.use("/api/agent/v1/change-events", async (req, res) => {
@@ -520,18 +864,40 @@ function aiProxyPlugin() {
           ];
           snapshot.generatedAt = now;
           await saveAgentSnapshot(snapshot);
+          await auditAgentApi(req, {
+            action: "agent_api.change_events.create",
+            summary: `写入变更记录：${saved.title}`,
+            targetType: "change_event",
+            targetId: saved.id,
+            requiredScope: "write",
+            metadata: { deviceId: saved.deviceId, type: saved.type, status: saved.status },
+          });
           sendJson(res, { message: "变更记录已写入", data: saved });
           return;
         }
         if (!(await ensureAgentAuthorized(req, res))) return;
         const snapshot = await loadAgentSnapshot();
-        sendJson(res, { data: filterAgentChangeEvents(snapshot.data, getQuery(req)) });
+        const data = filterAgentChangeEvents(snapshot.data, getQuery(req));
+        await auditAgentApi(req, {
+          action: "agent_api.change_events.read",
+          summary: `读取变更记录：${data.length} 条`,
+          requiredScope: "read",
+          metadata: getQuery(req),
+        });
+        sendJson(res, { data });
       });
 
       server.middlewares.use("/api/agent/v1/connections", async (req, res) => {
         if (!(await ensureAgentAuthorized(req, res))) return;
         const snapshot = await loadAgentSnapshot();
-        sendJson(res, { data: filterAgentConnections(snapshot.data, getQuery(req)) });
+        const data = filterAgentConnections(snapshot.data, getQuery(req));
+        await auditAgentApi(req, {
+          action: "agent_api.connections.read",
+          summary: `读取连线关系：${data.length} 条`,
+          requiredScope: "read",
+          metadata: getQuery(req),
+        });
+        sendJson(res, { data });
       });
 
       server.middlewares.use("/api/agent/v1/gateway", async (req, res) => {
@@ -552,6 +918,21 @@ function aiProxyPlugin() {
               status: "paired",
             };
             await appendGatewayInbox(record);
+            await localDataSource.appendGatewayMessage({
+              provider,
+              externalUserId: record.externalUserId,
+              displayName: record.displayName,
+              direction: "inbound",
+              content: record.content,
+              rawPayload: record,
+            });
+            await auditAgentApi(req, {
+              action: "agent_gateway.pairing.accepted",
+              summary: `消息网关扫码配对请求已接收：${provider}`,
+              targetType: "agent_gateway",
+              targetId: configId || undefined,
+              metadata: { provider, externalUserId: record.externalUserId },
+            });
             res.statusCode = 200;
             res.setHeader("Content-Type", "text/html; charset=utf-8");
             res.end(
@@ -560,16 +941,22 @@ function aiProxyPlugin() {
                 "<title>泉峰AI消息网关配对</title>",
                 "<style>body{font-family:system-ui,-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#ecfdf5;color:#0f172a;padding:32px;line-height:1.7}main{max-width:560px;margin:auto;background:white;border:1px solid #bbf7d0;border-radius:12px;padding:24px;box-shadow:0 18px 44px rgba(15,23,42,.12)}code{display:block;overflow:auto;background:#f8fafc;border-radius:8px;padding:10px}</style>",
                 "</head><body><main>",
-                "<h1>消息网关配对已接收</h1>",
+                "<h1>消息网关配对请求已记录</h1>",
                 `<p>平台已收到 ${provider} 的扫码配对请求。</p>`,
-                "<p>如果要让微信/企业微信/钉钉消息真正进入 AI Agent，还需要在服务器部署对应 gateway adapter，并把消息 POST 到平台回调地址。</p>",
+                "<p>平台端回调和审计已就绪。要让个人微信/企业微信/钉钉消息真正进入 AI Agent，还需要部署对应 Hermes-compatible gateway adapter，并把消息 POST 到平台回调地址。</p>",
                 `<code>${getRuntimePublicBaseUrl(req)}/api/agent/v1/gateway/${provider}</code>`,
                 "</main></body></html>",
               ].join(""),
             );
             return;
           }
-          sendJson(res, { message: "Agent 消息网关在线", provider });
+          sendJson(res, {
+            message: "Agent 消息网关在线",
+            provider,
+            hermesCompatible: true,
+            callbackUrl: `${getRuntimePublicBaseUrl(req)}/api/agent/v1/gateway/${provider}`,
+            supportedProviders: ["wechat", "wecom", "dingtalk"],
+          });
           return;
         }
         if (req.method !== "POST") {
@@ -595,12 +982,32 @@ function aiProxyPlugin() {
           status: "received",
         };
         const total = await appendGatewayInbox(record);
+        const gatewayMessage = await localDataSource.appendGatewayMessage({
+          provider,
+          externalUserId: record.externalUserId,
+          displayName: record.displayName,
+          direction: "inbound",
+          content: record.content,
+          rawPayload: body,
+        });
+        await auditAgentApi(req, {
+          action: "agent_gateway.message.received",
+          summary: `消息网关收到 ${provider} 消息`,
+          targetType: "agent_gateway_message",
+          targetId: record.id,
+          metadata: {
+            provider,
+            externalUserId: record.externalUserId,
+            hasAttachments: (record.attachments as unknown[]).length > 0,
+          },
+        });
         sendJson(res, {
           message: "Agent 消息网关已接收",
           readonly: true,
+          hermesCompatible: true,
           sessionId: `${provider}-${record.externalUserId}`,
           total,
-          record,
+          record: gatewayMessage,
         });
       });
 
@@ -654,6 +1061,13 @@ function aiProxyPlugin() {
           snapshot.data.alerts = [alert, ...snapshot.data.alerts];
           snapshot.generatedAt = new Date().toISOString();
           await saveAgentSnapshot(snapshot);
+          await auditAgentApi(req, {
+            action: "webhook.alert.ingest",
+            summary: `Webhook 告警接收：${alert.title}`,
+            targetType: "alert",
+            targetId: alert.id,
+            metadata: { tokenPreview: previewToken(token), deviceId: device.id, level: alert.level },
+          });
           sendJson(res, { message: "Webhook 告警已接收", alert });
         } catch (error) {
           sendJson(

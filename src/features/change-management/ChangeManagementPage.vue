@@ -6,6 +6,7 @@ import TableColumnSettings from "../../components/TableColumnSettings.vue";
 import { useAssetStore } from "../../stores/assetStore";
 import { useRoomStore } from "../../stores/roomStore";
 import type { DataTableColumn, ResolvedDataTableColumn } from "../../services/table/tableColumnPreferences";
+import { useTableColumnResize } from "../../services/table/tableColumnResize";
 import {
   createChangeEvent,
   deleteChangeEvent,
@@ -24,14 +25,22 @@ const roomStore = useRoomStore();
 const keyword = ref("");
 const records = ref<ChangeEvent[]>([]);
 const tableColumns: DataTableColumn[] = [
-  { id: "title", label: "变更标题", locked: true },
-  { id: "typeStatus", label: "类型/状态" },
-  { id: "device", label: "关联设备" },
-  { id: "changedAt", label: "变更时间" },
-  { id: "content", label: "内容摘要" },
-  { id: "actions", label: "操作", locked: true },
+  { id: "title", label: "变更标题", locked: true, width: 240, minWidth: 170 },
+  { id: "typeStatus", label: "类型/状态", width: 140 },
+  { id: "device", label: "关联设备", width: 220, minWidth: 160 },
+  { id: "changedAt", label: "变更时间", width: 190, minWidth: 150 },
+  { id: "content", label: "内容摘要", width: 300, minWidth: 180 },
+  { id: "actions", label: "操作", locked: true, width: 190, minWidth: 150 },
 ];
 const activeColumns = ref<ResolvedDataTableColumn[]>([]);
+const tableId = "change-management";
+const { columnWidthStyle, startColumnResize } = useTableColumnResize(
+  tableId,
+  tableColumns,
+  (columns) => {
+    activeColumns.value = columns;
+  },
+);
 const editingId = ref("");
 const formWindowOpen = ref(false);
 const excelWindowOpen = ref(false);
@@ -405,7 +414,7 @@ async function handleChangeExcel(event: Event) {
           <div class="list-tools">
             <input v-model="keyword" placeholder="搜索服务器、IP、机柜、接线、操作人" />
             <TableColumnSettings
-              table-id="change-management"
+              :table-id="tableId"
               :columns="tableColumns"
               @update:columns="activeColumns = $event"
             />
@@ -413,9 +422,19 @@ async function handleChangeExcel(event: Event) {
         </header>
         <div class="change-record-list table-wrap">
           <table>
+            <colgroup>
+              <col v-for="column in visibleColumns" :key="column.id" :style="columnWidthStyle(column)" />
+            </colgroup>
             <thead>
               <tr>
-                <th v-for="column in visibleColumns" :key="column.id">{{ column.label }}</th>
+                <th v-for="column in visibleColumns" :key="column.id" :style="columnWidthStyle(column)">
+                  <span>{{ column.label }}</span>
+                  <span
+                    class="column-resizer"
+                    aria-hidden="true"
+                    @pointerdown="startColumnResize(column, $event)"
+                  />
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -459,6 +478,7 @@ async function handleChangeExcel(event: Event) {
 <style scoped>
 .change-page {
   display: block;
+  padding-top: 26px;
 }
 
 .page-header {
@@ -500,9 +520,9 @@ async function handleChangeExcel(event: Event) {
 
 .change-form-panel header,
 .change-list-panel header {
-  display: flex;
-  align-items: start;
-  justify-content: space-between;
+  display: grid;
+  grid-template-columns: auto minmax(320px, 1fr);
+  align-items: end;
   gap: 12px;
 }
 
@@ -511,7 +531,7 @@ async function handleChangeExcel(event: Event) {
   align-items: center;
   gap: 8px;
   flex-wrap: wrap;
-  justify-content: flex-end;
+  justify-content: flex-start;
 }
 
 .eyebrow,
@@ -606,6 +626,7 @@ table {
   width: 100%;
   min-width: 980px;
   border-collapse: collapse;
+  table-layout: fixed;
 }
 
 th,
@@ -617,9 +638,33 @@ td {
 }
 
 th {
+  position: relative;
   color: var(--color-text-muted);
   font-size: 12px;
   background: color-mix(in srgb, var(--color-primary) 7%, var(--color-panel));
+}
+
+th span {
+  display: block;
+  overflow: hidden;
+  padding-right: 10px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.column-resizer {
+  position: absolute;
+  top: 7px;
+  right: 0;
+  width: 8px;
+  height: calc(100% - 14px);
+  min-height: 0;
+  padding: 0;
+  border: 0;
+  border-right: 2px solid color-mix(in srgb, var(--color-primary) 42%, transparent);
+  border-radius: 0;
+  background: transparent;
+  cursor: col-resize;
 }
 
 tbody tr {
@@ -687,7 +732,8 @@ td small,
 @media (max-width: 980px) {
   .change-layout,
   .two-cols,
-  .link-context {
+  .link-context,
+  .change-list-panel header {
     grid-template-columns: 1fr;
   }
 }

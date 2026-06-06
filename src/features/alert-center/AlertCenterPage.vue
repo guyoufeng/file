@@ -12,7 +12,10 @@ import AlertFilters from './components/AlertFilters.vue'
 import AlertFormDrawer from './components/AlertFormDrawer.vue'
 import AlertTable from './components/AlertTable.vue'
 import PaginationControls from '../../components/PaginationControls.vue'
+import TableColumnSettings from '../../components/TableColumnSettings.vue'
 import { paginate, sortByStartedAtDesc } from '../../services/pagination'
+import type { ResolvedDataTableColumn } from '../../services/table/tableColumnPreferences'
+import { alertTableColumns } from './alertTableColumns'
 import {
   createAlertWebhook,
   deleteAlertWebhook,
@@ -41,6 +44,7 @@ const webhooks = ref<AlertWebhook[]>([])
 const webhookWindowOpen = ref(false)
 const webhookCopyMessage = ref('')
 const webhookWindow = ref({ x: 0, y: 0 })
+const activeColumns = ref<ResolvedDataTableColumn[]>([])
 let webhookDrag:
   | { startX: number; startY: number; originX: number; originY: number }
   | null = null
@@ -49,6 +53,7 @@ const filteredAlerts = computed(() =>
   sortByStartedAtDesc(filterAlertsWithContext(alertStore.alerts, assetStore.devices, roomStore.racks, roomStore.rooms, filters.value)),
 )
 const pagedAlerts = computed(() => paginate(filteredAlerts.value, { page: page.value, pageSize: pageSize.value }))
+const visibleColumns = computed(() => activeColumns.value.filter((column) => column.visible))
 const webhookWindowStyle = computed(() => ({
   left: `${webhookWindow.value.x}px`,
   top: `${webhookWindow.value.y}px`,
@@ -270,15 +275,22 @@ function stopWebhookDrag() {
       </div>
     </aside>
     <div class="batch-toolbar">
-      <span>已选择 {{ selectedAlertIds.length }} 条告警</span>
-      <select v-model="batchStatus">
-        <option v-for="option in alertStatusOptions" :key="option.value" :value="option.value">
-          {{ option.label }}
-        </option>
-      </select>
-      <button type="button" :disabled="selectedAlertIds.length === 0" @click="applyBatchStatus">
-        批量更新状态
-      </button>
+      <div class="batch-actions">
+        <span>已选择 {{ selectedAlertIds.length }} 条告警</span>
+        <select v-model="batchStatus">
+          <option v-for="option in alertStatusOptions" :key="option.value" :value="option.value">
+            {{ option.label }}
+          </option>
+        </select>
+        <button type="button" :disabled="selectedAlertIds.length === 0" @click="applyBatchStatus">
+          批量更新状态
+        </button>
+      </div>
+      <TableColumnSettings
+        table-id="alert-center"
+        :columns="alertTableColumns"
+        @update:columns="activeColumns = $event"
+      />
     </div>
     <AlertTable
       :alerts="pagedAlerts.items"
@@ -286,6 +298,7 @@ function stopWebhookDrag() {
       :racks="roomStore.racks"
       :rooms="roomStore.rooms"
       :selected-ids="selectedAlertIds"
+      :visible-columns="visibleColumns"
       @locate="locateAlert"
       @edit="editAlert"
       @toggle="toggleAlert"
@@ -337,9 +350,17 @@ function stopWebhookDrag() {
 .batch-toolbar {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   gap: 10px;
   margin-bottom: 12px;
   color: var(--color-text-muted);
+}
+
+.batch-actions {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
 .webhook-form {

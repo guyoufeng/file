@@ -3,18 +3,26 @@ export interface DataTableColumn {
   label: string;
   visibleByDefault?: boolean;
   locked?: boolean;
+  width?: number;
+  minWidth?: number;
+  maxWidth?: number;
 }
 
 export interface ResolvedDataTableColumn extends DataTableColumn {
   visible: boolean;
+  width: number;
 }
 
 interface ColumnPreference {
   id: string;
   visible: boolean;
+  width?: number;
 }
 
 const STORAGE_PREFIX = "qf-ai-dcim.tableColumns";
+const defaultColumnWidth = 150;
+const defaultColumnMinWidth = 92;
+const defaultColumnMaxWidth = 520;
 
 function storage() {
   return typeof localStorage === "undefined" ? undefined : localStorage;
@@ -28,7 +36,15 @@ function defaultPreferences(columns: DataTableColumn[]): ColumnPreference[] {
   return columns.map((column) => ({
     id: column.id,
     visible: column.visibleByDefault !== false,
+    width: normalizeColumnWidth(column, column.width),
   }));
+}
+
+function normalizeColumnWidth(column: DataTableColumn, width: unknown): number {
+  const minWidth = column.minWidth ?? defaultColumnMinWidth;
+  const maxWidth = column.maxWidth ?? defaultColumnMaxWidth;
+  const numeric = typeof width === "number" && Number.isFinite(width) ? width : column.width ?? defaultColumnWidth;
+  return Math.min(Math.max(Math.round(numeric), minWidth), maxWidth);
 }
 
 function readPreferences(tableId: string, columns: DataTableColumn[]): ColumnPreference[] {
@@ -41,8 +57,15 @@ function readPreferences(tableId: string, columns: DataTableColumn[]): ColumnPre
     const existing = parsed.filter((item) => known.has(item.id));
     const missing = columns
       .filter((column) => !existing.some((item) => item.id === column.id))
-      .map((column) => ({ id: column.id, visible: column.visibleByDefault !== false }));
-    return [...existing, ...missing];
+      .map((column) => ({
+        id: column.id,
+        visible: column.visibleByDefault !== false,
+        width: normalizeColumnWidth(column, column.width),
+      }));
+    return [...existing, ...missing].map((preference) => {
+      const column = known.get(preference.id);
+      return column ? { ...preference, width: normalizeColumnWidth(column, preference.width) } : preference;
+    });
   } catch {
     return defaultPreferences(columns);
   }
@@ -64,6 +87,7 @@ export function resolveTableColumns(
       return {
         ...column,
         visible: column.locked ? true : preference.visible,
+        width: normalizeColumnWidth(column, preference.width),
       };
     })
     .filter((column): column is ResolvedDataTableColumn => Boolean(column));
@@ -78,6 +102,22 @@ export function toggleTableColumn(
   const locked = columns.find((column) => column.id === columnId)?.locked;
   const preferences = readPreferences(tableId, columns).map((preference) =>
     preference.id === columnId ? { ...preference, visible: locked ? true : visible } : preference,
+  );
+  writePreferences(tableId, preferences);
+  return resolveTableColumns(tableId, columns);
+}
+
+export function resizeTableColumn(
+  tableId: string,
+  columns: DataTableColumn[],
+  columnId: string,
+  width: number,
+) {
+  const column = columns.find((item) => item.id === columnId);
+  const preferences = readPreferences(tableId, columns).map((preference) =>
+    preference.id === columnId && column
+      ? { ...preference, width: normalizeColumnWidth(column, width) }
+      : preference,
   );
   writePreferences(tableId, preferences);
   return resolveTableColumns(tableId, columns);

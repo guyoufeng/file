@@ -22,7 +22,7 @@ function chooseTheme(nextTheme: ThemePreference) {
         <p class="eyebrow">Theme</p>
         <h3>主题设置</h3>
       </div>
-      <span>默认浅色专业运维界面，暗色主题保留用于机房巡检和投屏展示。</span>
+      <span>默认浅色专业运维界面，暗色主题会同时切换登录页背景，适合机房巡检和投屏展示。</span>
     </header>
 
     <div class="theme-options">

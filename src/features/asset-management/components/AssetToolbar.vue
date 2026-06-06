@@ -42,6 +42,7 @@ const emit = defineEmits<{
       <button type="button" @click="emit('cmdbSync')">CMDB同步</button>
       <button type="button" @click="emit('export')">导出设备</button>
       <button type="button" @click="emit('add')">新增设备</button>
+      <span id="asset-table-column-settings-host" class="column-settings-host" />
     </div>
   </div>
 </template>
@@ -106,5 +107,11 @@ button {
 .actions {
   display: flex;
   gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.column-settings-host {
+  display: inline-flex;
 }
 </style>

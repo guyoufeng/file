@@ -4,7 +4,7 @@ test("login page uses Chervon branding and signs in as admin", async ({ page }) 
   await page.goto("/#/login");
 
   await expect(page.getByRole("heading", { name: "泉峰AI数据中心管理平台" })).toBeVisible();
-  await expect(page.getByTestId("chervon-login-logo")).toHaveCount(0);
+  await expect(page.getByTestId("chervon-login-logo")).toBeVisible();
   await expect(page.getByRole("textbox", { name: "账号" })).toHaveValue("admin");
   await page.getByRole("textbox", { name: "密码" }).fill("admin123");
   await page.getByRole("button", { name: "登录" }).click();

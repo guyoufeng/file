@@ -6,6 +6,11 @@ mod models;
 use commands::{
     alerts::{get_alerts, upsert_alert},
     assets::{delete_device, export_project_json, get_devices, import_project_json, upsert_device},
+    governance::{
+        append_gateway_message, create_agent_write_approval, create_backend_backup,
+        decide_agent_write_approval, get_business_collection, list_agent_write_approvals,
+        list_business_collections, put_business_collection,
+    },
     rooms::{get_racks, get_rooms},
     settings::{
         chat_with_ai_model, discover_ai_models, get_ai_model_configs, get_audit_logs,
@@ -47,7 +52,15 @@ pub fn run() {
             get_audit_logs,
             restore_sample_data,
             export_project_json,
-            import_project_json
+            import_project_json,
+            list_business_collections,
+            get_business_collection,
+            put_business_collection,
+            create_agent_write_approval,
+            list_agent_write_approvals,
+            decide_agent_write_approval,
+            append_gateway_message,
+            create_backend_backup
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

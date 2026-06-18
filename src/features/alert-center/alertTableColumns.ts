@@ -6,6 +6,7 @@ export const alertTableColumns: DataTableColumn[] = [
   { id: 'title', label: '标题', locked: true },
   { id: 'device', label: '设备' },
   { id: 'location', label: '位置' },
+  { id: 'description', label: '描述' },
   { id: 'source', label: '来源' },
   { id: 'status', label: '状态' },
   { id: 'startedAt', label: '开始时间' },

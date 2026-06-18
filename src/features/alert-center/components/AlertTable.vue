@@ -42,8 +42,11 @@ const emit = defineEmits<{
             </template>
             <template v-else-if="column.id === 'level'">{{ alert.level }}</template>
             <template v-else-if="column.id === 'title'">{{ alert.title }}</template>
-            <template v-else-if="column.id === 'device'">{{ getAlertDeviceContext(alert, devices, racks, rooms).device?.computerName || '-' }}</template>
+            <template v-else-if="column.id === 'device'">{{ getAlertDeviceContext(alert, devices, racks, rooms).device?.computerName || (alert.id.startsWith('webhook-') || alert.id.startsWith('alert-webhook-event') ? '未匹配设备' : '-') }}</template>
             <template v-else-if="column.id === 'location'">{{ getAlertDeviceContext(alert, devices, racks, rooms).location || '-' }}</template>
+            <template v-else-if="column.id === 'description'">
+              <span class="alert-description">{{ alert.description || '-' }}</span>
+            </template>
             <template v-else-if="column.id === 'source'">{{ alert.source }}</template>
             <template v-else-if="column.id === 'status'">{{ getAlertStatusLabel(alert.status) }}</template>
             <template v-else-if="column.id === 'startedAt'">{{ alert.startedAt }}</template>
@@ -104,5 +107,15 @@ button:disabled {
   color: var(--color-text-muted);
   cursor: not-allowed;
   opacity: 0.52;
+}
+
+.alert-description {
+  display: -webkit-box;
+  max-width: 320px;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  white-space: pre-line;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
 }
 </style>

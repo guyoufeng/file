@@ -117,6 +117,42 @@ describe("alert webhooks", () => {
     expect(alert?.source).toBe("zoho");
   });
 
+  it("turns a plain text webhook body into a visible alert", () => {
+    const webhook = createAlertWebhook({
+      name: "卓豪测试",
+      source: "zoho",
+      enabled: true,
+    });
+
+    const alert = ingestWebhookAlert(webhook.token, "测试报警" as any, [device]);
+
+    expect(alert?.deviceId).toBe("");
+    expect(alert?.title).toBe("测试报警");
+    expect(alert?.description).toBe("测试报警");
+    expect(alert?.level).toBe("info");
+  });
+
+  it("keeps unknown webhook json fields in the alert description", () => {
+    const webhook = createAlertWebhook({
+      name: "卓豪测试",
+      source: "zoho",
+      enabled: true,
+    });
+
+    const alert = ingestWebhookAlert(
+      webhook.token,
+      {
+        alarmText: "卓豪测试报警",
+        rawOnlyField: "没有标准字段也要能看到",
+      } as any,
+      [device],
+    );
+
+    expect(alert?.title).toBe("卓豪测试报警");
+    expect(alert?.description).toContain("rawOnlyField");
+    expect(alert?.description).toContain("没有标准字段也要能看到");
+  });
+
   it("uses a configured public base url instead of loopback for webhook addresses", () => {
     setAlertWebhookPublicBaseUrl("http://192.168.31.50:5173");
 

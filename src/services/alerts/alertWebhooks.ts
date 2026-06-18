@@ -138,7 +138,58 @@ function pickText(payload: IncomingAlertPayload, keys: string[]): string | undef
   return undefined;
 }
 
-export function normalizeIncomingAlertPayload(payload: IncomingAlertPayload): IncomingAlertPayload {
+function toPayloadObject(input: unknown): IncomingAlertPayload {
+  if (typeof input === "string") {
+    return { message: input.trim() || "空白 Webhook 消息" };
+  }
+  if (typeof input === "number" || typeof input === "boolean") {
+    return { message: String(input) };
+  }
+  if (Array.isArray(input)) {
+    return { message: JSON.stringify(input, null, 2), rawPayload: input };
+  }
+  if (input && typeof input === "object") {
+    return input as IncomingAlertPayload;
+  }
+  return { message: "空白 Webhook 消息" };
+}
+
+function summarizeRawPayload(payload: IncomingAlertPayload): string | undefined {
+  const ignoredKeys = new Set([
+    "hostname",
+    "hostName",
+    "deviceName",
+    "monitorName",
+    "resourceName",
+    "displayName",
+    "name",
+    "ip",
+    "ipAddress",
+    "address",
+    "hostIp",
+    "deviceIp",
+    "title",
+    "subject",
+    "alertName",
+    "message",
+    "alertMessage",
+    "description",
+    "content",
+    "details",
+    "severity",
+    "priority",
+    "level",
+    "alertLevel",
+    "status",
+    "startedAt",
+  ]);
+  const rawEntries = Object.entries(payload).filter(([key]) => !ignoredKeys.has(key));
+  if (rawEntries.length === 0) return undefined;
+  return JSON.stringify(Object.fromEntries(rawEntries), null, 2);
+}
+
+export function normalizeIncomingAlertPayload(input: unknown): IncomingAlertPayload {
+  const payload = toPayloadObject(input);
   const hostname = pickText(payload, [
     "hostname",
     "hostName",
@@ -149,16 +200,25 @@ export function normalizeIncomingAlertPayload(payload: IncomingAlertPayload): In
     "name",
   ]);
   const ip = pickText(payload, ["ip", "ipAddress", "address", "hostIp", "deviceIp"]);
-  const title = pickText(payload, ["title", "subject", "monitorName", "alertName"]);
-  const message = pickText(payload, ["message", "alertMessage", "description", "content", "details"]);
+  const title = pickText(payload, ["title", "subject", "monitorName", "alertName", "alarmText", "text"]);
+  const message = pickText(payload, [
+    "message",
+    "alertMessage",
+    "description",
+    "content",
+    "details",
+    "alarmText",
+    "text",
+  ]);
   const severity = pickText(payload, ["severity", "priority", "level", "alertLevel"]);
+  const rawSummary = summarizeRawPayload(payload);
 
   return {
     ...payload,
     hostname,
     ip,
     title,
-    message,
+    message: rawSummary ? [message ?? title ?? "Webhook 原始内容", rawSummary].join("\n\n") : message,
     severity,
   };
 }
@@ -190,13 +250,13 @@ export function deleteAlertWebhook(id: string) {
   );
 }
 
-export function testAlertWebhookPayload(input: IncomingAlertPayload): IncomingAlertPayload {
+export function testAlertWebhookPayload(input: unknown): IncomingAlertPayload {
   return normalizeIncomingAlertPayload(input);
 }
 
 export function ingestWebhookAlert(
   token: string,
-  input: IncomingAlertPayload,
+  input: unknown,
   devices: Device[],
 ): Alert | null {
   const webhook = getAlertWebhooks().find((item) => item.token === token && item.enabled);

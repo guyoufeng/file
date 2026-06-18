@@ -9,6 +9,7 @@ describe('alert table columns', () => {
       'title',
       'device',
       'location',
+      'description',
       'source',
       'status',
       'startedAt',

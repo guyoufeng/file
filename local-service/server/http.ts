@@ -6,9 +6,14 @@ export async function readJsonBody(req: IncomingMessage): Promise<unknown> {
   for await (const chunk of req) {
     chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
   }
-  return chunks.length > 0
-    ? JSON.parse(Buffer.concat(chunks).toString("utf8"))
-    : {};
+  if (chunks.length === 0) return {};
+  const raw = Buffer.concat(chunks).toString("utf8").trim();
+  if (!raw) return {};
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return raw;
+  }
 }
 
 export function sendJson(res: ServerResponse, value: unknown, statusCode = 200) {

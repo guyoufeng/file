@@ -14,7 +14,7 @@ describe("backup security scan", () => {
           {
             id: "ai-001",
             provider: "gpustack",
-            apiKeyRef: "gpustack_386df344b6f0e56d_fc755dd830c238a49374e655a1810aee",
+            apiKeyRef: "gpustack_example_redacted_secret_value_0000000000000000",
           },
         ],
         devices: [

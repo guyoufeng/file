@@ -1,7 +1,6 @@
 import type { IncomingMessage } from "node:http";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { networkInterfaces } from "node:os";
 import { defineConfig } from "vite";
 import vue from "@vitejs/plugin-vue";
 import {
@@ -24,17 +23,10 @@ import type { ProjectJson } from "./src/services/backend/data";
 import type { Alert, AuditLog, Device } from "./src/types/domain";
 import type { AccessRecord } from "./src/features/access-management/accessRecords";
 import type { ChangeEvent } from "./src/features/change-management/changeEvents";
+import { runDeterministicAiQuery } from "./src/services/ai/aiTools";
+import { normalizeIncomingAlertPayload } from "./src/services/alerts/alertWebhooks";
 import { LocalServiceDataSource, getRequestActor } from "./local-service/dataSource";
-
-async function readBody(req: IncomingMessage) {
-  const chunks: Uint8Array[] = [];
-  for await (const chunk of req) {
-    chunks.push(typeof chunk === "string" ? Buffer.from(chunk) : chunk);
-  }
-  return chunks.length > 0
-    ? JSON.parse(Buffer.concat(chunks).toString("utf8"))
-    : {};
-}
+import { getRuntimePublicBaseUrl, readJsonBody, sendJson } from "./local-service/server/http";
 
 const agentSnapshotPath = path.resolve(".local/agent-api-snapshot.json");
 const agentAuthPath = path.resolve(".local/agent-api-auth.json");
@@ -53,26 +45,6 @@ function getAgentApiBaseUrl(req: IncomingMessage): string {
   const protocol = req.headers["x-forwarded-proto"] ?? "http";
   const host = req.headers.host ?? "127.0.0.1:5200";
   return `${protocol}://${host}/api/agent/v1`;
-}
-
-function getRuntimePublicBaseUrl(req: IncomingMessage): string {
-  const protocol = req.headers["x-forwarded-proto"] ?? "http";
-  const port = (req.headers.host ?? "127.0.0.1:5200").split(":").at(-1) ?? "5200";
-  const interfaces = networkInterfaces();
-  for (const entries of Object.values(interfaces)) {
-    for (const entry of entries ?? []) {
-      if (entry.family === "IPv4" && !entry.internal) {
-        return `${protocol}://${entry.address}:${port}`;
-      }
-    }
-  }
-  return `${protocol}://${req.headers.host ?? "127.0.0.1:5200"}`;
-}
-
-function sendJson(res: Parameters<import("connect").NextHandleFunction>[1], value: unknown, statusCode = 200) {
-  res.statusCode = statusCode;
-  res.setHeader("Content-Type", "application/json; charset=utf-8");
-  res.end(JSON.stringify(value));
 }
 
 interface AgentAuthSettings {
@@ -362,7 +334,7 @@ function aiProxyPlugin() {
           return;
         }
 
-        const body = (await readBody(req)) as { data?: unknown[] };
+        const body = (await readJsonBody(req)) as { data?: unknown[] };
         if (!Array.isArray(body.data)) {
           sendJson(res, { message: "collection 写入需要 data 数组。" }, 400);
           return;
@@ -423,7 +395,7 @@ function aiProxyPlugin() {
         }
 
         try {
-          const project = (await readBody(req)) as ProjectJson;
+          const project = (await readJsonBody(req)) as ProjectJson;
           const snapshot = buildAgentReadonlySnapshot(project);
           await saveAgentSnapshot(snapshot);
           await auditAgentApi(req, {
@@ -475,7 +447,7 @@ function aiProxyPlugin() {
           return;
         }
 
-        const body = (await readBody(req)) as { enabled?: boolean; token?: string };
+        const body = (await readJsonBody(req)) as { enabled?: boolean; token?: string };
         const nextSettings: AgentAuthSettings = {
           enabled: Boolean(body.enabled),
           token: body.token?.trim() || undefined,
@@ -511,7 +483,7 @@ function aiProxyPlugin() {
           return;
         }
 
-        const body = (await readBody(req)) as { name?: string; scopes?: AgentApiScope[] };
+        const body = (await readJsonBody(req)) as { name?: string; scopes?: AgentApiScope[] };
         const token = createAgentToken();
         const now = new Date().toISOString();
         const scopes = new Set<AgentApiScope>(body.scopes?.length ? body.scopes : ["read"]);
@@ -560,7 +532,7 @@ function aiProxyPlugin() {
           return;
         }
 
-        const body = (await readBody(req)) as {
+        const body = (await readJsonBody(req)) as {
           module?: string;
           action?: string;
           summary?: string;
@@ -693,7 +665,7 @@ function aiProxyPlugin() {
         if (req.method !== "GET") {
           if (!(await ensureAgentAuthorized(req, res, "write"))) return;
           const snapshot = await loadAgentSnapshot();
-          const body = (await readBody(req)) as Partial<Device> & { id?: string };
+          const body = (await readJsonBody(req)) as Partial<Device> & { id?: string };
           if (!body.id && !body.computerName && !body.name) {
             sendJson(res, { message: "写入设备至少需要 id、computerName 或 name。" }, 400);
             return;
@@ -782,7 +754,7 @@ function aiProxyPlugin() {
         if (req.method !== "GET") {
           if (!(await ensureAgentAuthorized(req, res, "write"))) return;
           const snapshot = await loadAgentSnapshot();
-          const body = (await readBody(req)) as Partial<AccessRecord>;
+          const body = (await readJsonBody(req)) as Partial<AccessRecord>;
           const now = new Date().toISOString();
           const saved: AccessRecord = {
             id: body.id || `api-access-${Date.now()}`,
@@ -834,7 +806,7 @@ function aiProxyPlugin() {
         if (req.method !== "GET") {
           if (!(await ensureAgentAuthorized(req, res, "write"))) return;
           const snapshot = await loadAgentSnapshot();
-          const body = (await readBody(req)) as Partial<ChangeEvent>;
+          const body = (await readJsonBody(req)) as Partial<ChangeEvent>;
           const now = new Date().toISOString();
           const saved: ChangeEvent = {
             id: body.id || `api-change-${Date.now()}`,
@@ -943,7 +915,7 @@ function aiProxyPlugin() {
                 "</head><body><main>",
                 "<h1>消息网关配对请求已记录</h1>",
                 `<p>平台已收到 ${provider} 的扫码配对请求。</p>`,
-                "<p>平台端回调和审计已就绪。要让个人微信/企业微信/钉钉消息真正进入 AI Agent，还需要部署对应 Hermes-compatible gateway adapter，并把消息 POST 到平台回调地址。</p>",
+                "<p>如果 WSL Hermes Gateway 与 qf-dcim-bridge 插件正在运行，个人微信消息会通过 Hermes 转发到泉峰平台 Agent，并返回平台生成的回复。</p>",
                 `<code>${getRuntimePublicBaseUrl(req)}/api/agent/v1/gateway/${provider}</code>`,
                 "</main></body></html>",
               ].join(""),
@@ -965,7 +937,7 @@ function aiProxyPlugin() {
           return;
         }
         const provider = (req.url ?? "").split("/").filter(Boolean).at(-1) ?? "wechat";
-        const body = (await readBody(req)) as {
+        const body = (await readJsonBody(req)) as {
           externalUserId?: string;
           displayName?: string;
           content?: string;
@@ -990,15 +962,48 @@ function aiProxyPlugin() {
           content: record.content,
           rawPayload: body,
         });
+        const snapshot = await loadAgentSnapshot();
+        const toolResult = record.content.trim()
+          ? runDeterministicAiQuery(
+              record.content,
+              snapshot.data.rooms,
+              snapshot.data.racks,
+              snapshot.data.devices,
+              snapshot.data.alerts,
+              [],
+              snapshot.data.auditLogs ?? [],
+              snapshot.data.accessRecords ?? [],
+              snapshot.data.changeEvents ?? [],
+              snapshot.data.connectionRecords ?? [],
+            )
+          : {
+              toolName: "general_chat" as const,
+              answer: "泉峰AI数据中心运维平台已收到消息。请发送服务器名称、业务IP、机柜号、告警、进出记录或变更记录等问题。",
+            };
+        await localDataSource.appendGatewayMessage({
+          provider,
+          externalUserId: record.externalUserId,
+          displayName: "泉峰AI助手",
+          direction: "outbound",
+          content: toolResult.answer,
+          rawPayload: {
+            replyTo: gatewayMessage.id,
+            toolName: toolResult.toolName,
+            relatedDeviceId: toolResult.relatedDeviceId,
+            relatedRackId: toolResult.relatedRackId,
+            relatedRoomId: toolResult.relatedRoomId,
+          },
+        });
         await auditAgentApi(req, {
           action: "agent_gateway.message.received",
-          summary: `消息网关收到 ${provider} 消息`,
+          summary: `消息网关收到 ${provider} 消息并生成回复`,
           targetType: "agent_gateway_message",
           targetId: record.id,
           metadata: {
             provider,
             externalUserId: record.externalUserId,
             hasAttachments: (record.attachments as unknown[]).length > 0,
+            toolName: toolResult.toolName,
           },
         });
         sendJson(res, {
@@ -1008,10 +1013,26 @@ function aiProxyPlugin() {
           sessionId: `${provider}-${record.externalUserId}`,
           total,
           record: gatewayMessage,
+          reply: toolResult.answer,
+          toolName: toolResult.toolName,
+          target: {
+            roomId: toolResult.relatedRoomId,
+            rackId: toolResult.relatedRackId,
+            deviceId: toolResult.relatedDeviceId,
+          },
         });
       });
 
       server.middlewares.use("/api/webhooks/alerts", async (req, res) => {
+        if (req.method === "GET") {
+          const snapshot = await loadAgentSnapshot();
+          sendJson(res, {
+            alerts: snapshot.data.alerts.filter((alert) =>
+              String(alert.id).startsWith("webhook-"),
+            ),
+          });
+          return;
+        }
         if (req.method !== "POST") {
           res.statusCode = 405;
           res.end("Method Not Allowed");
@@ -1020,14 +1041,14 @@ function aiProxyPlugin() {
 
         try {
           const token = (req.url ?? "").split("/").filter(Boolean).at(-1);
-          const body = (await readBody(req)) as {
+          const body = normalizeIncomingAlertPayload((await readJsonBody(req)) as {
             hostname?: string;
             ip?: string;
             title?: string;
             message?: string;
             severity?: string;
             source?: "manual" | "prometheus" | "zoho" | "custom";
-          };
+          });
           const snapshot = await loadAgentSnapshot();
           const device = snapshot.data.devices.find(
             (item) =>
@@ -1038,24 +1059,24 @@ function aiProxyPlugin() {
               item.ips.includes(body.ip ?? ""),
           );
 
-          if (!token || !device) {
-            sendJson(res, { message: "Webhook Token 或设备匹配失败" }, 400);
+          if (!token) {
+            sendJson(res, { message: "Webhook Token 缺失" }, 400);
             return;
           }
 
           const severity = body.severity?.toLowerCase() ?? "";
           const alert: Alert = {
             id: `webhook-${Date.now()}`,
-            deviceId: device.id,
+            deviceId: device?.id ?? "",
             source: body.source ?? "zoho",
-            level: /critical|严重|fatal|high/.test(severity)
+            level: /critical|严重|fatal|high|高/.test(severity)
               ? "critical"
               : /warning|warn|告警|中/.test(severity)
                 ? "warning"
                 : "info",
             status: "unconfirmed",
             title: body.title || body.message || "Webhook 告警",
-            description: body.message,
+            description: body.message || body.title,
             startedAt: new Date().toISOString(),
           };
           snapshot.data.alerts = [alert, ...snapshot.data.alerts];
@@ -1066,7 +1087,7 @@ function aiProxyPlugin() {
             summary: `Webhook 告警接收：${alert.title}`,
             targetType: "alert",
             targetId: alert.id,
-            metadata: { tokenPreview: previewToken(token), deviceId: device.id, level: alert.level },
+            metadata: { tokenPreview: previewToken(token), deviceId: device?.id ?? "", level: alert.level },
           });
           sendJson(res, { message: "Webhook 告警已接收", alert });
         } catch (error) {
@@ -1086,7 +1107,7 @@ function aiProxyPlugin() {
         }
 
         try {
-          const body = (await readBody(req)) as {
+          const body = (await readJsonBody(req)) as {
             provider?: string;
             baseUrl?: string;
             apiKeyRef?: string;
@@ -1149,7 +1170,7 @@ function aiProxyPlugin() {
         }
 
         try {
-          const body = (await readBody(req)) as {
+          const body = (await readJsonBody(req)) as {
             provider?: string;
             baseUrl?: string;
             apiKeyRef?: string;

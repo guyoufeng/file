@@ -159,6 +159,29 @@ function searchConnectionsForAi(
     .sort((first, second) => second.updatedAt.localeCompare(first.updatedAt));
 }
 
+function listRecentAccessRecords(records: AccessRecord[]): AccessRecord[] {
+  return [...records].sort((first, second) =>
+    `${second.date} ${second.enterTime}`.localeCompare(`${first.date} ${first.enterTime}`),
+  );
+}
+
+function listRecentChangeEvents(records: ChangeEvent[]): ChangeEvent[] {
+  return [...records].sort((first, second) => second.changedAt.localeCompare(first.changedAt));
+}
+
+function asDeviceSearchMatches(devices: Device[], racks: Rack[], rooms: Room[]) {
+  return devices.map((device) => {
+    const rack = racks.find((item) => item.id === device.rackId);
+    const room = rooms.find((item) => item.id === rack?.roomId);
+    return {
+      device,
+      rack,
+      room,
+      matchedText: "资产管理",
+    };
+  });
+}
+
 function formatChangeEventSearchAnswer(records: ChangeEvent[]): string {
   if (records.length === 0) {
     return "未在变更管理中找到匹配记录。可以尝试输入服务器名、业务IP、机柜、变更类型、操作人或接线关键词。";
@@ -306,8 +329,18 @@ export function runDeterministicAiQuery(
     /查询|查下|查一下|查看|看下|看一下|搜索|负责|用途|资产|编号|sn|SN|详细|详情|哪些服务器|哪些设备|硬件配置|内存|cpu|CPU|操作系统|型号|处理方法|处理状态|处理到|解决方法|解决方案|附件|照片/.test(
       question,
     );
+  const asksModuleList = /多少|几条|几台|有哪些|列表|数据|信息|当前|现在/.test(question);
+  const asksAssetModule = /资产管理|资产库|资产数据|物理设备/.test(question);
 
   if (asksVirtualServer) {
+    if (asksModuleList && !ip) {
+      return {
+        toolName: "search_virtual_servers",
+        answer:
+          formatVirtualServerSearchAnswer(virtualServers) +
+          sourceFooter({ label: "本地虚拟服务器库", queriedAt }),
+      };
+    }
     const cleanedQuery = question
       .replace(/查询|查下|查一下|查看下|查看|看下|看一下|搜索|这台|虚拟机|虚拟服务器|云主机|用途|责任人|宿主服务器|宿主物理服务器|业务IP|业务ip|平台|状态|操作系统|的|吗|？|\?/g, " ")
       .trim();
@@ -356,7 +389,14 @@ export function runDeterministicAiQuery(
     const cleanedQuery = question
       .replace(/最近|查询|查下|查一下|查看|看下|看一下|搜索|有没有|数据中心|机房|进出|进入|离开|访客|维修记录|维修历史|维保记录|入场|出场|来过|谁来|维修|记录|的|吗|？|\?/g, " ")
       .trim();
+    const asksRecentList =
+      /有哪些.*(进出|进入|离开|访客|维修)|多少.*进出|几条.*进出|进出管理.*(信息|记录|列表|数据)|进出.*(信息|记录|列表|数据)|当前.*进出|现在.*进出/.test(
+        question,
+      );
     const candidates =
+      asksRecentList && !ip && !relatedDevice
+        ? listRecentAccessRecords(accessRecords)
+        :
       [
         relatedDevice?.computerName,
         relatedDevice?.businessIp,
@@ -388,7 +428,14 @@ export function runDeterministicAiQuery(
     const cleanedQuery = question
       .replace(/最近|查询|查下|查一下|查看|看下|看一下|搜索|有没有|哪些|做过|变更|变更记录|上架|下架|接线调整|调整接线|更换|安装|配置修改|改过|的|吗|？|\?/g, " ")
       .trim();
+    const asksRecentList =
+      /有哪些.*(变更|上架|下架|接线|维修)|多少.*变更|几条.*变更|变更管理.*(信息|记录|列表|数据)|变更记录.*(信息|记录|列表|数据)|当前.*变更|现在.*变更/.test(
+        question,
+      );
     const candidates =
+      asksRecentList && !relatedDevice
+        ? listRecentChangeEvents(changeEvents)
+        :
       [
         relatedDevice?.id,
         relatedDevice?.computerName,
@@ -446,6 +493,19 @@ export function runDeterministicAiQuery(
       answer:
         formatConnectionSearchAnswer(candidates) +
         sourceFooter({ label: "连线管理", queriedAt }),
+    };
+  }
+
+  if (asksAssetModule && asksModuleList) {
+    const matches = asDeviceSearchMatches(devices, racks, rooms);
+    return {
+      toolName: "search_devices",
+      relatedDeviceId: matches.length === 1 ? matches[0].device.id : undefined,
+      relatedRackId: matches.length === 1 ? matches[0].rack?.id : undefined,
+      relatedRoomId: matches.length === 1 ? matches[0].room?.id : undefined,
+      answer:
+        formatDeviceSearchAnswer(matches, alerts) +
+        sourceFooter({ label: "本地资产库、机柜库、告警库", queriedAt }),
     };
   }
 

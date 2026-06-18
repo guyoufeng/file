@@ -3,6 +3,7 @@ import {
   createAlertWebhook,
   getAlertWebhookPublicBaseUrl,
   getAlertWebhooks,
+  mergeWebhookAlerts,
   ingestWebhookAlert,
   setAlertWebhookPublicBaseUrl,
   testAlertWebhookPayload,
@@ -71,6 +72,51 @@ describe("alert webhooks", () => {
     expect(alert?.title).toContain("硬盘故障");
   });
 
+  it("accepts common Zoho-style payload aliases", () => {
+    const webhook = createAlertWebhook({
+      name: "卓豪测试",
+      source: "zoho",
+      enabled: true,
+    });
+
+    const alert = ingestWebhookAlert(
+      webhook.token,
+      {
+        hostName: "db01",
+        monitorName: "数据库服务器",
+        alertMessage: "卓豪测试消息：CPU过高",
+        severity: "高",
+      } as any,
+      [device],
+    );
+
+    expect(alert?.deviceId).toBe("dev-1");
+    expect(alert?.title).toContain("数据库服务器");
+    expect(alert?.description).toContain("CPU过高");
+    expect(alert?.level).toBe("critical");
+  });
+
+  it("keeps an incoming webhook alert even when no device can be matched", () => {
+    const webhook = createAlertWebhook({
+      name: "卓豪测试",
+      source: "zoho",
+      enabled: true,
+    });
+
+    const alert = ingestWebhookAlert(
+      webhook.token,
+      {
+        message: "测试报警",
+      },
+      [device],
+    );
+
+    expect(alert?.deviceId).toBe("");
+    expect(alert?.title).toBe("测试报警");
+    expect(alert?.description).toBe("测试报警");
+    expect(alert?.source).toBe("zoho");
+  });
+
   it("uses a configured public base url instead of loopback for webhook addresses", () => {
     setAlertWebhookPublicBaseUrl("http://192.168.31.50:5173");
 
@@ -83,5 +129,20 @@ describe("alert webhooks", () => {
     expect(getAlertWebhookPublicBaseUrl()).toBe("http://192.168.31.50:5173");
     expect(webhook.url).toBe(`http://192.168.31.50:5173/api/webhooks/alerts/${webhook.token}`);
     expect(webhook.url).not.toContain("127.0.0.1");
+  });
+
+  it("merges received webhook alerts into the current alert list without duplicates", () => {
+    const current = [{ id: "alert-existing", deviceId: "dev-1" } as any];
+    const received = [
+      { id: "alert-received", deviceId: "dev-1" } as any,
+      { id: "alert-existing", deviceId: "dev-1" } as any,
+    ];
+
+    const merged = mergeWebhookAlerts(current, received);
+
+    expect(merged.map((alert) => alert.id)).toEqual([
+      "alert-received",
+      "alert-existing",
+    ]);
   });
 });

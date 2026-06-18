@@ -21,6 +21,7 @@ import {
   deleteAlertWebhook,
   getAlertWebhookPublicBaseUrl,
   getAlertWebhooks,
+  mergeWebhookAlerts,
   refreshAlertWebhookUrls,
   setAlertWebhookPublicBaseUrl,
   type AlertWebhook,
@@ -68,6 +69,7 @@ onMounted(async () => {
   webhookBaseUrl.value = getAlertWebhookPublicBaseUrl()
   await detectPublicWebhookBaseUrl()
   webhooks.value = refreshAlertWebhookUrls(webhookBaseUrl.value)
+  await loadReceivedWebhookAlerts()
 })
 
 onBeforeUnmount(() => {
@@ -164,9 +166,25 @@ function openWebhookWindow() {
   webhookWindowOpen.value = true
 }
 
+async function loadReceivedWebhookAlerts() {
+  try {
+    const response = await fetch('/api/webhooks/alerts')
+    if (!response.ok) return
+    const data = (await response.json()) as { alerts?: Alert[] }
+    if (Array.isArray(data.alerts) && data.alerts.length > 0) {
+      alertStore.alerts = mergeWebhookAlerts(alertStore.alerts, data.alerts)
+    }
+  } catch {
+    // 开发服务未启用时保留本地告警列表。
+  }
+}
+
 async function copyWebhookUrl(url: string) {
   try {
-    await navigator.clipboard?.writeText(url)
+    if (!navigator.clipboard?.writeText) {
+      throw new Error('Clipboard API unavailable')
+    }
+    await navigator.clipboard.writeText(url)
   } catch {
     const textarea = document.createElement('textarea')
     textarea.value = url
@@ -174,6 +192,7 @@ async function copyWebhookUrl(url: string) {
     textarea.style.position = 'fixed'
     textarea.style.left = '-9999px'
     document.body.appendChild(textarea)
+    textarea.focus()
     textarea.select()
     document.execCommand('copy')
     textarea.remove()

@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { onMounted, reactive, ref } from "vue";
+import { onMounted, reactive, ref, watch } from "vue";
 import type { AiModelConfig } from "../../../types/domain";
 import { useAiStore } from "../../../stores/aiStore";
+import { aiProviderLabel, buildAiModelConfigName } from "../../../services/ai/aiModelConfigName";
 
 type NoticeTone = "success" | "error" | "info";
 
@@ -35,20 +36,7 @@ function createConfigId() {
 }
 
 function providerLabel(provider: AiModelConfig["provider"]) {
-  switch (provider) {
-    case "gpustack":
-      return "GPUStack";
-    case "openai_compatible":
-      return "OpenAI Compatible";
-    case "deepseek":
-      return "DeepSeek";
-    case "gemini":
-      return "Gemini";
-    case "ollama":
-      return "Ollama";
-    case "vllm":
-      return "vLLM";
-  }
+  return aiProviderLabel(provider);
 }
 
 function applyConfig(config: AiModelConfig) {
@@ -91,10 +79,15 @@ function handleProviderChange() {
 }
 
 function autoNameConfig() {
-  if (form.model) {
-    form.name = `${providerLabel(form.provider)} ${form.model}`;
-  }
+  form.name = buildAiModelConfigName(form.provider, form.model);
 }
+
+watch(
+  () => form.model,
+  () => {
+    autoNameConfig();
+  },
+);
 
 onMounted(async () => {
   await aiStore.loadConfigs();
@@ -122,9 +115,7 @@ async function discoverAndTest() {
     }
 
     form.model = models[0];
-    if (!form.name.trim() || form.name.includes("GPUStack") || form.name.includes("OpenAI Compatible")) {
-      autoNameConfig();
-    }
+    autoNameConfig();
     notice.value = {
       tone: "success",
       text: `发现 ${models.length} 个模型，已自动选中 ${models[0]}。`,
@@ -154,7 +145,7 @@ async function saveConfig() {
     const saved = await aiStore.saveConfig({
       ...form,
       id: form.id || `ai-config-${Date.now()}`,
-      name: form.name.trim() || `${providerLabel(form.provider)} ${form.model}`,
+      name: form.name.trim() || buildAiModelConfigName(form.provider, form.model),
       enabled: true,
     });
     applyConfig(saved);

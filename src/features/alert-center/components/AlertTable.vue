@@ -42,14 +42,14 @@ const emit = defineEmits<{
             </template>
             <template v-else-if="column.id === 'level'">{{ alert.level }}</template>
             <template v-else-if="column.id === 'title'">{{ alert.title }}</template>
-            <template v-else-if="column.id === 'device'">{{ getAlertDeviceContext(alert, devices, racks, rooms).device?.computerName }}</template>
-            <template v-else-if="column.id === 'location'">{{ getAlertDeviceContext(alert, devices, racks, rooms).location }}</template>
+            <template v-else-if="column.id === 'device'">{{ getAlertDeviceContext(alert, devices, racks, rooms).device?.computerName || '-' }}</template>
+            <template v-else-if="column.id === 'location'">{{ getAlertDeviceContext(alert, devices, racks, rooms).location || '-' }}</template>
             <template v-else-if="column.id === 'source'">{{ alert.source }}</template>
             <template v-else-if="column.id === 'status'">{{ getAlertStatusLabel(alert.status) }}</template>
             <template v-else-if="column.id === 'startedAt'">{{ alert.startedAt }}</template>
             <template v-else-if="column.id === 'actions'">
               <button type="button" @click="emit('edit', alert)">编辑</button>
-              <button type="button" @click="emit('locate', alert)">定位</button>
+              <button type="button" :disabled="!alert.deviceId" @click="emit('locate', alert)">定位</button>
             </template>
           </td>
         </tr>
@@ -98,5 +98,11 @@ button {
   color: #7dd3fc;
   background: transparent;
   cursor: pointer;
+}
+
+button:disabled {
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+  opacity: 0.52;
 }
 </style>

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref, watch } from "vue";
+import { onBeforeUnmount, onMounted, ref, watch } from "vue";
 import {
   moveTableColumn,
   resetTableColumns,
@@ -20,8 +20,16 @@ const emit = defineEmits<{
 
 const resolved = ref<ResolvedDataTableColumn[]>([]);
 const open = ref(false);
+const containerRef = ref<HTMLElement | null>(null);
 
-onMounted(refresh);
+onMounted(() => {
+  refresh();
+  document.addEventListener("pointerdown", closeWhenClickOutside, true);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener("pointerdown", closeWhenClickOutside, true);
+});
 
 watch(
   () => props.columns,
@@ -52,10 +60,17 @@ function reset() {
   resetTableColumns(props.tableId);
   refresh();
 }
+
+function closeWhenClickOutside(event: PointerEvent) {
+  if (!open.value) return;
+  const target = event.target as Node | null;
+  if (!target || containerRef.value?.contains(target)) return;
+  open.value = false;
+}
 </script>
 
 <template>
-  <div class="table-column-settings">
+  <div ref="containerRef" class="table-column-settings">
     <button type="button" @click="open = !open">列设置</button>
     <div v-if="open" class="settings-popover">
       <header>

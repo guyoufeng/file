@@ -86,6 +86,11 @@ function openAssetDetail(device: Device) {
   detailOpen.value = true;
 }
 
+function editFromAssetDetail(device: Device) {
+  detailOpen.value = false;
+  openEditDrawer(device);
+}
+
 function openImportDialog() {
   importSummary.value = null;
   importOpen.value = true;
@@ -265,6 +270,7 @@ function confirmSync(config: AssetSyncConfig) {
       "
       :devices="assetStore.devices"
       @close="detailOpen = false"
+      @edit="editFromAssetDetail"
     />
   </section>
 </template>

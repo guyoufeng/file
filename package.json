@@ -8,6 +8,8 @@
     "dev:lan": "vite --host 0.0.0.0",
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
+    "gateway:dev": "node local-service/server/gateway-adapter.mjs",
+    "gateway:hermes:start": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/start-message-gateway.ps1",
     "tauri": "tauri",
     "typecheck": "vue-tsc --noEmit",
     "test": "vitest run",

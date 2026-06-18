@@ -40,6 +40,7 @@ const viewMode = ref<ViewMode>("u-view");
 const detailOpen = ref(false);
 const deviceEditorOpen = ref(false);
 const editingDevice = ref<Device | null>(null);
+const alertSummaryOpen = ref(false);
 const roomMenu = ref({
   open: false,
   x: 0,
@@ -97,6 +98,19 @@ const locationFocusText = computed(() => {
   const deviceName =
     selectedDevice.value.computerName || selectedDevice.value.name;
   return `已定位：${rackName} / ${deviceName} / ${selectedDevice.value.businessIp ?? "无业务IP"} / ${selectedDevice.value.startU}U-${selectedDevice.value.endU}U`;
+});
+const currentAlertItems = computed(() => {
+  const selectedRackIds = new Set(selectedRoomRacks.value.map((rack) => rack.id));
+  return alertStore.alerts
+    .filter((alert) => alert.status !== "recovered" && alert.status !== "closed")
+    .map((alert) => {
+      const device = assetStore.devices.find((item) => item.id === alert.deviceId);
+      const rack = roomStore.racks.find((item) => item.id === device?.rackId);
+      const room = roomStore.rooms.find((item) => item.id === rack?.roomId);
+      return { alert, device, rack, room };
+    })
+    .filter((item) => item.rack && selectedRackIds.has(item.rack.id))
+    .sort((first, second) => second.alert.startedAt.localeCompare(first.alert.startedAt));
 });
 watch(roomOptions, (rooms) => {
   if (!selectedRoomId.value && rooms.length > 0) {
@@ -157,6 +171,7 @@ function selectRack(rack: Rack) {
   selectedRack.value = rack;
   selectedDeviceId.value = null;
   detailOpen.value = true;
+  alertSummaryOpen.value = false;
 }
 
 function openDeviceEditor(device: Device) {
@@ -172,6 +187,16 @@ function selectDeviceFromRack(device: Device) {
   }
   detailOpen.value = false;
   openDeviceEditor(device);
+}
+
+async function locateAlertItem(item: (typeof currentAlertItems.value)[number]) {
+  if (item.room) selectedRoomId.value = item.room.id;
+  await nextTick();
+  selectedRack.value = item.rack ?? null;
+  selectedDeviceId.value = item.device?.id ?? null;
+  viewMode.value = "u-view";
+  detailOpen.value = false;
+  alertSummaryOpen.value = false;
 }
 
 async function saveDevice(device: Device) {
@@ -516,11 +541,63 @@ async function restoreRackItem(itemId: string) {
         <strong>{{ overviewMetrics.currentDevices }}</strong>
         <span>当前设备</span>
       </div>
-      <div>
+      <div
+        class="metric-clickable"
+        role="button"
+        tabindex="0"
+        aria-label="当前报警"
+        @click="alertSummaryOpen = !alertSummaryOpen"
+        @keydown.enter.prevent="alertSummaryOpen = !alertSummaryOpen"
+        @keydown.space.prevent="alertSummaryOpen = !alertSummaryOpen"
+      >
         <strong>{{ overviewMetrics.currentAlerts }}</strong>
         <span>当前报警</span>
       </div>
     </div>
+
+    <div
+      v-if="alertSummaryOpen"
+      class="context-backdrop"
+      @click="alertSummaryOpen = false"
+    />
+    <aside
+      v-if="alertSummaryOpen"
+      class="alert-summary-popover"
+      role="dialog"
+      aria-label="当前报警汇总"
+      @click.stop
+    >
+      <header>
+        <div>
+          <p class="eyebrow">Alert Summary</p>
+          <h3>当前报警汇总</h3>
+        </div>
+        <button type="button" @click="alertSummaryOpen = false">关闭</button>
+      </header>
+      <p class="alert-summary-stat">
+        活动告警 {{ currentAlertItems.length }} 条，严重
+        {{ currentAlertItems.filter((item) => item.alert.level === "critical").length }}
+        条。
+      </p>
+      <div class="alert-summary-list">
+        <article v-for="item in currentAlertItems.slice(0, 12)" :key="item.alert.id">
+          <div>
+            <strong>{{ item.alert.title }}</strong>
+            <span>
+              {{ item.device?.computerName || item.device?.name || "未知设备" }}
+              / {{ item.device?.businessIp || "无业务IP" }}
+            </span>
+            <small>{{ item.rack?.name || "-" }} / {{ item.device?.startU }}U-{{ item.device?.endU }}U</small>
+          </div>
+          <button type="button" @click="locateAlertItem(item)">
+            定位告警设备
+          </button>
+        </article>
+        <p v-if="currentAlertItems.length === 0" class="restore-empty">
+          当前机房暂无活动告警。
+        </p>
+      </div>
+    </aside>
 
     <div
       v-if="roomStore.loading || assetStore.loading || alertStore.loading"
@@ -881,6 +958,103 @@ async function restoreRackItem(itemId: string) {
 
 .overview-metrics span {
   color: var(--color-text-muted);
+}
+
+.metric-clickable {
+  cursor: pointer;
+}
+
+.metric-clickable:hover,
+.metric-clickable:focus-visible {
+  border-color: rgba(14, 165, 233, 0.56);
+  outline: none;
+  box-shadow:
+    var(--shadow-soft),
+    0 0 0 2px rgba(14, 165, 233, 0.12);
+}
+
+.alert-summary-popover {
+  position: fixed;
+  right: 34px;
+  top: 190px;
+  z-index: 82;
+  width: min(460px, calc(100vw - 40px));
+  display: grid;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  color: var(--color-text);
+  background: var(--surface-raised);
+  box-shadow: 0 22px 62px rgba(15, 23, 42, 0.18);
+}
+
+.alert-summary-popover header {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.alert-summary-popover h3,
+.alert-summary-popover p {
+  margin: 0;
+}
+
+.alert-summary-popover button {
+  min-height: 30px;
+  padding: 0 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  color: var(--color-text);
+  background: var(--control-bg);
+  cursor: pointer;
+}
+
+.alert-summary-stat {
+  padding: 9px 10px;
+  border: 1px solid rgba(239, 68, 68, 0.24);
+  border-radius: 8px;
+  color: var(--color-text-muted);
+  background: color-mix(in srgb, var(--color-critical) 8%, var(--color-panel));
+}
+
+.alert-summary-list {
+  display: grid;
+  gap: 8px;
+  max-height: 360px;
+  overflow: auto;
+}
+
+.alert-summary-list article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 10px;
+  align-items: center;
+  padding: 10px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-panel);
+}
+
+.alert-summary-list article > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.alert-summary-list strong,
+.alert-summary-list span,
+.alert-summary-list small {
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.alert-summary-list span,
+.alert-summary-list small {
+  color: var(--color-text-muted);
+  font-size: 12px;
 }
 
 .overview-grid {

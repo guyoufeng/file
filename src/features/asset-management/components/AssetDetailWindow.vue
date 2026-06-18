@@ -31,6 +31,7 @@ const props = defineProps<{
 
 const emit = defineEmits<{
   close: [];
+  edit: [device: Device];
 }>();
 
 const activeTab = ref<DetailTab>("detail");
@@ -243,7 +244,10 @@ function buildQrCells(value: string) {
         <h3>{{ deviceName }}</h3>
         <span>{{ device.businessIp || "无业务IP" }} / {{ rack?.name || "未绑定机柜" }}</span>
       </div>
-      <button type="button" @click="emit('close')">关闭</button>
+      <div class="header-actions">
+        <button type="button" @click="emit('edit', device)">修改</button>
+        <button type="button" @click="emit('close')">关闭</button>
+      </div>
     </header>
 
     <nav class="detail-tabs" aria-label="资产详情页签">
@@ -444,6 +448,12 @@ header {
 header > div {
   display: grid;
   gap: 4px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+  cursor: default;
 }
 
 .eyebrow,

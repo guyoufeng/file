@@ -1,0 +1,5 @@
+name: qf-dcim-bridge
+version: "0.1.0"
+description: "Forward Hermes Gateway messages from Weixin/WeCom/DingTalk into QF AI DCIM Agent API."
+hooks:
+  - pre_gateway_dispatch

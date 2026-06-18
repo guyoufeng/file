@@ -20,12 +20,24 @@ export interface AlertWebhookInput {
 
 export interface IncomingAlertPayload {
   hostname?: string;
+  hostName?: string;
+  deviceName?: string;
+  monitorName?: string;
+  resourceName?: string;
+  displayName?: string;
   ip?: string;
+  ipAddress?: string;
+  address?: string;
   title?: string;
+  subject?: string;
   message?: string;
+  alertMessage?: string;
+  description?: string;
   severity?: string;
+  priority?: string;
   status?: string;
   startedAt?: string;
+  [key: string]: unknown;
 }
 
 const WEBHOOK_KEY = "qf-ai-dcim.alertWebhooks";
@@ -112,9 +124,43 @@ function webhookUrl(token: string, baseUrl = getAlertWebhookPublicBaseUrl()) {
 
 function normalizeLevel(severity?: string): AlertLevel {
   const value = severity?.toLowerCase() ?? "";
-  if (/critical|严重|fatal|high/.test(value)) return "critical";
+  if (/critical|严重|fatal|high|高/.test(value)) return "critical";
   if (/warning|warn|告警|中/.test(value)) return "warning";
   return "info";
+}
+
+function pickText(payload: IncomingAlertPayload, keys: string[]): string | undefined {
+  for (const key of keys) {
+    const value = payload[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+    if (typeof value === "number") return String(value);
+  }
+  return undefined;
+}
+
+export function normalizeIncomingAlertPayload(payload: IncomingAlertPayload): IncomingAlertPayload {
+  const hostname = pickText(payload, [
+    "hostname",
+    "hostName",
+    "deviceName",
+    "monitorName",
+    "resourceName",
+    "displayName",
+    "name",
+  ]);
+  const ip = pickText(payload, ["ip", "ipAddress", "address", "hostIp", "deviceIp"]);
+  const title = pickText(payload, ["title", "subject", "monitorName", "alertName"]);
+  const message = pickText(payload, ["message", "alertMessage", "description", "content", "details"]);
+  const severity = pickText(payload, ["severity", "priority", "level", "alertLevel"]);
+
+  return {
+    ...payload,
+    hostname,
+    ip,
+    title,
+    message,
+    severity,
+  };
 }
 
 export function getAlertWebhooks(): AlertWebhook[] {
@@ -145,16 +191,17 @@ export function deleteAlertWebhook(id: string) {
 }
 
 export function testAlertWebhookPayload(input: IncomingAlertPayload): IncomingAlertPayload {
-  return input;
+  return normalizeIncomingAlertPayload(input);
 }
 
 export function ingestWebhookAlert(
   token: string,
-  payload: IncomingAlertPayload,
+  input: IncomingAlertPayload,
   devices: Device[],
 ): Alert | null {
   const webhook = getAlertWebhooks().find((item) => item.token === token && item.enabled);
   if (!webhook) return null;
+  const payload = normalizeIncomingAlertPayload(input);
 
   const device = devices.find(
     (item) =>
@@ -164,18 +211,25 @@ export function ingestWebhookAlert(
       item.managementIp === payload.ip ||
       item.ips.includes(payload.ip ?? ""),
   );
-  if (!device) return null;
-
   const alert: Alert = {
     id: createId("alert-webhook-event"),
-    deviceId: device.id,
+    deviceId: device?.id ?? "",
     source: webhook.source,
     level: normalizeLevel(payload.severity),
     status: payload.status === "recovered" ? "recovered" : "unconfirmed",
     title: payload.title || payload.message || "Webhook 告警",
-    description: payload.message,
+    description: payload.message || payload.title,
     startedAt: payload.startedAt || new Date().toISOString(),
   };
   writeJson(ALERT_KEY, [alert, ...readJson<Alert[]>(ALERT_KEY, [])]);
   return alert;
+}
+
+export function mergeWebhookAlerts(current: Alert[], received: Alert[]): Alert[] {
+  const seen = new Set<string>();
+  return [...received, ...current].filter((alert) => {
+    if (seen.has(alert.id)) return false;
+    seen.add(alert.id);
+    return true;
+  });
 }

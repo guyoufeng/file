@@ -110,6 +110,28 @@ test("starts the app and navigates through v0.1 core pages", async ({
   await expect(page.getByRole("heading", { name: "系统设置" })).toBeVisible();
 });
 
+test("deep links load the expected core module pages", async ({ page }) => {
+  await loginAsAdmin(page);
+
+  const routes = [
+    { path: "rack-overview", heading: "机柜总览" },
+    { path: "assets", heading: "资产管理" },
+    { path: "virtual-servers", heading: "虚拟服务器管理" },
+    { path: "access-records", heading: "数据中心进出管理" },
+    { path: "changes", heading: "变更管理" },
+    { path: "connections", heading: "连线管理" },
+    { path: "alerts", heading: "告警中心" },
+    { path: "reports", heading: "报表中心" },
+    { path: "settings", heading: "系统设置" },
+  ];
+
+  for (const route of routes) {
+    await page.goto(`/#/${route.path}`);
+    await expect(page).toHaveURL(new RegExp(route.path));
+    await expect(page.getByRole("heading", { name: route.heading })).toBeVisible();
+  }
+});
+
 test("asset import replace mode is opt-in", async ({ page }) => {
   await loginAsAdmin(page);
   await page.goto("/#/assets");
@@ -117,6 +139,48 @@ test("asset import replace mode is opt-in", async ({ page }) => {
 
   const replaceCheckbox = page.getByLabel("清空当前设备后导入这份 Excel");
   await expect(replaceCheckbox).not.toBeChecked();
+});
+
+test("column settings popover closes when clicking outside", async ({ page }) => {
+  await loginAsAdmin(page);
+  await page.goto("/#/assets");
+
+  await page.getByRole("button", { name: "列设置" }).click();
+  await expect(page.getByText("表格列")).toBeVisible();
+  await page.getByRole("heading", { name: "资产管理" }).click();
+  await expect(page.getByText("表格列")).toHaveCount(0);
+});
+
+test("asset detail window exposes the same edit form as table edit action", async ({ page }) => {
+  await loginAsAdmin(page);
+  await page.goto("/#/assets");
+
+  await page.getByRole("button", { name: /查看 QF-SRV-001 资产详情/ }).click();
+  await expect(page.getByRole("dialog", { name: /资产详情 QF-SRV-001/ })).toBeVisible();
+  await page.getByRole("button", { name: "修改" }).click();
+  await expect(page.getByRole("heading", { name: "编辑设备" })).toBeVisible();
+  await expect(page.getByLabel("计算机名")).toHaveValue("QF-SRV-001");
+  await page.getByRole("button", { name: "关闭" }).click();
+
+  await page.getByRole("button", { name: "编辑" }).first().click();
+  await expect(page.getByRole("heading", { name: "编辑设备" })).toBeVisible();
+  await expect(page.getByLabel("计算机名")).toHaveValue("QF-SRV-001");
+});
+
+test("current alert metric opens a summary popover and locates alert device", async ({
+  page,
+}) => {
+  await loginAsAdmin(page);
+  await page.goto("/#/rack-overview");
+
+  await page.locator(".overview-metrics div", { hasText: "当前报警" }).click();
+  await expect(page.getByRole("dialog", { name: "当前报警汇总" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "当前报警汇总" })).toContainText("活动告警");
+  await page.getByRole("button", { name: /定位告警设备/ }).first().click();
+  await expect(page.getByTestId("location-focus-banner")).toContainText("已定位");
+
+  await page.locator(".page-header").click({ position: { x: 8, y: 8 } });
+  await expect(page.getByRole("dialog", { name: "当前报警汇总" })).toHaveCount(0);
 });
 
 test("room context menu supports renaming an existing room", async ({ page }) => {

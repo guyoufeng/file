@@ -597,4 +597,200 @@ describe("ai tools", () => {
     expect(connectionResult.answer).toContain("SW-529-A1");
     expect(connectionResult.answer).toContain("GE1/0/11");
   });
+
+  it("lists recent access records when the user asks what access records exist", () => {
+    const result = runDeterministicAiQuery(
+      "查看下现在有哪些进出管理的信息",
+      sampleProject.rooms,
+      sampleProject.racks,
+      sampleProject.devices,
+      sampleProject.alerts,
+      [],
+      [],
+      [
+        {
+          id: "access-1",
+          date: "2026-06-04",
+          unit: "保洁公司",
+          visitorName: "王师傅",
+          enterTime: "15:00",
+          leaveTime: "16:00",
+          reason: "529机房保洁打扫卫生",
+          isServerRepair: false,
+          faultDescription: "",
+          result: "已完成",
+          attachments: [],
+          createdAt: "2026-06-04T15:00:00+08:00",
+          updatedAt: "2026-06-04T16:00:00+08:00",
+        },
+      ],
+      [],
+      [],
+    );
+
+    expect(result.toolName).toBe("search_access_records");
+    expect(result.answer).toContain("进出记录");
+    expect(result.answer).toContain("保洁公司");
+    expect(result.answer).toContain("529机房保洁打扫卫生");
+  });
+
+  it("answers access record count questions from the access management module", () => {
+    const result = runDeterministicAiQuery(
+      "查看下数据中心运维平台有多少进出管理的数据",
+      sampleProject.rooms,
+      sampleProject.racks,
+      sampleProject.devices,
+      sampleProject.alerts,
+      [],
+      [],
+      [
+        {
+          id: "access-count-1",
+          date: "2026-06-04",
+          unit: "保洁公司",
+          visitorName: "王师傅",
+          enterTime: "15:00",
+          leaveTime: "16:00",
+          reason: "529机房保洁打扫卫生",
+          isServerRepair: false,
+          faultDescription: "",
+          result: "已完成",
+          attachments: [],
+          createdAt: "2026-06-04T15:00:00+08:00",
+          updatedAt: "2026-06-04T16:00:00+08:00",
+        },
+        {
+          id: "access-count-2",
+          date: "2026-06-05",
+          unit: "供应商",
+          visitorName: "李工",
+          enterTime: "09:00",
+          leaveTime: "10:00",
+          reason: "服务器巡检",
+          isServerRepair: true,
+          faultDescription: "例行检查",
+          result: "正常",
+          attachments: [],
+          createdAt: "2026-06-05T09:00:00+08:00",
+          updatedAt: "2026-06-05T10:00:00+08:00",
+        },
+      ],
+      [],
+      [],
+    );
+
+    expect(result.toolName).toBe("search_access_records");
+    expect(result.answer).toContain("进出记录");
+    expect(result.answer).toContain("2 条");
+    expect(result.answer).toContain("保洁公司");
+    expect(result.answer).toContain("供应商");
+  });
+
+  it("lists recent change records when the user asks what change records exist", () => {
+    const result = runDeterministicAiQuery(
+      "看下平台里面的变更记录现在有哪些信息",
+      sampleProject.rooms,
+      sampleProject.racks,
+      sampleProject.devices,
+      sampleProject.alerts,
+      [],
+      [],
+      [],
+      [
+        {
+          id: "change-list-1",
+          title: "QF-SRV-001 增加内存条",
+          type: "maintenance",
+          status: "completed",
+          roomId: "room-nj-529",
+          roomName: "529数据中心",
+          rackId: "rack-529-a1",
+          rackName: "529-A1",
+          deviceId: "dev-001",
+          deviceName: "QF-SRV-001",
+          businessIp: "10.10.0.21",
+          operator: "admin",
+          changedAt: "2026-06-05T15:00:00+08:00",
+          content: "供应商到机房完成内存扩容。",
+          impact: "无业务中断",
+          result: "完成验证",
+          attachments: [],
+        },
+      ],
+      [],
+    );
+
+    expect(result.toolName).toBe("search_change_events");
+    expect(result.answer).toContain("匹配变更记录");
+    expect(result.answer).toContain("QF-SRV-001 增加内存条");
+    expect(result.answer).toContain("供应商到机房完成内存扩容");
+  });
+
+  it("answers platform module list questions for assets virtual servers and changes", () => {
+    const deviceResult = runDeterministicAiQuery(
+      "资产管理现在有哪些数据",
+      sampleProject.rooms,
+      sampleProject.racks,
+      sampleProject.devices.slice(0, 3),
+      sampleProject.alerts,
+    );
+    const virtualResult = runDeterministicAiQuery(
+      "虚拟服务器管理现在有多少数据",
+      sampleProject.rooms,
+      sampleProject.racks,
+      sampleProject.devices,
+      sampleProject.alerts,
+      [
+        {
+          id: "vm-count-1",
+          name: "MES-APP-01",
+          platform: "ZStack",
+          businessIp: "192.168.129.51",
+          os: "Linux",
+          purpose: "MES应用",
+          owner: "张文军",
+          hostDeviceName: "QF-SRV-001",
+          status: "running",
+        },
+      ],
+    );
+    const changeResult = runDeterministicAiQuery(
+      "变更管理现在有多少数据",
+      sampleProject.rooms,
+      sampleProject.racks,
+      sampleProject.devices,
+      sampleProject.alerts,
+      [],
+      [],
+      [],
+      [
+        {
+          id: "change-count-1",
+          title: "服务器增加内存",
+          type: "maintenance",
+          status: "completed",
+          roomId: "room-nj-529",
+          roomName: "529数据中心",
+          rackId: "rack-529-a1",
+          rackName: "529-A1",
+          deviceId: "dev-001",
+          deviceName: "QF-SRV-001",
+          businessIp: "10.10.0.21",
+          operator: "admin",
+          changedAt: "2026-06-05T15:00:00+08:00",
+          content: "增加内存条。",
+          impact: "",
+          result: "完成",
+          attachments: [],
+        },
+      ],
+    );
+
+    expect(deviceResult.toolName).toBe("search_devices");
+    expect(deviceResult.answer).toContain("匹配设备");
+    expect(virtualResult.toolName).toBe("search_virtual_servers");
+    expect(virtualResult.answer).toContain("MES-APP-01");
+    expect(changeResult.toolName).toBe("search_change_events");
+    expect(changeResult.answer).toContain("服务器增加内存");
+  });
 });

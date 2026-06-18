@@ -61,6 +61,10 @@ watch(
     if (!device || !rackElement) return;
     const scrollContainer = rackElement.closest(".rack-u-scroll");
     if (!(scrollContainer instanceof HTMLElement)) return;
+    if (rackElement instanceof HTMLElement) {
+      scrollContainer.scrollLeft =
+        rackElement.offsetLeft - scrollContainer.clientWidth / 2 + rackElement.clientWidth / 2;
+    }
 
     const unitHeight = Math.round(13 * zoom.value);
     scrollContainer.scrollTop = computeDeviceCenterScrollTop({

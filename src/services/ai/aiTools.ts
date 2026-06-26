@@ -6,6 +6,7 @@ import type { ManagedConnection } from "../../features/connection-manager/connec
 import {
   formatAccessRecordSearchAnswer,
   formatActiveAlertDevicesAnswer,
+  formatAlertCenterSearchAnswer,
   formatAuditLogSearchAnswer,
   formatDeviceAlertsAnswer,
   formatDeviceLocationAnswer,
@@ -30,6 +31,7 @@ export type AiToolName =
   | "list_rack_devices"
   | "list_room_devices"
   | "list_alert_devices"
+  | "search_alerts"
   | "search_virtual_servers"
   | "search_audit_logs"
   | "search_access_records"
@@ -282,6 +284,11 @@ export function runDeterministicAiQuery(
   const ip = question.match(/\b\d{1,3}(?:\.\d{1,3}){3}\b/)?.[0];
   const ipPrefix = question.match(/\b\d{1,3}(?:\.\d{1,3}){2}\b/)?.[0];
   const asksAlert = /告警|报警|异常|故障/.test(question);
+  const asksAlertCenter =
+    /告警中心|报警中心|告警管理|报警管理|告警记录|报警记录/.test(question) ||
+    (asksAlert &&
+      /多少|几条|数据|信息|列表|记录/.test(question) &&
+      !/服务器|设备|机柜|哪台|哪个|排行|最多/.test(question));
   const asksAlertDetail =
     asksAlert || /处理方法|处理状态|处理到|解决方法|解决方案|附件|照片/.test(question);
   const asksAlertRanking =
@@ -290,7 +297,9 @@ export function runDeterministicAiQuery(
   const asksVirtualServer = /虚拟机|虚拟服务器|云主机|vm|VM|zstack|ZStack|宿主/.test(question);
   const asksAuditLog = /审计|操作记录|日志|历史记录|谁|导入记录|查询记录|修改记录/.test(question);
   const asksAccessRecord = /进出|进入|离开|访客|维修记录|维修历史|维保记录|入场|出场|来过|谁来|维修/.test(question);
+  const asksAccessModule = /进出管理|进出记录|出入管理|出入记录|入场记录|访客记录/.test(question);
   const asksChangeEvent = /变更|上架|下架|接线调整|调整接线|更换|安装|配置修改|改过|做过哪些|操作过/.test(question);
+  const asksChangeModule = /变更管理|变更记录|变更列表/.test(question);
   const asksConnection = /连线|接线|端口|交换机|网线|光纤|线缆|接在哪|连接到|对端/.test(question);
   const asksMissingField = /没有|缺少|为空|未填/.test(question);
   const missingFieldRules = [
@@ -377,6 +386,15 @@ export function runDeterministicAiQuery(
     };
   }
 
+  if (asksAlertCenter && !ip) {
+    return {
+      toolName: "search_alerts",
+      answer:
+        formatAlertCenterSearchAnswer(rooms, racks, devices, alerts) +
+        sourceFooter({ label: "告警中心、资产库、机柜库", queriedAt }),
+    };
+  }
+
   if (asksAccessRecord) {
     const relatedDevice = ip
       ? devices.find(
@@ -390,6 +408,7 @@ export function runDeterministicAiQuery(
       .replace(/最近|查询|查下|查一下|查看|看下|看一下|搜索|有没有|数据中心|机房|进出|进入|离开|访客|维修记录|维修历史|维保记录|入场|出场|来过|谁来|维修|记录|的|吗|？|\?/g, " ")
       .trim();
     const asksRecentList =
+      asksAccessModule ||
       /有哪些.*(进出|进入|离开|访客|维修)|多少.*进出|几条.*进出|进出管理.*(信息|记录|列表|数据)|进出.*(信息|记录|列表|数据)|当前.*进出|现在.*进出/.test(
         question,
       );
@@ -429,6 +448,7 @@ export function runDeterministicAiQuery(
       .replace(/最近|查询|查下|查一下|查看|看下|看一下|搜索|有没有|哪些|做过|变更|变更记录|上架|下架|接线调整|调整接线|更换|安装|配置修改|改过|的|吗|？|\?/g, " ")
       .trim();
     const asksRecentList =
+      asksChangeModule ||
       /有哪些.*(变更|上架|下架|接线|维修)|多少.*变更|几条.*变更|变更管理.*(信息|记录|列表|数据)|变更记录.*(信息|记录|列表|数据)|当前.*变更|现在.*变更/.test(
         question,
       );

@@ -793,4 +793,156 @@ describe("ai tools", () => {
     expect(changeResult.toolName).toBe("search_change_events");
     expect(changeResult.answer).toContain("服务器增加内存");
   });
+
+  it("lists access records when the user only names access management", () => {
+    const result = runDeterministicAiQuery(
+      "查看进出管理",
+      sampleProject.rooms,
+      sampleProject.racks,
+      sampleProject.devices,
+      sampleProject.alerts,
+      [],
+      [],
+      [
+        {
+          id: "access-module-old",
+          date: "2026-06-04",
+          unit: "保洁公司",
+          visitorName: "王师傅",
+          enterTime: "15:00",
+          leaveTime: "16:00",
+          reason: "529机房保洁打扫卫生",
+          isServerRepair: false,
+          faultDescription: "",
+          result: "已完成",
+          attachments: [],
+          createdAt: "2026-06-04T15:00:00+08:00",
+          updatedAt: "2026-06-04T16:00:00+08:00",
+        },
+        {
+          id: "access-module-new",
+          date: "2026-06-06",
+          unit: "维保供应商",
+          visitorName: "李工",
+          enterTime: "09:30",
+          leaveTime: "",
+          reason: "服务器硬件巡检",
+          isServerRepair: true,
+          faultDescription: "检查硬盘告警",
+          result: "处理中",
+          attachments: [],
+          createdAt: "2026-06-06T09:30:00+08:00",
+          updatedAt: "2026-06-06T09:30:00+08:00",
+        },
+      ],
+      [],
+      [],
+    );
+
+    expect(result.toolName).toBe("search_access_records");
+    expect(result.answer).toContain("匹配进出记录：2 条");
+    expect(result.answer.indexOf("维保供应商")).toBeLessThan(result.answer.indexOf("保洁公司"));
+  });
+
+  it("lists change records when the user only names change management", () => {
+    const result = runDeterministicAiQuery(
+      "查看变更管理",
+      sampleProject.rooms,
+      sampleProject.racks,
+      sampleProject.devices,
+      sampleProject.alerts,
+      [],
+      [],
+      [],
+      [
+        {
+          id: "change-module-old",
+          title: "QF-SRV-001 下架旧网线",
+          type: "connection",
+          status: "completed",
+          roomId: "room-nj-529",
+          roomName: "529数据中心",
+          rackId: "rack-529-a1",
+          rackName: "529-A1",
+          deviceId: "dev-001",
+          deviceName: "QF-SRV-001",
+          businessIp: "10.10.0.21",
+          operator: "admin",
+          changedAt: "2026-06-04T15:00:00+08:00",
+          content: "下架旧网线并完成标签更新。",
+          impact: "无",
+          result: "完成",
+          attachments: [],
+        },
+        {
+          id: "change-module-new",
+          title: "QF-SRV-002 增加内存条",
+          type: "maintenance",
+          status: "completed",
+          roomId: "room-nj-529",
+          roomName: "529数据中心",
+          rackId: "rack-529-a1",
+          rackName: "529-A1",
+          deviceId: "dev-002",
+          deviceName: "QF-SRV-002",
+          businessIp: "10.10.0.22",
+          operator: "admin",
+          changedAt: "2026-06-06T10:00:00+08:00",
+          content: "供应商完成内存扩容。",
+          impact: "重启一次",
+          result: "完成验证",
+          attachments: [],
+        },
+      ],
+      [],
+    );
+
+    expect(result.toolName).toBe("search_change_events");
+    expect(result.answer).toContain("匹配变更记录：2 条");
+    expect(result.answer.indexOf("QF-SRV-002 增加内存条")).toBeLessThan(
+      result.answer.indexOf("QF-SRV-001 下架旧网线"),
+    );
+  });
+
+  it("answers alert center record questions including unmatched webhook alerts", () => {
+    const matchedDevice = sampleProject.devices[0];
+    const alerts = [
+      {
+        id: "alert-center-matched",
+        deviceId: matchedDevice.id,
+        source: "zoho" as const,
+        level: "critical" as const,
+        status: "acknowledged" as const,
+        title: "服务器硬盘故障",
+        description: "RAID 阵列降级",
+        startedAt: "2026-06-06T10:00:00+08:00",
+      },
+      {
+        id: "alert-center-unmatched",
+        deviceId: "",
+        source: "zoho" as const,
+        level: "info" as const,
+        status: "unconfirmed" as const,
+        title: "卓豪测试报警",
+        description: "测试报警",
+        startedAt: "2026-06-06T11:00:00+08:00",
+      },
+    ];
+
+    const result = runDeterministicAiQuery(
+      "告警中心现在有哪些数据，有多少条报警？",
+      sampleProject.rooms,
+      sampleProject.racks,
+      sampleProject.devices,
+      alerts,
+    );
+
+    expect(result.toolName).toBe("search_alerts");
+    expect(result.answer).toContain("告警中心记录：2 条");
+    expect(result.answer).toContain("活动告警：2 条");
+    expect(result.answer).toContain("严重：1 条");
+    expect(result.answer).toContain("未匹配设备");
+    expect(result.answer).toContain("卓豪测试报警");
+    expect(result.answer).toContain(matchedDevice.computerName!);
+  });
 });

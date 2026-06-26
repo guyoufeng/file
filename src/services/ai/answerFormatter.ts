@@ -399,6 +399,51 @@ export function formatActiveAlertDevicesAnswer(
   ].join("\n");
 }
 
+export function formatAlertCenterSearchAnswer(
+  rooms: Room[],
+  racks: Rack[],
+  devices: Device[],
+  alerts: Alert[],
+): string {
+  if (alerts.length === 0) {
+    return "告警中心暂无告警记录。";
+  }
+
+  const activeAlerts = alerts.filter((alert) => alert.status !== "recovered");
+  const criticalCount = alerts.filter((alert) => alert.level === "critical").length;
+  const warningCount = alerts.filter((alert) => alert.level === "warning").length;
+  const infoCount = alerts.filter((alert) => alert.level === "info").length;
+  const deviceById = new Map(devices.map((device) => [device.id, device]));
+  const orderedAlerts = [...alerts].sort((first, second) =>
+    second.startedAt.localeCompare(first.startedAt),
+  );
+
+  return [
+    `告警中心记录：${alerts.length} 条`,
+    `活动告警：${activeAlerts.length} 条`,
+    `级别统计：严重：${criticalCount} 条 / 警告：${warningCount} 条 / 提示：${infoCount} 条`,
+    "",
+    ...orderedAlerts.slice(0, 20).map((alert, index) => {
+      const device = deviceById.get(alert.deviceId);
+      return [
+        `${index + 1}. ${alert.title}`,
+        `级别：${alertLevelLabel(alert.level)}`,
+        `状态：${getAlertStatusLabel(alert.status)}`,
+        `来源：${alert.source}`,
+        `时间：${alert.startedAt}`,
+        `设备：${device ? device.computerName || device.name : "未匹配设备"}`,
+        `位置：${device ? findDeviceLocation(device, racks, rooms) : "-"}`,
+        `描述：${alert.description || "-"}`,
+      ].join(" / ");
+    }),
+    alerts.length > 20
+      ? `仅展示前 20 条，剩余 ${alerts.length - 20} 条可继续缩小条件查询。`
+      : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
+}
+
 export function formatDeviceAlertsAnswer(
   device: Device,
   rooms: Room[],

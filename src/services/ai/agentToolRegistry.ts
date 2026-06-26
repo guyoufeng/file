@@ -55,6 +55,15 @@ export const qfAgentTools: QfAgentToolDefinition[] = [
     },
   },
   {
+    name: "search_alerts",
+    label: "告警中心查询",
+    description: "查询告警中心记录总数、活动告警、级别统计、未匹配 webhook 告警和告警明细。",
+    readonly: true,
+    inputSchema: {
+      query: "告警中心、告警记录、报警数据或自然语言问题。",
+    },
+  },
+  {
     name: "search_virtual_servers",
     label: "虚拟服务器查询",
     description: "查询虚拟机、云主机、ZStack 虚拟服务器及宿主物理机关系。",
